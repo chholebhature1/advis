@@ -5,6 +5,8 @@ import { ArrowUpRight, CalendarClock, CircleDashed, FileText, ShieldCheck, Spark
 import SiteHeader from "@/components/SiteHeader";
 import AllocationChart from "@/components/AllocationChart";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 type UserData = {
   name: string;
   financialGoal: string;
@@ -95,7 +97,6 @@ export default function Dashboard() {
       : "text-finance-accent bg-finance-accent/20";
 
   const weeklyChange = 0.9;
-  const monthlyChange = 2.8;
   const benchmarkGap = 0.6;
 
   const changedRecently = [

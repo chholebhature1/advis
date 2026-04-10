@@ -1,33 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --background: #070b18;
-  --foreground: #eef0ff;
+  --background: #ffffff;
+  --foreground: #0a1930;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-finance-bg: #070b18;
-  --color-finance-surface: #151a2a;
-  --color-finance-panel: #191f32;
-  --color-finance-panel-2: #1f2540;
-  --color-finance-border: #2a3148;
-  --color-finance-border-soft: #353d58;
-  --color-finance-green: #4ee7bf;
+  --color-finance-bg: #ffffff;
+  --color-finance-surface: #f0f7ff;
+  --color-finance-panel: #ffffff;
+  --color-finance-panel-2: #e0f0ff;
+  --color-finance-border: #d0e3ff;
+  --color-finance-border-soft: #e6f0ff;
+  --color-finance-green: #00e0ff;
   --color-finance-red: #ef4444;
-  --color-finance-accent: #8f91ff;
-  --color-finance-text: #eef0ff;
-  --color-finance-muted: #a3abc9;
-  --color-finance-dim: #6f7899;
+  --color-finance-accent: #2b5cff;
+  --color-finance-text: #0a1930;
+  --color-finance-muted: #5a6b8a;
+  --color-finance-dim: #8a9bb0;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: radial-gradient(circle at 50% -10%, rgba(108, 114, 255, 0.2), transparent 35%),
-    linear-gradient(180deg, #080b18 0%, #060914 55%, #050710 100%);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
 }

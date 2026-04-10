@@ -26,7 +26,7 @@ export default function OnboardingPage() {
             </div>
             <div className="rounded-xl border border-finance-border/70 bg-finance-surface/70 p-4">
               <p className="text-sm italic text-finance-muted">
-                "True wealth is the ability to fully experience life on your own terms."
+                &quot;True wealth is the ability to fully experience life on your own terms.&quot;
               </p>
               <p className="mt-2 text-xs text-finance-text font-semibold">Marcus V., Chief Strategist</p>
             </div>
