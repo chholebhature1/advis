@@ -170,7 +170,19 @@ export default function SiteHeader() {
           </div>
 
           {/* Right side: CTA */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/login"
+              className="hidden sm:inline-flex items-center rounded-full border border-finance-border bg-white/80 text-finance-text font-semibold hover:bg-white"
+              style={{
+                fontSize: scrolled ? "12px" : "13px",
+                padding: scrolled ? "6px 12px" : "8px 14px",
+                transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            >
+              Login
+            </Link>
+
             <Link
               href="/onboarding"
               className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"

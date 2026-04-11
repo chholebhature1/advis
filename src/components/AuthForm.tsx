@@ -1,0 +1,184 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+
+type AuthMode = "signin" | "signup";
+
+type AuthFormProps = {
+  mode: AuthMode;
+};
+
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export default function AuthForm({ mode }: AuthFormProps) {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
+  const isSignUp = mode === "signup";
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!normalizedEmail || !normalizedEmail.includes("@") || !normalizedEmail.includes(".")) {
+      setError("Please provide a valid email address.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (isSignUp && password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+
+      if (isSignUp) {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+        });
+
+        if (signUpError) {
+          throw signUpError;
+        }
+
+        if (data.session) {
+          router.push("/dashboard");
+          router.refresh();
+          return;
+        }
+
+        setMessage("Account created. Verify your email, then sign in.");
+        setPassword("");
+        setConfirmPassword("");
+        return;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "Authentication failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="w-full max-w-md rounded-2xl border border-finance-border bg-finance-panel p-6 md:p-8 shadow-[0_20px_45px_rgba(43,92,255,0.08)]"
+    >
+      <p className="text-[11px] uppercase tracking-[0.16em] text-finance-muted">
+        {isSignUp ? "Create Account" : "Sign In"}
+      </p>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-finance-text">
+        {isSignUp ? "Start your Pravix account" : "Welcome back"}
+      </h1>
+      <p className="mt-2 text-sm text-finance-muted">
+        {isSignUp
+          ? "Create your account to save profiles and access your dashboard anytime."
+          : "Sign in to access your latest profile and planning inputs."}
+      </p>
+
+      <div className="mt-6 space-y-4">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-finance-text">Email</span>
+          <input
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="h-11 rounded-lg border border-finance-border px-3 text-finance-text bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
+            placeholder="you@example.com"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-finance-text">Password</span>
+          <input
+            type="password"
+            autoComplete={isSignUp ? "new-password" : "current-password"}
+            required
+            minLength={6}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="h-11 rounded-lg border border-finance-border px-3 text-finance-text bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
+            placeholder="Minimum 6 characters"
+          />
+        </label>
+
+        {isSignUp && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-finance-text">Confirm Password</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={6}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              className="h-11 rounded-lg border border-finance-border px-3 text-finance-text bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
+              placeholder="Re-enter password"
+            />
+          </label>
+        )}
+      </div>
+
+      {error && (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-finance-red/25 bg-finance-red/10 p-3 text-sm text-finance-red">
+          <AlertCircle className="mt-0.5 h-4 w-4" />
+          <p>{error}</p>
+        </div>
+      )}
+
+      {message && <p className="mt-4 text-sm text-finance-muted">{message}</p>}
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-finance-accent px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+      >
+        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {isSignUp ? "Create Account" : "Sign In"}
+      </button>
+
+      <p className="mt-4 text-center text-sm text-finance-muted">
+        {isSignUp ? "Already have an account? " : "Need an account? "}
+        <Link href={isSignUp ? "/sign-in" : "/create-account"} className="font-semibold text-finance-accent hover:underline">
+          {isSignUp ? "Sign in" : "Create one"}
+        </Link>
+      </p>
+    </form>
+  );
+}

@@ -1,4 +1,5 @@
 import OnboardingForm from "@/components/OnboardingForm";
+import OnboardingQuestionnairePlan from "@/components/OnboardingQuestionnairePlan";
 import SiteHeader from "@/components/SiteHeader";
 
 export default function OnboardingPage() {
@@ -16,6 +17,8 @@ export default function OnboardingPage() {
             </p>
           </div>
           <OnboardingForm />
+
+          <OnboardingQuestionnairePlan />
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-finance-border/70 bg-finance-surface/70 p-4">

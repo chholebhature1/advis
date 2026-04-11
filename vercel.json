@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/agent/alerts/daily",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
