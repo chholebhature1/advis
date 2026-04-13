@@ -38,7 +38,7 @@ import {
   YAxis,
 } from "recharts";
 import SiteHeader from "@/components/SiteHeader";
-import HeroPhoneMockup from "@/components/HeroPhoneMockup";
+import HeroPhoneMockup from "../components/HeroPhoneMockup";
 
 type LiveChartPoint = {
   label: string;
@@ -291,9 +291,9 @@ export default function Home() {
 
           <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-center gap-8 px-6 md:gap-10 md:px-10 lg:min-h-[calc(100vh-7rem)] lg:flex-row lg:items-center lg:gap-6 lg:px-14 xl:gap-10">
             {/* Left: Hero Content */}
-            <div className="relative z-20 -mt-8 flex w-full max-w-[38rem] flex-1 flex-col items-center text-center sm:-mt-10 md:-mt-12 lg:-mt-14 lg:items-start lg:text-left xl:-mt-16 2xl:-mt-20">
-              <div className="mb-8 flex w-full justify-center">
-                <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-50 shadow-sm backdrop-blur-md md:text-xs">
+            <div className="relative z-20 -mt-8 flex w-full max-w-[36rem] flex-1 flex-col items-center text-center sm:-mt-10 md:-mt-12 lg:-mt-14 lg:items-start lg:text-left xl:-mt-16 2xl:-mt-20">
+              <div className="mb-6 flex w-full justify-center">
+                <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-50 shadow-sm backdrop-blur-md md:text-xs">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00e0ff] opacity-75" />
                     <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#00e0ff]" />
@@ -303,53 +303,53 @@ export default function Home() {
               </div>
 
               {/* Glassmorphism brand box */}
-              <div className="group relative mb-10 flex w-full flex-col items-center justify-center overflow-hidden rounded-[2rem] border border-white/20 bg-gradient-to-b from-white/15 to-white/5 p-8 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl md:p-12">
+              <div className="group relative mb-8 flex w-full flex-col items-center justify-center overflow-hidden rounded-[2rem] border border-white/20 bg-gradient-to-b from-white/15 to-white/5 p-7 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl md:p-10">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.1),transparent_70%)]" />
                 <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#00e0ff]/15 blur-[80px]" />
 
                 <div className="relative z-10 flex w-full flex-col items-center justify-center">
                   <h1 className="m-0 flex w-full flex-col items-center justify-center text-center">
                     <span
-                      className="block w-full text-center text-[clamp(3.8rem,9vw,6.5rem)] font-bold leading-[0.85] tracking-tight text-white drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-colors duration-300"
+                      className="block w-full text-center text-[clamp(3.3rem,8.2vw,5.8rem)] font-bold leading-[0.85] tracking-tight text-white drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-colors duration-300"
                     >
                       Pravix
                     </span>
-                    <span className="mt-4 block w-full pl-1 text-center text-[clamp(0.75rem,1.8vw,1.1rem)] font-bold uppercase tracking-[0.45em] text-[#00e0ff] drop-shadow-[0_0_16px_rgba(0,224,255,0.78)]">
+                    <span className="mt-3 block w-full pl-1 text-center text-[clamp(0.75rem,1.7vw,1.05rem)] font-bold uppercase tracking-[0.42em] text-[#00e0ff] drop-shadow-[0_0_16px_rgba(0,224,255,0.78)]">
                       Wealth Management
                     </span>
                   </h1>
 
-                  <div className="mt-8 h-px w-2/3 max-w-[240px] bg-gradient-to-r from-transparent via-[#00e0ff]/60 to-transparent" />
+                  <div className="mt-6 h-px w-2/3 max-w-[220px] bg-gradient-to-r from-transparent via-[#00e0ff]/60 to-transparent" />
 
-                  <p className="mt-6 max-w-sm text-center text-xs font-medium uppercase leading-relaxed tracking-[0.05em] text-blue-50/90 md:text-[13px]">
+                  <p className="mt-4 max-w-sm text-center text-xs font-medium uppercase leading-snug tracking-[0.05em] text-blue-50/90 md:text-[13px]">
                     India&apos;s first goal-based AI wealth platform
                   </p>
                 </div>
               </div>
 
               <div className="flex w-full flex-col items-center text-center">
-                <h2 className="mb-5 text-2xl font-bold leading-tight tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] md:text-[2rem]">
+                <h2 className="mb-3 text-2xl font-bold leading-[1.15] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] md:text-[1.9rem]">
                   Powered by{" "}
-                  <span className="inline-flex items-center rounded-full bg-[linear-gradient(120deg,rgba(255,255,255,0.18),rgba(126,239,255,0.12))] px-3.5 py-1 text-[#c5f6ff] shadow-[0_8px_20px_rgba(0,216,255,0.18)]">
+                  <span className="inline-flex items-center rounded-full bg-[linear-gradient(120deg,rgba(255,255,255,0.18),rgba(126,239,255,0.12))] px-3 py-0.5 text-[#c5f6ff] shadow-[0_8px_20px_rgba(0,216,255,0.18)]">
                     Smart AI Insights
                   </span>
                 </h2>
 
-                <p className="mb-8 max-w-lg text-base font-medium leading-[1.7] text-blue-100/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] md:text-lg">
+                <p className="mb-6 max-w-[34rem] text-[15px] font-medium leading-[1.55] text-blue-100/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] md:text-base">
                   Share your goals and preferences, and Pravix will create a clear path to grow your wealth - simple, transparent, and built entirely for you.
                 </p>
 
-                <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
+                <div className="flex flex-col items-center justify-center gap-3.5 sm:flex-row">
                   <Link
                     href="/onboarding"
-                    className="group flex w-full items-center justify-center gap-3 rounded-full border border-[#9ab8ff]/35 bg-gradient-to-r from-[#2b5cff] to-[#2b5cff] px-9 py-4.5 text-base font-semibold text-white shadow-[0_8px_25px_rgba(43,92,255,0.42)] transition-all hover:-translate-y-0.5 hover:from-[#2a52e6] hover:to-[#1e44cd] hover:shadow-[0_12px_35px_rgba(43,92,255,0.58)] sm:w-auto"
+                    className="group flex w-full items-center justify-center gap-3 rounded-full border border-[#9ab8ff]/35 bg-gradient-to-r from-[#2b5cff] to-[#2b5cff] px-8 py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_25px_rgba(43,92,255,0.42)] transition-all hover:-translate-y-0.5 hover:from-[#2a52e6] hover:to-[#1e44cd] hover:shadow-[0_12px_35px_rgba(43,92,255,0.58)] sm:w-auto"
                   >
                     Get Personalized AI Insight
                     <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1.5" />
                   </Link>
                   <Link
                     href="/onboarding"
-                    className="group flex w-full items-center justify-center gap-3 rounded-full border-2 border-white/60 bg-transparent px-9 py-4 text-base font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10 sm:w-auto"
+                    className="group flex w-full items-center justify-center gap-3 rounded-full border-2 border-white/60 bg-transparent px-8 py-3.5 text-[15px] font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10 sm:w-auto"
                   >
                     Talk to Expert
                     <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1.5" />

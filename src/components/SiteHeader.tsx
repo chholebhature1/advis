@@ -9,8 +9,6 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 export default function SiteHeader() {
   const pathname = usePathname();
   const isOnboarding = pathname.startsWith("/onboarding");
-  const isAppShell = pathname.startsWith("/dashboard") || pathname.startsWith("/learn") || pathname.startsWith("/profile");
-  const isDashboard = pathname.startsWith("/dashboard");
 
   const [scrolled, setScrolled] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -105,27 +103,13 @@ export default function SiteHeader() {
   }
 
   /* ─── Nav Items ─── */
-  const baseNavItems = isDashboard
-    ? [
-        { label: "How It Works", href: "/#how-it-works" },
-        { label: "Dashboard", href: "/dashboard" },
-        { label: "Insights", href: "/#insights" },
-        { label: "Why Pravix", href: "/#why-goals" },
-        { label: "Contact", href: "/#contact" },
-      ]
-    : isAppShell
-      ? [
-          { label: "Products", href: "/" },
-          { label: "Learn", href: "/learn" },
-          { label: "Dashboard", href: "/dashboard" },
-        ]
-      : [
-          { label: "How It Works", href: "#how-it-works" },
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Insights", href: "#insights" },
-          { label: "Why Pravix", href: "#why-goals" },
-          { label: "Contact", href: "#contact" },
-        ];
+  const baseNavItems = [
+    { label: "How It Works", href: "/#how-it-works" },
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Insights", href: "/#insights" },
+    { label: "Why Pravix", href: "/#why-goals" },
+    { label: "Contact", href: "/#contact" },
+  ];
 
   const navItems = isAuthenticated && !baseNavItems.some((item) => item.href === "/profile")
     ? [...baseNavItems, { label: "Profile", href: "/profile" }]
