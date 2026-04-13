@@ -253,7 +253,7 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
                 className={`rounded-lg p-3 text-sm ${
                   message.role === "assistant"
                     ? "bg-white/95 text-finance-text shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_4px_14px_rgba(10,25,48,0.08)]"
-                    : "bg-finance-accent text-white shadow-[0_4px_14px_rgba(15,91,82,0.24)]"
+                    : "bg-finance-accent text-white shadow-[0_4px_14px_rgba(43,92,255,0.24)]"
                 }`}
               >
                 <p className={`text-[10px] uppercase tracking-[0.1em] ${message.role === "assistant" ? "text-finance-muted" : "text-white/80"}`}>
@@ -319,3 +319,4 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
     </DashboardSectionCard>
   );
 }
+

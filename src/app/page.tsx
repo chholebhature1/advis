@@ -107,7 +107,7 @@ const taxEfficiencyData = [
   { quarter: "Q4", used: 96, potential: 100 },
 ];
 
-const allocationColors = ["#2f7a70", "#b38a4a", "#86a9a3", "#6fa39a", "#ece6d8"];
+const allocationColors = ["#2b5cff", "#00d8ff", "#86a9a3", "#6fa39a", "#dce8ff"];
 
 const motionEase = [0.22, 1, 0.36, 1] as const;
 
@@ -281,7 +281,7 @@ export default function Home() {
               aria-hidden="true"
               className="absolute inset-0 bg-no-repeat"
               style={{
-                backgroundImage: "url('/image/hero-banner-1.jpg')",
+                backgroundImage: "url('/image/hero-banner-3.png')",
                 backgroundPosition: "center",
                 backgroundSize: "100% 100%",
               }}
@@ -314,7 +314,7 @@ export default function Home() {
                     >
                       Pravix
                     </span>
-                    <span className="mt-4 block w-full pl-1 text-center text-[clamp(0.75rem,1.8vw,1.1rem)] font-bold uppercase tracking-[0.45em] text-[#00e0ff] drop-shadow-[0_2px_8px_rgba(0,224,255,0.3)]">
+                    <span className="mt-4 block w-full pl-1 text-center text-[clamp(0.75rem,1.8vw,1.1rem)] font-bold uppercase tracking-[0.45em] text-[#00e0ff] drop-shadow-[0_0_16px_rgba(0,224,255,0.78)]">
                       Wealth Management
                     </span>
                   </h1>
@@ -330,7 +330,7 @@ export default function Home() {
               <div className="flex w-full flex-col items-center text-center">
                 <h2 className="mb-5 text-2xl font-bold leading-tight tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] md:text-[2rem]">
                   Powered by{" "}
-                  <span className="bg-gradient-to-r from-[#4f8aff] to-[#00e0ff] bg-clip-text text-transparent">
+                  <span className="inline-flex items-center rounded-full bg-[linear-gradient(120deg,rgba(255,255,255,0.18),rgba(126,239,255,0.12))] px-3.5 py-1 text-[#c5f6ff] shadow-[0_8px_20px_rgba(0,216,255,0.18)]">
                     Smart AI Insights
                   </span>
                 </h2>
@@ -342,7 +342,7 @@ export default function Home() {
                 <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
                   <Link
                     href="/onboarding"
-                    className="group flex w-full items-center justify-center gap-3 rounded-full border border-[#4f8aff]/30 bg-gradient-to-r from-[#2b5cff] to-[#1e4bff] px-9 py-4.5 text-base font-semibold text-white shadow-[0_8px_25px_rgba(43,92,255,0.4)] transition-all hover:-translate-y-0.5 hover:from-[#1e4bff] hover:to-[#0f3bf0] hover:shadow-[0_12px_35px_rgba(43,92,255,0.6)] sm:w-auto"
+                    className="group flex w-full items-center justify-center gap-3 rounded-full border border-[#9ab8ff]/35 bg-gradient-to-r from-[#2b5cff] to-[#2b5cff] px-9 py-4.5 text-base font-semibold text-white shadow-[0_8px_25px_rgba(43,92,255,0.42)] transition-all hover:-translate-y-0.5 hover:from-[#2a52e6] hover:to-[#1e44cd] hover:shadow-[0_12px_35px_rgba(43,92,255,0.58)] sm:w-auto"
                   >
                     Get Personalized AI Insight
                     <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1.5" />
@@ -363,7 +363,7 @@ export default function Home() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="flex w-full max-w-[20rem] flex-1 justify-center sm:max-w-[24rem] md:max-w-[27rem] lg:max-w-[30rem] lg:justify-end xl:max-w-[34rem]"
+              className="flex w-full max-w-[20rem] flex-1 justify-center sm:max-w-[24rem] md:max-w-[27rem] lg:max-w-[30rem] lg:-translate-x-4 lg:justify-end xl:max-w-[34rem]"
             >
               <HeroPhoneMockup />
             </motion.div>
@@ -373,7 +373,7 @@ export default function Home() {
         {/* SECTION: WHO PRAVIX IS FOR */}
         <motion.section
           id="why-goals"
-          className="bg-[linear-gradient(180deg,#faf8f2_0%,#f4efe4_100%)] py-20 md:py-24"
+          className="bg-[linear-gradient(180deg,#f6f9ff_0%,#eef3ff_100%)] py-20 md:py-24"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
@@ -382,11 +382,11 @@ export default function Home() {
           <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
             <div className="grid gap-6 lg:grid-cols-2">
               <motion.article
-                className="rounded-3xl border border-finance-border/80 bg-white p-7 shadow-[0_16px_34px_rgba(15,91,82,0.08)]"
+                className="rounded-3xl border border-finance-border/80 bg-white p-7 shadow-[0_16px_34px_rgba(43,92,255,0.08)]"
                 variants={featureCardReveal}
                 custom={0}
               >
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0f5b52]">Who It&apos;s For</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2b5cff]">Who It&apos;s For</p>
                 <h3 className="mt-3 text-2xl font-bold tracking-tight text-[#0a1930] md:text-3xl">
                   Built for people planning real life goals.
                 </h3>
@@ -397,7 +397,7 @@ export default function Home() {
                     "Goal-based investors",
                     "Tax-conscious earners",
                   ].map((item) => (
-                    <div key={item} className="rounded-xl border border-finance-border bg-[#fbf8f1] px-4 py-3 text-sm font-medium text-[#324a45]">
+                    <div key={item} className="rounded-xl border border-finance-border bg-[#f7f9ff] px-4 py-3 text-sm font-medium text-[#355a95]">
                       {item}
                     </div>
                   ))}
@@ -405,11 +405,11 @@ export default function Home() {
               </motion.article>
 
               <motion.article
-                className="rounded-3xl border border-finance-border/80 bg-white p-7 shadow-[0_16px_34px_rgba(15,91,82,0.08)]"
+                className="rounded-3xl border border-finance-border/80 bg-white p-7 shadow-[0_16px_34px_rgba(43,92,255,0.08)]"
                 variants={featureCardReveal}
                 custom={1}
               >
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0f5b52]">Money Mistakes Pravix Helps Prevent</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2b5cff]">Money Mistakes Pravix Helps Prevent</p>
                 <div className="mt-5 space-y-2.5">
                   {[
                     "Missed SIPs and delayed monthly actions",
@@ -417,7 +417,7 @@ export default function Home() {
                     "Last-minute tax moves in March",
                     "Emotional reactions to market noise",
                   ].map((mistake) => (
-                    <div key={mistake} className="rounded-xl border border-finance-border bg-[#fbf8f1] px-4 py-3 text-sm text-[#4f6180]">
+                    <div key={mistake} className="rounded-xl border border-finance-border bg-[#f7f9ff] px-4 py-3 text-sm text-[#4f6180]">
                       {mistake}
                     </div>
                   ))}
@@ -426,11 +426,11 @@ export default function Home() {
             </div>
 
             <motion.article
-              className="mt-6 rounded-3xl border border-[#d8d0c0] bg-white p-7 shadow-[0_16px_34px_rgba(15,91,82,0.08)]"
+              className="mt-6 rounded-3xl border border-[#d8e7ff] bg-white p-7 shadow-[0_16px_34px_rgba(43,92,255,0.08)]"
               variants={featureCardReveal}
               custom={2}
             >
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0f5b52]">Built For Indian Wealth Decisions</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2b5cff]">Built For Indian Wealth Decisions</p>
               <h3 className="mt-3 text-2xl font-bold tracking-tight text-[#0a1930] md:text-3xl">
                 Local context, family goals, and disciplined long-term planning.
               </h3>
@@ -441,7 +441,7 @@ export default function Home() {
                   "Family-focused milestones",
                   "Monthly action nudges",
                 ].map((item) => (
-                  <span key={item} className="rounded-full border border-[#0f5b52]/18 bg-[#f1eee4] px-3.5 py-2 text-xs font-semibold text-[#0f5b52]">
+                  <span key={item} className="rounded-full border border-[#2b5cff]/18 bg-[#edf4ff] px-3.5 py-2 text-xs font-semibold text-[#2b5cff]">
                     {item}
                   </span>
                 ))}
@@ -450,31 +450,224 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* SECTION 1: EXECUTIVE INTELLIGENCE LAYER */}
+        {/* SECTION: GOALS & PRIORITIES */}
         <motion.section
-          id="insights"
-          className="relative overflow-hidden bg-[#1c302c] py-24 text-white md:py-28"
+          id="insights-priorities"
+          className="relative w-full overflow-hidden bg-[linear-gradient(145deg,#2f63ff_0%,#3158ea_48%,#2e52d0_100%)] py-20 text-white md:py-24"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={sectionViewport}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(179,138,74,0.14),transparent_42%),radial-gradient(circle_at_88%_85%,rgba(15,91,82,0.24),transparent_48%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(0,224,255,0.18),transparent_42%),radial-gradient(circle_at_18%_82%,rgba(255,255,255,0.08),transparent_50%)]" />
+
+          <div className="relative mx-auto grid w-full max-w-7xl gap-8 px-6 md:px-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch lg:gap-10 lg:px-14">
+            <motion.div variants={chartCardReveal} custom={0}>
+              <div className="relative h-full min-h-[340px] overflow-hidden rounded-[2rem] border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] shadow-[0_24px_70px_rgba(7,30,92,0.35)]">
+                <video
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="absolute inset-0 h-full w-full object-cover"
+                >
+                  <source src="/video/pravix-sec2.mp4" type="video/mp4" />
+                </video>
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(39,86,240,0.2),rgba(35,78,225,0.52))]" />
+                <div className="pointer-events-none absolute inset-0 rounded-[2rem] border border-white/20" />
+              </div>
+            </motion.div>
+
+            <motion.div variants={chartCardReveal} custom={1} className="flex flex-col justify-center">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#00e0ff]">
+                YOUR PRAVIX AI INSIGHTS ARE BASED ON
+              </p>
+              <h3 className="mt-4 text-[clamp(2.1rem,4.8vw,4rem)] font-bold leading-[1.08] tracking-[-0.02em] text-white">
+                Your Goals &amp; Financial Priorities
+              </h3>
+              <p className="mt-5 max-w-2xl text-base leading-relaxed text-blue-100 md:text-lg">
+                Every recommendation is shaped around what matters most to you.
+              </p>
+
+              <div className="mt-8 space-y-4">
+                {[
+                  {
+                    title: "Market Trends & Data Signals",
+                    detail: "Insights reflect current market movements and evolving patterns.",
+                  },
+                  {
+                    title: "Expert-Backed Analysis",
+                    detail: "Guidance informed by Pravix's investment professionals and research.",
+                  },
+                  {
+                    title: "Global Economic Developments",
+                    detail: "Broader events that influence markets and long-term opportunities.",
+                  },
+                ].map((item, index) => (
+                  <motion.article
+                    key={item.title}
+                    className="rounded-3xl border border-white/20 bg-white/10 px-6 py-5 backdrop-blur-sm"
+                    variants={featureCardReveal}
+                    custom={index}
+                  >
+                    <div className="flex items-start gap-4">
+                      <span className="mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#00d8ff] text-sm font-bold text-[#2759df]">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <h4 className="text-xl font-semibold text-white">{item.title}</h4>
+                        <p className="mt-2 text-sm leading-relaxed text-blue-100 md:text-lg">{item.detail}</p>
+                      </div>
+                    </div>
+                  </motion.article>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </motion.section>
+
+        {/* SECTION 3: HUMAN JOURNEY + EMOTIONAL CONNECT */}
+        <motion.section
+          id="how-it-works"
+          className="border-y border-finance-border/70 bg-white py-24 md:py-28"
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={denseSectionViewport}
+        >
+          <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-14">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">How Pravix Works</p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
+                A simple four-step path from goals to action.
+              </h2>
+              <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
+                Share your goals, get a clear roadmap, follow monthly actions, and adjust with AI plus expert support.
+              </p>
+
+              <motion.div className="mt-10 space-y-4" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
+                {[
+                  {
+                    step: "01",
+                    title: "Tell us your goals",
+                    detail: "Capture your milestones, income profile, risk comfort, and preferences in one guided flow.",
+                    icon: CircleUserRound,
+                  },
+                  {
+                    step: "02",
+                    title: "Get your wealth roadmap",
+                    detail: "See a practical starting plan across goals, allocation, tax runway, and monthly focus.",
+                    icon: Target,
+                  },
+                  {
+                    step: "03",
+                    title: "Track progress and monthly actions",
+                    detail: "Stay disciplined with timely nudges, checklists, and progress tracking across each goal.",
+                    icon: RefreshCcw,
+                  },
+                  {
+                    step: "04",
+                    title: "Adjust with AI + expert support",
+                    detail: "Use Pravix AI Buddy and advisor guidance to refine the plan as life and markets change.",
+                    icon: Compass,
+                  },
+                ].map((item, index) => (
+                  <motion.article
+                    key={item.step}
+                    className="rounded-2xl border border-finance-border/70 bg-[#f7f9ff] p-5 sm:p-6"
+                    variants={featureCardReveal}
+                    custom={index}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#2b5cff] text-white">
+                        <item.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2b5cff]">Step {item.step}</p>
+                        <h3 className="mt-1 text-lg font-bold text-[#0a1930]">{item.title}</h3>
+                        <p className="mt-1.5 text-sm leading-relaxed text-[#586987]">{item.detail}</p>
+                      </div>
+                    </div>
+                  </motion.article>
+                ))}
+              </motion.div>
+            </div>
+
+            <div className="rounded-3xl border border-[#d8e7ff] bg-[linear-gradient(160deg,#2048d6_0%,#2b5cff_58%,#2b5cff_100%)] p-8 text-white shadow-[0_24px_56px_rgba(10,25,48,0.24)] sm:p-10">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Why Families Choose Pravix</p>
+              <h3 className="mt-4 text-2xl font-bold leading-tight sm:text-3xl">
+                Not just better returns.
+                <br />
+                Better financial behavior.
+              </h3>
+
+              <motion.div className="mt-7 space-y-5" initial="hidden" whileInView="show" viewport={cardGridViewport}>
+                {[
+                  {
+                    icon: ShieldCheck,
+                    title: "Disciplined decisioning",
+                    detail: "Priority scoring and checklist-driven execution reduce emotional investing mistakes.",
+                  },
+                  {
+                    icon: Sparkles,
+                    title: "Transparent intelligence",
+                    detail: "Every suggestion surfaces why it matters, risk implications, and what to do next.",
+                  },
+                  {
+                    icon: BellRing,
+                    title: "Timely interventions",
+                    detail: "Automated nudges keep goals on track before missed SIPs, drifts, or tax gaps become expensive.",
+                  },
+                ].map((point, index) => (
+                  <motion.div
+                    key={point.title}
+                    className="rounded-2xl border border-white/20 bg-white/10 px-4 py-4 backdrop-blur-sm"
+                    variants={featureCardReveal}
+                    custom={index}
+                  >
+                    <div className="flex items-start gap-3">
+                      <point.icon className="mt-0.5 h-5 w-5 text-[#00d8ff]" />
+                      <div>
+                        <p className="text-base font-semibold text-white">{point.title}</p>
+                        <p className="mt-1 text-sm leading-relaxed text-[#d9e6ff]">{point.detail}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+
+              <div className="mt-8 rounded-2xl border border-white/25 bg-white/10 px-4 py-3.5 text-sm text-[#edf4ff]">
+                Pravix is designed to make wealth planning feel calm, clear, and confident even during uncertain markets.
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* SECTION 1: EXECUTIVE INTELLIGENCE LAYER */}
+        <motion.section
+          id="insights"
+          className="relative overflow-hidden bg-[#1f4fe3] py-24 text-white md:py-28"
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={sectionViewport}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(0,216,255,0.14),transparent_42%),radial-gradient(circle_at_88%_85%,rgba(43,92,255,0.24),transparent_48%)]" />
 
           <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
             <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#b38a4a]">Know What Matters This Month</p>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#00d8ff]">Know What Matters This Month</p>
                 <h3 className="mt-4 text-3xl font-bold leading-tight md:text-5xl">
                   Clear signals for your next money move.
                 </h3>
-                <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#d8ddd1] md:text-lg">
+                <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#d9e6ff] md:text-lg">
                   See what needs attention now, what can wait, and what action keeps your family goals on track.
                 </p>
               </div>
 
               <div className="rounded-3xl border border-white/20 bg-white/10 p-6 backdrop-blur-md sm:p-7">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#b38a4a]">Signals Pravix Checks For You</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#00d8ff]">Signals Pravix Checks For You</p>
                 <motion.div className="mt-4 space-y-3" initial="hidden" whileInView="show" viewport={narrativeViewport}>
                   {[
                     "Market mood and INR trend for context",
@@ -484,7 +677,7 @@ export default function Home() {
                   ].map((item, index) => (
                     <motion.div
                       key={item}
-                      className="rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm text-[#f1eee4]"
+                      className="rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm text-[#edf4ff]"
                       variants={featureCardReveal}
                       custom={index}
                     >
@@ -526,11 +719,11 @@ export default function Home() {
                   custom={index}
                 >
                   <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/30 bg-white/10">
-                    <item.icon className="h-5 w-5 text-[#b38a4a]" />
+                    <item.icon className="h-5 w-5 text-[#00d8ff]" />
                   </div>
                   <h4 className="mt-4 text-xl font-semibold text-white">{item.title}</h4>
-                  <p className="mt-2 text-sm leading-relaxed text-[#d8ddd1]">{item.detail}</p>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#b38a4a]">{item.metric}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-[#d9e6ff]">{item.detail}</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#00d8ff]">{item.metric}</p>
                 </motion.article>
               ))}
             </motion.div>
@@ -542,10 +735,10 @@ export default function Home() {
                 custom={0}
               >
                 <div className="flex items-center gap-2">
-                  <LineChartIcon className="h-4.5 w-4.5 text-[#b38a4a]" />
+                  <LineChartIcon className="h-4.5 w-4.5 text-[#00d8ff]" />
                   <p className="text-sm font-semibold text-white">Fear &amp; Greed Trend</p>
                 </div>
-                <p className="mt-1 text-xs text-[#d8ddd1]">
+                <p className="mt-1 text-xs text-[#d9e6ff]">
                   {isLiveMarketLoading ? "Loading live sentiment feed..." : sentimentSourceLabel}
                 </p>
                 <div className="mt-4 h-64">
@@ -553,18 +746,18 @@ export default function Home() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={sentimentChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="4 4" stroke="rgba(219,234,254,0.18)" />
-                        <XAxis dataKey="label" stroke="#c3cbc0" fontSize={12} />
-                        <YAxis stroke="#c3cbc0" fontSize={12} domain={[0, 100]} />
+                        <XAxis dataKey="label" stroke="#c4d7fb" fontSize={12} />
+                        <YAxis stroke="#c4d7fb" fontSize={12} domain={[0, 100]} />
                         <Tooltip
                           formatter={(value, name) => [
                             `${Number(value ?? 0).toFixed(1)}`,
                             name === "value" ? "Index" : "3D Avg",
                           ]}
-                          contentStyle={{ backgroundColor: "#2b3b37", borderColor: "#62756f", borderRadius: "10px" }}
-                          labelStyle={{ color: "#ece6d8" }}
-                          itemStyle={{ color: "#f6f3eb" }}
+                          contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
+                          labelStyle={{ color: "#dce8ff" }}
+                          itemStyle={{ color: "#f2f7ff" }}
                         />
-                        <Line type="monotone" dataKey="value" stroke="#b38a4a" strokeWidth={2.8} dot={false} />
+                        <Line type="monotone" dataKey="value" stroke="#00d8ff" strokeWidth={2.8} dot={false} />
                         <Line type="monotone" dataKey="avg" stroke="#86a9a3" strokeWidth={2} dot={false} strokeDasharray="6 3" />
                       </LineChart>
                     </ResponsiveContainer>
@@ -580,10 +773,10 @@ export default function Home() {
                 custom={1}
               >
                 <div className="flex items-center gap-2">
-                  <Wallet className="h-4.5 w-4.5 text-[#b38a4a]" />
+                  <Wallet className="h-4.5 w-4.5 text-[#00d8ff]" />
                   <p className="text-sm font-semibold text-white">Allocation Mix</p>
                 </div>
-                <p className="mt-1 text-xs text-[#d8ddd1]">A balanced goal-first structure with diversification controls</p>
+                <p className="mt-1 text-xs text-[#d9e6ff]">A balanced goal-first structure with diversification controls</p>
                 <div className="mt-4 h-56">
                   {isHeroReady ? (
                     <ResponsiveContainer width="100%" height="100%">
@@ -604,9 +797,9 @@ export default function Home() {
                         </Pie>
                         <Tooltip
                           formatter={(value) => [`${Number(value ?? 0).toFixed(1)}%`, "Weight"]}
-                          contentStyle={{ backgroundColor: "#2b3b37", borderColor: "#62756f", borderRadius: "10px" }}
-                          labelStyle={{ color: "#ece6d8" }}
-                          itemStyle={{ color: "#f6f3eb" }}
+                          contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
+                          labelStyle={{ color: "#dce8ff" }}
+                          itemStyle={{ color: "#f2f7ff" }}
                         />
                       </PieChart>
                     </ResponsiveContainer>
@@ -616,7 +809,7 @@ export default function Home() {
                 </div>
                 <div className="mt-2 grid grid-cols-1 gap-1.5">
                   {allocationMixData.map((item, index) => (
-                    <div key={item.name} className="flex items-center justify-between text-xs text-[#d8ddd1]">
+                    <div key={item.name} className="flex items-center justify-between text-xs text-[#d9e6ff]">
                       <span className="inline-flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: allocationColors[index % allocationColors.length] }} />
                         {item.name}
@@ -633,10 +826,10 @@ export default function Home() {
                 custom={2}
               >
                 <div className="flex items-center gap-2">
-                  <Globe2 className="h-4.5 w-4.5 text-[#b38a4a]" />
+                  <Globe2 className="h-4.5 w-4.5 text-[#00d8ff]" />
                   <p className="text-sm font-semibold text-white">USD/INR Drift (Live)</p>
                 </div>
-                <p className="mt-1 text-xs text-[#d8ddd1]">
+                <p className="mt-1 text-xs text-[#d9e6ff]">
                   {isLiveMarketLoading ? "Loading live FX feed..." : fxSourceLabel}
                 </p>
                 <div className="mt-4 h-56">
@@ -645,24 +838,24 @@ export default function Home() {
                       <AreaChart data={fxChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="sipGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#b38a4a" stopOpacity={0.6} />
-                            <stop offset="95%" stopColor="#b38a4a" stopOpacity={0.06} />
+                            <stop offset="5%" stopColor="#00d8ff" stopOpacity={0.6} />
+                            <stop offset="95%" stopColor="#00d8ff" stopOpacity={0.06} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="4 4" stroke="rgba(219,234,254,0.18)" />
-                        <XAxis dataKey="label" stroke="#c3cbc0" fontSize={12} />
-                        <YAxis stroke="#c3cbc0" fontSize={12} tickFormatter={(value) => `${Number(value).toFixed(2)}`} />
+                        <XAxis dataKey="label" stroke="#c4d7fb" fontSize={12} />
+                        <YAxis stroke="#c4d7fb" fontSize={12} tickFormatter={(value) => `${Number(value).toFixed(2)}`} />
                         <Tooltip
                           formatter={(value, name) => [
                             `${Number(value ?? 0).toFixed(3)}`,
                             name === "rate" ? "USD/INR" : "3D Avg",
                           ]}
-                          contentStyle={{ backgroundColor: "#2b3b37", borderColor: "#62756f", borderRadius: "10px" }}
-                          labelStyle={{ color: "#ece6d8" }}
-                          itemStyle={{ color: "#f6f3eb" }}
+                          contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
+                          labelStyle={{ color: "#dce8ff" }}
+                          itemStyle={{ color: "#f2f7ff" }}
                         />
                         <Area type="monotone" dataKey="rolling" stroke="#86a9a3" fill="transparent" strokeDasharray="7 4" />
-                        <Area type="monotone" dataKey="rate" stroke="#b38a4a" fill="url(#sipGradient)" strokeWidth={2.5} />
+                        <Area type="monotone" dataKey="rate" stroke="#00d8ff" fill="url(#sipGradient)" strokeWidth={2.5} />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
@@ -677,7 +870,7 @@ export default function Home() {
         {/* SECTION 2: DASHBOARD MODULES */}
         <motion.section
           id="platform"
-          className="bg-[linear-gradient(180deg,#faf7f0_0%,#f3efe5_100%)] py-24 md:py-28"
+          className="bg-[linear-gradient(180deg,#f5f9ff_0%,#edf4ff_100%)] py-24 md:py-28"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
@@ -686,14 +879,14 @@ export default function Home() {
           <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
             <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0f5b52]">What You Can Do With Pravix</p>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">What You Can Do With Pravix</p>
                 <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
                   Feature clusters built around your outcomes.
                 </h2>
               </div>
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 self-start rounded-full border border-[#0f5b52]/25 bg-white px-5 py-2.5 text-sm font-semibold text-[#0f5b52] transition-colors hover:bg-[#f1eee4]"
+                className="inline-flex items-center gap-2 self-start rounded-full border border-[#2b5cff]/25 bg-white px-5 py-2.5 text-sm font-semibold text-[#2b5cff] transition-colors hover:bg-[#edf4ff]"
               >
                 View dashboard preview
                 <ArrowRight className="h-4 w-4" />
@@ -720,7 +913,7 @@ export default function Home() {
               ].map((cluster, index) => (
                 <motion.article
                   key={cluster.title}
-                  className="rounded-2xl border border-[#d7d0c1] bg-white p-5 shadow-[0_12px_28px_rgba(15,91,82,0.08)]"
+                  className="rounded-2xl border border-[#d8e7ff] bg-white p-5 shadow-[0_12px_28px_rgba(43,92,255,0.08)]"
                   variants={featureCardReveal}
                   custom={index}
                 >
@@ -728,7 +921,7 @@ export default function Home() {
                   <p className="mt-2 text-sm leading-relaxed text-[#50607d]">{cluster.summary}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {cluster.items.map((item) => (
-                      <span key={item} className="rounded-full border border-[#0f5b52]/20 bg-[#f1eee4] px-3 py-1 text-xs font-semibold text-[#0f5b52]">
+                      <span key={item} className="rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#2b5cff]">
                         {item}
                       </span>
                     ))}
@@ -782,15 +975,15 @@ export default function Home() {
               ].map((module, index) => (
                 <motion.article
                   key={module.title}
-                  className="rounded-2xl border border-[#d7d0c1] bg-white p-6 shadow-[0_14px_34px_rgba(15,91,82,0.08)] transition-all duration-200 hover:-translate-y-1 hover:border-[#0f5b52]/30"
+                  className="rounded-2xl border border-[#d8e7ff] bg-white p-6 shadow-[0_14px_34px_rgba(43,92,255,0.08)] transition-all duration-200 hover:-translate-y-1 hover:border-[#2b5cff]/30"
                   variants={featureCardReveal}
                   custom={index}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#f1eee4] text-[#0f5b52]">
+                    <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf4ff] text-[#2b5cff]">
                       <module.icon className="h-5 w-5" />
                     </div>
-                    <span className="rounded-full border border-[#0f5b52]/20 bg-[#f1eee4] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#0f5b52]">
+                    <span className="rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2b5cff]">
                       {module.badge}
                     </span>
                   </div>
@@ -803,12 +996,12 @@ export default function Home() {
 
             <motion.div className="mt-12 grid gap-5 lg:grid-cols-2" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
               <motion.article
-                className="rounded-3xl border border-[#d7d0c1] bg-white p-6 shadow-[0_14px_34px_rgba(15,91,82,0.08)]"
+                className="rounded-3xl border border-[#d8e7ff] bg-white p-6 shadow-[0_14px_34px_rgba(43,92,255,0.08)]"
                 variants={chartCardReveal}
                 custom={0}
               >
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4.5 w-4.5 text-[#0f5b52]" />
+                  <BarChart3 className="h-4.5 w-4.5 text-[#2b5cff]" />
                   <p className="text-sm font-semibold text-[#0a1930]">Module Impact Index</p>
                 </div>
                 <p className="mt-1 text-xs text-[#60739a]">How strongly each module contributes to monthly execution quality</p>
@@ -816,31 +1009,31 @@ export default function Home() {
                   {isHeroReady ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={moduleImpactData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e4ddd0" />
-                        <XAxis dataKey="module" stroke="#6f7d76" fontSize={12} />
-                        <YAxis stroke="#6f7d76" fontSize={12} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#d7e6ff" />
+                        <XAxis dataKey="module" stroke="#6d86b4" fontSize={12} />
+                        <YAxis stroke="#6d86b4" fontSize={12} />
                         <Tooltip
                           formatter={(value) => [`${Number(value ?? 0).toFixed(0)}/100`, "Impact"]}
-                          contentStyle={{ backgroundColor: "#fbf8f1", borderColor: "#cfc8bb", borderRadius: "10px" }}
-                          labelStyle={{ color: "#2d3b37" }}
-                          itemStyle={{ color: "#3f5b55" }}
+                          contentStyle={{ backgroundColor: "#f7f9ff", borderColor: "#c5d8fb", borderRadius: "10px" }}
+                          labelStyle={{ color: "#173a85" }}
+                          itemStyle={{ color: "#3f66ab" }}
                         />
-                        <Bar dataKey="score" radius={[8, 8, 0, 0]} fill="#0f5b52" />
+                        <Bar dataKey="score" radius={[8, 8, 0, 0]} fill="#2b5cff" />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#d7d0c1] bg-[#f2ede3]" />
+                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#d8e7ff] bg-[#eff5ff]" />
                   )}
                 </div>
               </motion.article>
 
               <motion.article
-                className="rounded-3xl border border-[#d7d0c1] bg-white p-6 shadow-[0_14px_34px_rgba(15,91,82,0.08)]"
+                className="rounded-3xl border border-[#d8e7ff] bg-white p-6 shadow-[0_14px_34px_rgba(43,92,255,0.08)]"
                 variants={chartCardReveal}
                 custom={1}
               >
                 <div className="flex items-center gap-2">
-                  <Calculator className="h-4.5 w-4.5 text-[#0f5b52]" />
+                  <Calculator className="h-4.5 w-4.5 text-[#2b5cff]" />
                   <p className="text-sm font-semibold text-[#0a1930]">Tax Efficiency Runway</p>
                 </div>
                 <p className="mt-1 text-xs text-[#60739a]">Quarterly progression of 80C utilization versus potential optimization path</p>
@@ -848,21 +1041,21 @@ export default function Home() {
                   {isHeroReady ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={taxEfficiencyData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e4ddd0" />
-                        <XAxis dataKey="quarter" stroke="#6f7d76" fontSize={12} />
-                        <YAxis stroke="#6f7d76" fontSize={12} tickFormatter={(value) => `${value}%`} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#d7e6ff" />
+                        <XAxis dataKey="quarter" stroke="#6d86b4" fontSize={12} />
+                        <YAxis stroke="#6d86b4" fontSize={12} tickFormatter={(value) => `${value}%`} />
                         <Tooltip
                           formatter={(value) => [`${Number(value ?? 0).toFixed(0)}%`, "Coverage"]}
-                          contentStyle={{ backgroundColor: "#fbf8f1", borderColor: "#cfc8bb", borderRadius: "10px" }}
-                          labelStyle={{ color: "#2d3b37" }}
-                          itemStyle={{ color: "#3f5b55" }}
+                          contentStyle={{ backgroundColor: "#f7f9ff", borderColor: "#c5d8fb", borderRadius: "10px" }}
+                          labelStyle={{ color: "#173a85" }}
+                          itemStyle={{ color: "#3f66ab" }}
                         />
                         <Line type="monotone" dataKey="potential" stroke="#86a9a3" strokeWidth={2} strokeDasharray="6 4" dot={false} />
-                        <Line type="monotone" dataKey="used" stroke="#0f5b52" strokeWidth={2.6} dot={false} />
+                        <Line type="monotone" dataKey="used" stroke="#2b5cff" strokeWidth={2.6} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#d7d0c1] bg-[#f2ede3]" />
+                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#d8e7ff] bg-[#eff5ff]" />
                   )}
                 </div>
               </motion.article>
@@ -870,133 +1063,16 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* SECTION 3: HUMAN JOURNEY + EMOTIONAL CONNECT */}
-        <motion.section
-          id="how-it-works"
-          className="border-y border-finance-border/70 bg-white py-24 md:py-28"
-          variants={sectionReveal}
-          initial="hidden"
-          whileInView="show"
-          viewport={denseSectionViewport}
-        >
-          <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-14">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0f5b52]">How Pravix Works</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
-                A simple four-step path from goals to action.
-              </h2>
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
-                Share your goals, get a clear roadmap, follow monthly actions, and adjust with AI plus expert support.
-              </p>
-
-              <motion.div className="mt-10 space-y-4" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
-                {[
-                  {
-                    step: "01",
-                    title: "Tell us your goals",
-                    detail: "Capture your milestones, income profile, risk comfort, and preferences in one guided flow.",
-                    icon: CircleUserRound,
-                  },
-                  {
-                    step: "02",
-                    title: "Get your wealth roadmap",
-                    detail: "See a practical starting plan across goals, allocation, tax runway, and monthly focus.",
-                    icon: Target,
-                  },
-                  {
-                    step: "03",
-                    title: "Track progress and monthly actions",
-                    detail: "Stay disciplined with timely nudges, checklists, and progress tracking across each goal.",
-                    icon: RefreshCcw,
-                  },
-                  {
-                    step: "04",
-                    title: "Adjust with AI + expert support",
-                    detail: "Use Pravix AI Buddy and advisor guidance to refine the plan as life and markets change.",
-                    icon: Compass,
-                  },
-                ].map((item, index) => (
-                  <motion.article
-                    key={item.step}
-                    className="rounded-2xl border border-finance-border/70 bg-[#fbf8f1] p-5 sm:p-6"
-                    variants={featureCardReveal}
-                    custom={index}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#0f5b52] text-white">
-                        <item.icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0f5b52]">Step {item.step}</p>
-                        <h3 className="mt-1 text-lg font-bold text-[#0a1930]">{item.title}</h3>
-                        <p className="mt-1.5 text-sm leading-relaxed text-[#586987]">{item.detail}</p>
-                      </div>
-                    </div>
-                  </motion.article>
-                ))}
-              </motion.div>
-            </div>
-
-            <div className="rounded-3xl border border-[#d8e7ff] bg-[linear-gradient(160deg,#1d3a35_0%,#24584f_58%,#0f5b52_100%)] p-8 text-white shadow-[0_24px_56px_rgba(10,25,48,0.24)] sm:p-10">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b38a4a]">Why Families Choose Pravix</p>
-              <h3 className="mt-4 text-2xl font-bold leading-tight sm:text-3xl">
-                Not just better returns.
-                <br />
-                Better financial behavior.
-              </h3>
-
-              <motion.div className="mt-7 space-y-5" initial="hidden" whileInView="show" viewport={cardGridViewport}>
-                {[
-                  {
-                    icon: ShieldCheck,
-                    title: "Disciplined decisioning",
-                    detail: "Priority scoring and checklist-driven execution reduce emotional investing mistakes.",
-                  },
-                  {
-                    icon: Sparkles,
-                    title: "Transparent intelligence",
-                    detail: "Every suggestion surfaces why it matters, risk implications, and what to do next.",
-                  },
-                  {
-                    icon: BellRing,
-                    title: "Timely interventions",
-                    detail: "Automated nudges keep goals on track before missed SIPs, drifts, or tax gaps become expensive.",
-                  },
-                ].map((point, index) => (
-                  <motion.div
-                    key={point.title}
-                    className="rounded-2xl border border-white/20 bg-white/10 px-4 py-4 backdrop-blur-sm"
-                    variants={featureCardReveal}
-                    custom={index}
-                  >
-                    <div className="flex items-start gap-3">
-                      <point.icon className="mt-0.5 h-5 w-5 text-[#b38a4a]" />
-                      <div>
-                        <p className="text-base font-semibold text-white">{point.title}</p>
-                        <p className="mt-1 text-sm leading-relaxed text-[#d8ddd1]">{point.detail}</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-
-              <div className="mt-8 rounded-2xl border border-white/25 bg-white/10 px-4 py-3.5 text-sm text-[#f1eee4]">
-                Pravix is designed to make wealth planning feel calm, clear, and confident even during uncertain markets.
-              </div>
-            </div>
-          </div>
-        </motion.section>
-
         {/* SECTION 4: TRUST + LEARN + PREMIUM CTA */}
         <motion.section
           id="contact"
-          className="relative overflow-hidden bg-[#1a2a26] py-24 text-white md:py-28"
+          className="relative overflow-hidden bg-[#1b47d8] py-24 text-white md:py-28"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={denseSectionViewport}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(179,138,74,0.12),transparent_40%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(0,216,255,0.12),transparent_40%)]" />
 
           <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
             <motion.div className="grid gap-6 md:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
@@ -1021,23 +1097,23 @@ export default function Home() {
                   custom={index}
                 >
                   <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#d8ddd1]">{item.desc}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-[#d9e6ff]">{item.desc}</p>
                 </motion.article>
               ))}
             </motion.div>
 
-            <div className="mt-6 rounded-2xl border border-white/20 bg-white/8 px-5 py-4 text-sm leading-relaxed text-[#d8ddd1]">
+            <div className="mt-6 rounded-2xl border border-white/20 bg-white/8 px-5 py-4 text-sm leading-relaxed text-[#d9e6ff]">
               Pravix provides educational guidance and planning support. It does not promise guaranteed returns and does not replace personalized licensed investment advice.
             </div>
 
-            <div className="mt-14 rounded-3xl border border-[#40635d] bg-[linear-gradient(135deg,#1a322d_0%,#255449_58%,#0f5b52_100%)] p-8 shadow-[0_24px_58px_rgba(0,0,0,0.28)] sm:p-10 md:p-12">
+            <div className="mt-14 rounded-3xl border border-[#4f73c2] bg-[linear-gradient(135deg,#2147d3_0%,#2a53e8_58%,#2b5cff_100%)] p-8 shadow-[0_24px_58px_rgba(0,0,0,0.28)] sm:p-10 md:p-12">
               <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b38a4a]">Start With Confidence</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Start With Confidence</p>
                   <h2 className="mt-3 text-3xl font-bold leading-tight text-white md:text-5xl">
                     Stay on track for every major life goal.
                   </h2>
-                  <p className="mt-4 text-base leading-relaxed text-[#d8ddd1] md:text-lg">
+                  <p className="mt-4 text-base leading-relaxed text-[#d9e6ff] md:text-lg">
                     Begin with guided onboarding, follow clear monthly actions, and use Pravix support whenever you need it.
                   </p>
                 </div>
@@ -1045,7 +1121,7 @@ export default function Home() {
                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[17rem]">
                   <Link
                     href="/onboarding"
-                    className="group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-[#255449] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(0,0,0,0.12)]"
+                    className="group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-[#2a53e8] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(0,0,0,0.12)]"
                   >
                     Start your plan
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -1058,7 +1134,7 @@ export default function Home() {
                   </Link>
                   <Link
                     href="/dashboard"
-                    className="inline-flex h-12 items-center justify-center rounded-full border border-white/25 bg-transparent px-6 text-sm font-semibold text-[#d8ddd1] transition-colors hover:bg-white/10"
+                    className="inline-flex h-12 items-center justify-center rounded-full border border-white/25 bg-transparent px-6 text-sm font-semibold text-[#d9e6ff] transition-colors hover:bg-white/10"
                   >
                     View dashboard preview
                   </Link>
@@ -1071,7 +1147,7 @@ export default function Home() {
         <div className="fixed inset-x-0 bottom-3 z-40 px-4 sm:hidden">
           <Link
             href="/onboarding"
-            className="mx-auto flex h-12 w-full max-w-sm items-center justify-center gap-2 rounded-full bg-finance-accent text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,91,82,0.34)]"
+            className="mx-auto flex h-12 w-full max-w-sm items-center justify-center gap-2 rounded-full bg-finance-accent text-sm font-semibold text-white shadow-[0_14px_30px_rgba(43,92,255,0.34)]"
           >
             Start your plan
             <ArrowRight className="h-4 w-4" />
@@ -1082,5 +1158,7 @@ export default function Home() {
     </>
   );
 }
+
+
 
 

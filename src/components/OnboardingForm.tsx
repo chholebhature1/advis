@@ -755,7 +755,7 @@ export default function OnboardingForm() {
           type="button"
           onClick={handleNext}
           disabled={isSubmitting || !sessionId}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-finance-accent px-6 py-3 text-white font-semibold shadow-[0_8px_18px_rgba(15,91,82,0.26)] hover:bg-[#0c4a43] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-finance-accent px-6 py-3 text-white font-semibold shadow-[0_8px_18px_rgba(43,92,255,0.26)] hover:bg-[#1e44cd] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {isSubmitting ? "Saving..." : isLastStep ? "Submit Onboarding" : "Save and Continue"}
@@ -765,3 +765,4 @@ export default function OnboardingForm() {
     </section>
   );
 }
+

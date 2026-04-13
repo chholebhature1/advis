@@ -156,11 +156,11 @@ export default function SiteHeader() {
 
           /* Border & shadow */
           border: scrolled
-            ? "1px solid rgba(15, 91, 82, 0.12)"
+            ? "1px solid rgba(43, 92, 255, 0.14)"
             : "1px solid rgba(0, 0, 0, 0.04)",
           borderTop: scrolled ? undefined : "none",
           boxShadow: scrolled
-            ? "0 8px 28px rgba(15, 91, 82, 0.08), 0 1px 3px rgba(0,0,0,0.04)"
+            ? "0 8px 28px rgba(43, 92, 255, 0.12), 0 1px 3px rgba(0,0,0,0.04)"
             : "0 1px 0 rgba(0, 0, 0, 0.04)",
 
           /* Layout */
@@ -194,7 +194,7 @@ export default function SiteHeader() {
           {/* Logo */}
           <Link
             href="/"
-            className="font-bold tracking-tight text-[#1f2a24] hover:text-[#0f5b52] transition-colors duration-300"
+            className="font-bold tracking-tight text-[#142a4a] hover:text-[#2b5cff] transition-colors duration-300"
             style={{
               fontSize: scrolled ? "18px" : "22px",
               transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s ease",
@@ -215,7 +215,7 @@ export default function SiteHeader() {
                   style={{
                     fontSize: scrolled ? "13px" : "14px",
                     fontWeight: 500,
-                    color: isActive ? "#0f5b52" : "#64726b",
+                    color: isActive ? "#2b5cff" : "#5f7396",
                     letterSpacing: "0.01em",
                     transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s ease",
                   }}
@@ -223,7 +223,7 @@ export default function SiteHeader() {
                   {item.label}
                   {isActive && (
                     <span
-                      className="absolute left-1/2 -translate-x-1/2 rounded-full bg-[#0f5b52]"
+                      className="absolute left-1/2 -translate-x-1/2 rounded-full bg-[#2b5cff]"
                       style={{
                         bottom: "-6px",
                         height: "2px",
@@ -248,10 +248,10 @@ export default function SiteHeader() {
                   href="/onboarding"
                   className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
                   style={{
-                    background: "#0f5b52",
+                    background: "#2b5cff",
                     padding: scrolled ? "7px 18px" : "9px 22px",
                     fontSize: scrolled ? "12px" : "13px",
-                    boxShadow: "0 4px 14px rgba(15, 91, 82, 0.24)",
+                    boxShadow: "0 4px 14px rgba(43, 92, 255, 0.28)",
                     transition: [
                       "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
                       "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -296,10 +296,10 @@ export default function SiteHeader() {
                   href="/onboarding"
                   className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
                   style={{
-                    background: "#0f5b52",
+                    background: "#2b5cff",
                     padding: scrolled ? "7px 18px" : "9px 22px",
                     fontSize: scrolled ? "12px" : "13px",
-                    boxShadow: "0 4px 14px rgba(15, 91, 82, 0.24)",
+                    boxShadow: "0 4px 14px rgba(43, 92, 255, 0.28)",
                     transition: [
                       "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
                       "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -345,7 +345,7 @@ export default function SiteHeader() {
           width: 16px;
           height: 2px;
           border-radius: 9999px;
-          background: #0f5b52;
+          background: #2b5cff;
           transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .navlink-hover:hover::after {

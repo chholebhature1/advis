@@ -1,17 +1,74 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const inrFormatter = new Intl.NumberFormat("en-IN");
+const CHART_BASELINE_Y = 146;
+const CHART_POINT_COUNT = 29;
+const CHART_X_START = 8;
+const CHART_X_STEP = 11.8;
+const BASE_PORTFOLIO_VALUE = 1568819;
+const BASE_NET_DEPOSITS = 1350000;
+const GROWTH_PER_SECOND = 24;
+const ANIMATION_STEP_MS = 80;
 
 /* ────────────────────────────────────────────────
    Exact Match Animated Phone Mockup
    ──────────────────────────────────────────────── */
 export default function HeroPhoneMockup() {
   const [visible, setVisible] = useState(false);
+  const [animationTick, setAnimationTick] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 300);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAnimationTick((current) => current + 1);
+    }, ANIMATION_STEP_MS);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
+
+  const elapsedSeconds = animationTick * (ANIMATION_STEP_MS / 1000);
+  const totalValue = Math.round(BASE_PORTFOLIO_VALUE + elapsedSeconds * GROWTH_PER_SECOND);
+  const gainValue = totalValue - BASE_NET_DEPOSITS;
+  const gainPct = (gainValue / BASE_NET_DEPOSITS) * 100;
+
+  const { areaPath, linePoints } = useMemo(() => {
+    const points = Array.from({ length: CHART_POINT_COUNT }, (_, index) => {
+      const x = CHART_X_START + index * CHART_X_STEP;
+      const trend = 114 - index * 3.35;
+      const wave =
+        Math.sin(index * 0.72 + elapsedSeconds * 2.1) * 6.2 +
+        Math.cos(index * 0.35 + elapsedSeconds * 1.25) * 2.4;
+      const uplift = Math.min(elapsedSeconds * 0.18, 10);
+      const y = Math.max(11, Math.min(132, trend + wave - uplift));
+
+      return {
+        x: Number(x.toFixed(2)),
+        y: Number(y.toFixed(2)),
+      };
+    });
+
+    const polylinePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
+    const filledAreaPath = [
+      `M${points[0].x} ${points[0].y}`,
+      ...points.slice(1).map((point) => `L${point.x} ${point.y}`),
+      `L${points[points.length - 1].x} ${CHART_BASELINE_Y}`,
+      `L${points[0].x} ${CHART_BASELINE_Y}`,
+      "Z",
+    ].join(" ");
+
+    return {
+      areaPath: filledAreaPath,
+      linePoints: polylinePoints,
+    };
+  }, [elapsedSeconds]);
 
   return (
     <div
@@ -211,7 +268,9 @@ export default function HeroPhoneMockup() {
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "#788C9F" }}>Total value (INR)</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#25B495" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                   </div>
-                  <div style={{ fontSize: "28px", fontWeight: 800, color: "#142A4A", letterSpacing: "-0.5px", lineHeight: 1 }}>₹15,68,819</div>
+                  <div style={{ fontSize: "28px", fontWeight: 800, color: "#142A4A", letterSpacing: "-0.5px", lineHeight: 1 }}>
+                    ₹{inrFormatter.format(totalValue)}
+                  </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", justifyContent: "flex-end", marginBottom: "4px" }}>
@@ -223,7 +282,9 @@ export default function HeroPhoneMockup() {
               </div>
               
               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "12px" }}>
-                <span style={{ background: "#E2F5ED", color: "#25B495", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 700 }}>+₹2,18,819</span>
+                <span style={{ background: "#E2F5ED", color: "#25B495", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 700 }}>
+                  +₹{inrFormatter.format(gainValue)}
+                </span>
                 <span style={{ fontSize: "10px", fontWeight: 500, color: "#8E9EAF" }}>since 27 Apr 2021</span>
               </div>
             </div>
@@ -248,13 +309,13 @@ export default function HeroPhoneMockup() {
 
                 {/* Soft area fill under the trend line */}
                 <path
-                  d="M8 112 L20 98 L32 104 L44 97 L56 106 L68 114 L80 109 L92 118 L104 122 L116 126 L128 120 L140 124 L152 114 L164 103 L176 94 L188 88 L200 84 L212 76 L224 71 L236 65 L248 58 L260 62 L272 54 L284 44 L296 24 L308 42 L320 16 L332 22 L338 12 L338 146 L8 146 Z"
+                  d={areaPath}
                   fill="url(#heroTrendFill)"
                 />
 
                 {/* Blue jagged uptrend matching the attached chart style */}
                 <polyline
-                  points="8,112 20,98 32,104 44,97 56,106 68,114 80,109 92,118 104,122 116,126 128,120 140,124 152,114 164,103 176,94 188,88 200,84 212,76 224,71 236,65 248,58 260,62 272,54 284,44 296,24 308,42 320,16 332,22 338,12"
+                  points={linePoints}
                   fill="none"
                   stroke="#2E6FE4"
                   strokeWidth="3"
@@ -278,7 +339,7 @@ export default function HeroPhoneMockup() {
                   boxShadow: "0 2px 8px rgba(46,111,228,0.16)",
                 }}
               >
-                +14.8%
+                +{gainPct.toFixed(1)}%
               </div>
             </div>
 

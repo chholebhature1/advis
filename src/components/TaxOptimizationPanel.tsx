@@ -215,7 +215,7 @@ export default function TaxOptimizationPanel({ refreshKey }: TaxOptimizationPane
             </div>
             <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-finance-border-soft">
               <div
-                className="h-full rounded-full bg-[linear-gradient(90deg,#0f5b52_0%,#2f6f57_55%,#b38a4a_100%)] transition-[width] duration-500 ease-out"
+                className="h-full rounded-full bg-[linear-gradient(90deg,#2b5cff_0%,#3b6bff_55%,#00d8ff_100%)] transition-[width] duration-500 ease-out"
                 style={{ width: `${utilizationPct}%` }}
                 aria-label="80C utilization progress"
               />
@@ -276,3 +276,4 @@ export default function TaxOptimizationPanel({ refreshKey }: TaxOptimizationPane
     </DashboardSectionCard>
   );
 }
+

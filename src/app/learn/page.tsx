@@ -83,7 +83,7 @@ export default function LearnPage() {
             <h2 className="text-4xl font-semibold text-finance-text">Ready to secure your legacy?</h2>
             <p className="mt-3 text-finance-muted">Join investors moving from uncertainty to disciplined wealth creation.</p>
             <div className="mt-7 flex flex-wrap justify-center gap-4">
-              <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-lg bg-finance-accent px-6 py-3 text-white font-semibold shadow-[0_8px_20px_rgba(15,91,82,0.22)] hover:brightness-95">
+              <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-lg bg-finance-accent px-6 py-3 text-white font-semibold shadow-[0_8px_20px_rgba(43,92,255,0.22)] hover:brightness-95">
                 Get Started Now
                 <ArrowRight className="w-4 h-4" />
               </Link>
@@ -97,3 +97,4 @@ export default function LearnPage() {
     </>
   );
 }
+

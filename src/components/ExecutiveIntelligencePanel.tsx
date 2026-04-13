@@ -247,7 +247,7 @@ export default function ExecutiveIntelligencePanel({
                     onClick={() => onFocusChange(priority.module)}
                     className={`w-full rounded-xl border p-3.5 text-left transition-all duration-150 sm:p-4 ${
                       isActive
-                        ? "border-finance-accent bg-finance-accent/10 shadow-[0_6px_18px_rgba(15,91,82,0.14)]"
+                        ? "border-finance-accent bg-finance-accent/10 shadow-[0_6px_18px_rgba(43,92,255,0.14)]"
                         : "border-finance-border bg-finance-surface/40 hover:bg-finance-surface"
                     }`}
                   >
@@ -258,7 +258,7 @@ export default function ExecutiveIntelligencePanel({
 
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-finance-border-soft">
                       <div
-                        className="h-full rounded-full bg-[linear-gradient(90deg,#0f5b52_0%,#2b7268_100%)]"
+                        className="h-full rounded-full bg-[linear-gradient(90deg,#2b5cff_0%,#3f73ff_100%)]"
                         style={{ width: `${scoreWidth}%` }}
                         aria-label={`${priority.module} score`}
                       />
@@ -306,3 +306,4 @@ export default function ExecutiveIntelligencePanel({
     </DashboardSectionCard>
   );
 }
+

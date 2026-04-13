@@ -336,7 +336,7 @@ export default function DashboardPage() {
 
   const getModuleContainerClassName = (moduleKey: DashboardModuleKey): string => {
     if (moduleKey === effectiveFocus) {
-      return "rounded-2xl ring-2 ring-finance-accent/20 ring-offset-2 ring-offset-finance-bg shadow-[0_16px_34px_rgba(15,91,82,0.12)] transition-all duration-200";
+      return "rounded-2xl ring-2 ring-finance-accent/20 ring-offset-2 ring-offset-finance-bg shadow-[0_16px_34px_rgba(43,92,255,0.12)] transition-all duration-200";
     }
 
     return "rounded-2xl transition-all duration-200";
@@ -613,3 +613,4 @@ export default function DashboardPage() {
     </>
   );
 }
+

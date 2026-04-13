@@ -203,7 +203,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
   return (
     <>
       {isOpen ? (
-        <div className="fixed inset-0 z-40 bg-[#1f2a24]/18 backdrop-blur-[1px] sm:bg-transparent" onClick={() => setIsOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-[#142a4a]/18 backdrop-blur-[1px] sm:bg-transparent" onClick={() => setIsOpen(false)} />
       ) : null}
 
       {isOpen ? (
@@ -310,7 +310,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
         <button
           type="button"
           onClick={() => void openPanel()}
-          className="group inline-flex h-12 items-center gap-2 rounded-full border border-[#0c4a43] bg-finance-accent px-4 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(15,91,82,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(15,91,82,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-finance-accent/40"
+          className="group inline-flex h-12 items-center gap-2 rounded-full border border-[#1e44cd] bg-finance-accent px-4 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(43,92,255,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(43,92,255,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-finance-accent/40"
         >
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
             {isBootstrapping ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
@@ -322,3 +322,4 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
     </>
   );
 }
+
