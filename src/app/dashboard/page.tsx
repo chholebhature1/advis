@@ -865,9 +865,9 @@ export default function DashboardPage() {
     };
   }, [holdingsAnalytics?.totalMarketValueInr, profile, targetGap]);
 
-  const profileDataReadiness = useMemo(() => {
+  const profileDataReadiness = useMemo<Array<{ label: string; tone: "neutral" | "success" | "warning" | "critical" | "info" }>>(() => {
     if (!profile) {
-      return [] as Array<{ label: string; tone: "neutral" | "success" | "warning" | "critical" | "info" }>;
+      return [];
     }
 
     return [
@@ -1124,9 +1124,9 @@ export default function DashboardPage() {
                             borderRadius: "12px",
                             color: "#f5efe5",
                           }}
-                          formatter={(value: number | string, name: string) => {
-                            const numericValue = typeof value === "number" ? value : Number(value);
-                            const label = name === "actual" ? "Observed value" : "Goal reference";
+                          formatter={(value, name) => {
+                            const numericValue = Number(value ?? 0);
+                            const label = String(name ?? "") === "actual" ? "Observed value" : "Goal reference";
 
                             return [formatCompactCurrency(numericValue), label];
                           }}
@@ -1252,8 +1252,8 @@ export default function DashboardPage() {
                               borderRadius: "12px",
                               color: "#f5efe5",
                             }}
-                            formatter={(value: number | string) => {
-                              const numericValue = typeof value === "number" ? value : Number(value);
+                            formatter={(value) => {
+                              const numericValue = Number(value ?? 0);
                               return [formatCompactCurrency(numericValue), "Market value"];
                             }}
                           />
@@ -1286,7 +1286,7 @@ export default function DashboardPage() {
                                 borderRadius: "12px",
                                 color: "#f5efe5",
                               }}
-                              formatter={(value: number | string, name: string) => [`${value}`, name]}
+                              formatter={(value, name) => [`${value ?? ""}`, String(name ?? "")]} 
                             />
                             <Pie
                               data={attentionMixData}

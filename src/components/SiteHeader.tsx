@@ -107,13 +107,12 @@ export default function SiteHeader() {
     { label: "How It Works", href: "/#how-it-works" },
     { label: "Dashboard", href: "/dashboard" },
     { label: "Insights", href: "/#insights" },
+    { label: "Blog", href: "/learn" },
+    { label: "About Us", href: "/about" },
     { label: "Why Pravix", href: "/#why-goals" },
     { label: "Contact", href: "/#contact" },
   ];
-
-  const navItems = isAuthenticated && !baseNavItems.some((item) => item.href === "/profile")
-    ? [...baseNavItems, { label: "Profile", href: "/profile" }]
-    : baseNavItems;
+  const navItems = baseNavItems;
 
   /* ─── Main header ─── */
   return (

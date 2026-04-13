@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { Cormorant_Garamond, Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import Footer from "@/components/Footer";
-import GlobalFloatingPravixChat from "@/components/GlobalFloatingPravixChat";
 import "./globals.css";
+
+const GlobalFloatingPravixChat = dynamic(() => import("@/components/GlobalFloatingPravixChat"), {
+  loading: () => null,
+});
 
 const jakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",

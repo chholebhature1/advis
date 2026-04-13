@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  AlertCircle,
   ArrowRight,
-  BrainCircuit,
   Target,
   ShieldCheck,
   Compass,
@@ -39,6 +38,11 @@ import {
 } from "recharts";
 import SiteHeader from "@/components/SiteHeader";
 import HeroPhoneMockup from "../components/HeroPhoneMockup";
+
+const CalendlyBookingSection = dynamic(() => import("@/components/CalendlyBookingSection"), {
+  ssr: false,
+  loading: () => <section className="w-full py-20" aria-label="Loading booking section" />,
+});
 
 type LiveChartPoint = {
   label: string;
@@ -206,7 +210,7 @@ export default function Home() {
       try {
         const response = await fetch("/api/market/homepage", {
           method: "GET",
-          cache: "no-store",
+          cache: "force-cache",
         });
 
         const payload = (await response.json().catch(() => ({}))) as HomepageMarketPayload;
@@ -1143,6 +1147,9 @@ export default function Home() {
             </div>
           </div>
         </motion.section>
+
+        {/* Calendly Booking Section */}
+        <CalendlyBookingSection />
 
         <div className="fixed inset-x-0 bottom-3 z-40 px-4 sm:hidden">
           <Link
