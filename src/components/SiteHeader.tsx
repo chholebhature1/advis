@@ -86,7 +86,7 @@ export default function SiteHeader() {
 
     const fetchTicker = async () => {
       try {
-        const response = await fetch("/api/market/indices", {
+        const response = await fetch(`/api/market/indices?ts=${Date.now()}`, {
           method: "GET",
           cache: "no-store",
         });
@@ -111,7 +111,7 @@ export default function SiteHeader() {
     };
 
     void fetchTicker();
-    const refreshTimer = window.setInterval(fetchTicker, 60_000);
+    const refreshTimer = window.setInterval(fetchTicker, 5_000);
 
     return () => {
       mounted = false;
