@@ -6,6 +6,23 @@ import { useEffect, useState, useCallback } from "react";
 import { ArrowRight, Menu, UserRound, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
+type HeaderMarketIndicatorId = "NIFTY50" | "BANKNIFTY" | "SENSEX";
+
+type HeaderMarketIndicator = {
+  id: HeaderMarketIndicatorId;
+  displayName: string;
+  value: number;
+  changeAbs: number;
+  changePct: number;
+  trend: "up" | "down" | "flat";
+};
+
+type HeaderMarketIndicatorsResponse = {
+  indices?: HeaderMarketIndicator[];
+};
+
+const TICKER_ORDER: HeaderMarketIndicatorId[] = ["NIFTY50", "SENSEX", "BANKNIFTY"];
+
 const HOME_SCROLL_SECTIONS = [
   { id: "how-it-works", hash: "#how-it-works" },
   { id: "insights", hash: "#insights" },
@@ -25,6 +42,8 @@ export default function SiteHeader() {
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [marketTicker, setMarketTicker] = useState<HeaderMarketIndicator[]>([]);
+  const [isTickerLoading, setIsTickerLoading] = useState(true);
 
   const handleScroll = useCallback(() => {
     setScrolled(window.scrollY > 80);
@@ -61,6 +80,44 @@ export default function SiteHeader() {
       document.body.style.overflow = previousOverflow;
     };
   }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchTicker = async () => {
+      try {
+        const response = await fetch("/api/market/indices", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Market ticker failed: ${response.status}`);
+        }
+
+        const payload = (await response.json()) as HeaderMarketIndicatorsResponse;
+        const indices = Array.isArray(payload.indices) ? payload.indices : [];
+
+        if (mounted && indices.length > 0) {
+          setMarketTicker(indices);
+        }
+      } catch {
+        // Keep current values on transient failures.
+      } finally {
+        if (mounted) {
+          setIsTickerLoading(false);
+        }
+      }
+    };
+
+    void fetchTicker();
+    const refreshTimer = window.setInterval(fetchTicker, 60_000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(refreshTimer);
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -234,14 +291,59 @@ export default function SiteHeader() {
   }
 
   /* ─── Main header ─── */
+  const marketFormat = new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const orderedTicker = TICKER_ORDER.map((id) => marketTicker.find((item) => item.id === id)).filter(
+    (item): item is HeaderMarketIndicator => Boolean(item)
+  );
+
+  const mobilePanelTop = scrolled ? "98px" : "112px";
+
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 flex justify-center"
+      className="fixed top-0 left-0 right-0 z-50 flex w-full flex-col items-center"
       style={{
         padding: scrolled ? "10px 16px 0" : "0",
         transition: "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
       }}
     >
+      <div className="w-full border-b border-[#1f3157] bg-[#08142c]/80 backdrop-blur-md">
+        <div className="mx-auto h-9 w-full max-w-[1280px] overflow-hidden px-0 text-[12px] md:text-[13px]">
+          {orderedTicker.length > 0 ? (
+            <div className="market-ticker-marquee flex h-full items-center justify-center">
+              <div className="market-ticker-track flex min-w-max items-center gap-6 px-4 md:gap-8 md:px-8 lg:px-10">
+                {orderedTicker.map((item, index) => {
+                  const isPositive = item.changePct > 0;
+                  const isNegative = item.changePct < 0;
+                  const changeColorClass = isPositive ? "text-[#26d790]" : isNegative ? "text-[#ff6b6b]" : "text-[#9db4df]";
+                  const signedChangeAbs = `${item.changeAbs >= 0 ? "+" : ""}${item.changeAbs.toFixed(2)}`;
+                  const signedChangePct = `${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(2)}%`;
+                  const label = item.id === "NIFTY50" ? "Nifty" : item.id === "SENSEX" ? "Sensex" : "Bank Nifty";
+
+                  return (
+                    <div key={`${item.id}-${index}`} className="flex min-w-[24rem] items-center justify-center gap-2 text-[#dbe6ff] leading-none">
+                      <span className="w-24 text-right font-semibold text-[#c9d9ff]">{label}</span>
+                      <span className="w-32 text-right font-semibold text-white tabular-nums">{marketFormat.format(item.value)}</span>
+                      <span className={`w-36 text-left font-semibold tabular-nums ${changeColorClass}`}>
+                        {signedChangeAbs} ({signedChangePct})
+                      </span>
+                      {index < orderedTicker.length - 1 ? <span className="pl-2 text-[#5f7396]">|</span> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-full items-center px-4 md:px-8 lg:px-10">
+              <span className="text-[#b7c9ee]">{isTickerLoading ? "Loading market data..." : "Market data unavailable right now."}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <nav
         style={{
           /* Dimensions & shape */
@@ -446,7 +548,8 @@ export default function SiteHeader() {
 
       <div
         id="mobile-nav-panel"
-        className={`md:hidden fixed left-4 right-4 top-[74px] overflow-hidden rounded-2xl border border-[#cbdaf5]/90 bg-white/95 shadow-[0_16px_36px_rgba(20,42,74,0.18)] backdrop-blur-xl transition-all duration-300 ${isMobileMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"}`}
+        className={`md:hidden fixed left-4 right-4 overflow-hidden rounded-2xl border border-[#cbdaf5]/90 bg-white/95 shadow-[0_16px_36px_rgba(20,42,74,0.18)] backdrop-blur-xl transition-all duration-300 ${isMobileMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"}`}
+        style={{ top: mobilePanelTop }}
       >
         <div className="p-2.5">
           {navItems.map((item) => {
@@ -520,6 +623,32 @@ export default function SiteHeader() {
         }
         .navlink-hover:hover::after {
           transform: translateX(-50%) scaleX(1);
+        }
+        .market-ticker-marquee {
+          position: relative;
+          overflow: hidden;
+          mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
+          -webkit-mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
+        }
+        .market-ticker-track {
+          animation: marketTickerMarquee 14s linear infinite;
+          will-change: transform;
+        }
+        .market-ticker-marquee:hover .market-ticker-track {
+          animation-play-state: paused;
+        }
+        @keyframes marketTickerMarquee {
+          0% {
+            transform: translateX(100%);
+          }
+          100% {
+            transform: translateX(-100%);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .market-ticker-track {
+            animation: none;
+          }
         }
       `}</style>
     </header>

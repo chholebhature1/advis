@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 function requireEnv(key: string): string {
@@ -7,12 +7,52 @@ function requireEnv(key: string): string {
   return value;
 }
 
+async function confirmSupabaseUserByEmail(
+  supabase: SupabaseClient,
+  normalizedEmail: string
+): Promise<void> {
+  let page = 1;
+  const perPage = 200;
+
+  while (page <= 10) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+
+    if (error) {
+      throw error;
+    }
+
+    const users = data?.users ?? [];
+    const matchedUser = users.find((user) => user.email?.toLowerCase() === normalizedEmail);
+
+    if (matchedUser) {
+      const { error: confirmError } = await supabase.auth.admin.updateUserById(matchedUser.id, {
+        email_confirm: true,
+      });
+
+      if (confirmError) {
+        throw confirmError;
+      }
+
+      return;
+    }
+
+    if (users.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  throw new Error("Unable to find user by email for confirmation.");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, token } = body;
+    const normalizedEmail = String(email ?? "").toLowerCase();
 
-    if (!email || !email.includes("@")) {
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
 
@@ -28,7 +68,7 @@ export async function POST(request: NextRequest) {
     const { data, error: selectError } = await supabase
       .from("email_verification_tokens")
       .select("*")
-      .eq("email", email.toLowerCase())
+      .eq("email", normalizedEmail)
       .eq("token", token)
       .gt("expires_at", new Date().toISOString())
       .single();
@@ -55,12 +95,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to verify email" }, { status: 500 });
     }
 
-    // Confirm the user in Supabase Auth
-    const { error: confirmError } = await supabase.auth.admin.updateUserById(data.id, {
-      email_confirmed_at: new Date().toISOString(),
-    });
-
-    if (confirmError) {
+    // Confirm the related user in Supabase Auth.
+    try {
+      await confirmSupabaseUserByEmail(supabase, normalizedEmail);
+    } catch (confirmError) {
       console.error("Confirm error:", confirmError);
       // Don't fail here - token is verified in database even if auth update fails
     }

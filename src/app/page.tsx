@@ -435,8 +435,8 @@ export default function Home() {
 
           <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-center gap-8 px-6 md:gap-10 md:px-10 lg:min-h-[calc(100vh-7rem)] lg:flex-row lg:items-center lg:gap-6 lg:px-14 xl:gap-10">
             {/* Left: Hero Content */}
-            <div className="relative z-20 mt-2 flex w-full max-w-[36rem] flex-1 flex-col items-center text-center sm:mt-0 lg:-mt-12 lg:items-start lg:text-left xl:-mt-16 2xl:-mt-20">
-              <div className="mb-5 flex w-full justify-center lg:justify-start">
+            <div className="relative z-20 mt-2 flex w-full max-w-[36rem] flex-1 flex-col items-center text-center sm:mt-0 lg:-mt-12 lg:items-center lg:text-center xl:-mt-16 2xl:-mt-20">
+              <div className="mb-5 flex w-full justify-center lg:justify-center">
                 <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-50 shadow-sm backdrop-blur-md md:text-xs">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00e0ff] opacity-75" />
@@ -471,11 +471,15 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex w-full flex-col items-center text-center lg:items-start lg:text-left">
+              <div className="flex w-full flex-col items-center text-center lg:items-center lg:text-center">
                 <h2 className="mb-3 text-[1.45rem] font-bold leading-[1.15] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] sm:text-2xl md:text-[1.9rem]">
                   Powered by{" "}
-                  <span className="inline-flex items-center rounded-full bg-[linear-gradient(120deg,rgba(255,255,255,0.18),rgba(126,239,255,0.12))] px-3 py-0.5 text-[#c5f6ff] shadow-[0_8px_20px_rgba(0,216,255,0.18)]">
-                    Smart AI Insights
+                  <span className="group relative inline-flex items-center gap-1.5 overflow-hidden rounded-full border border-[#00e0ff]/30 bg-[linear-gradient(120deg,rgba(0,224,255,0.12),rgba(43,92,255,0.15),rgba(0,224,255,0.08))] px-3 py-0.5 text-[0.85em] shadow-[0_0_16px_rgba(0,224,255,0.18),0_6px_18px_rgba(0,216,255,0.12)] backdrop-blur-md transition-all duration-500 hover:border-[#00e0ff]/50 hover:shadow-[0_0_24px_rgba(0,224,255,0.3),0_8px_24px_rgba(0,216,255,0.18)]">
+                    <span className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)]" />
+                    <Sparkles className="relative h-3.5 w-3.5 text-[#00e0ff] drop-shadow-[0_0_6px_rgba(0,224,255,0.5)]" />
+                    <span className="relative bg-[linear-gradient(120deg,#c5f6ff,#ffffff,#a0ecff)] bg-clip-text font-bold tracking-wide text-transparent">
+                      Smart AI Insights
+                    </span>
                   </span>
                 </h2>
 
@@ -514,203 +518,336 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-[linear-gradient(180deg,#eef4ff_0%,#e7efff_100%)] px-4 py-16 sm:px-6 sm:py-20">
-          <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:gap-8">
-            <div className="max-w-xl">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#2b5cff]">Built for Indian Families</p>
-              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#0a1930] sm:text-3xl md:text-4xl">
-                A calm planning space for real life decisions.
-              </h2>
-              <p className="mt-4 text-sm leading-relaxed text-[#50607d] sm:text-base">
-                Pravix combines a clean visual roadmap, practical guidance, and human support so the next step always feels clear.
-              </p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                {[
-                  "Clear goal roadmap",
-                  "Monthly action nudges",
-                  "Expert-backed support",
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-2xl border border-[#d8e7ff] bg-white px-4 py-3 text-sm font-semibold text-[#1f365b] shadow-[0_10px_24px_rgba(43,92,255,0.06)]"
-                  >
-                    {item}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-5 max-w-lg text-sm leading-relaxed text-[#5f7396] sm:text-[15px]">
-                Use this section as a bridge between the discovery call and the deeper homepage content, so visitors immediately see the value of starting a plan.
-              </p>
-            </div>
-
-            <div className="overflow-hidden rounded-[2rem] border border-[#d8e7ff] bg-white shadow-[0_20px_50px_rgba(43,92,255,0.12)]">
-              <div className="relative aspect-[4/3] sm:aspect-[16/10]">
-                <Image
-                  src="/image/about-hero-family.webp"
-                  alt="Indian family planning their financial future together"
-                  fill
-                  className="object-cover object-center"
-                  sizes="(min-width: 1024px) 56vw, 100vw"
-                />
-                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0.02)_20%,rgba(10,25,48,0.28)_100%)]" />
-              </div>
-              <div className="px-4 py-4 sm:px-6 sm:py-5">
-                <p className="text-sm font-semibold text-[#0a1930]">Goal-first, family-first, mobile-first.</p>
-                <p className="mt-1 text-sm leading-relaxed text-[#5f7396]">
-                  This section now lives below the discovery call block so the homepage closes with a strong visual finish.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION: WHO PRAVIX IS FOR */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: WHO PRAVIX IS FOR — Premium Redesign
+            ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="why-goals"
-          className="bg-[linear-gradient(180deg,#f6f9ff_0%,#eef3ff_100%)] py-20 md:py-24"
+          className="relative overflow-hidden py-24 md:py-32"
+          style={{ background: "linear-gradient(175deg, #f0f5ff 0%, #e4edff 35%, #f7f9ff 70%, #eef4ff 100%)" }}
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={denseSectionViewport}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <motion.article
-                className="rounded-3xl border border-finance-border/80 bg-white p-7 shadow-[0_16px_34px_rgba(43,92,255,0.08)]"
-                variants={featureCardReveal}
+          {/* Decorative background orbs */}
+          <div className="pointer-events-none absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.07),transparent_70%)]" />
+          <div className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(0,216,255,0.06),transparent_70%)]" />
+          <div className="pointer-events-none absolute left-1/2 top-1/3 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.04),transparent_65%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            {/* ── Section Header ── */}
+            <motion.div
+              className="mx-auto max-w-3xl text-center"
+              variants={chartCardReveal}
+              custom={0}
+            >
+              <div className="mx-auto mb-5 inline-flex items-center gap-2.5 rounded-full border border-[#2b5cff]/15 bg-white/80 px-4 py-1.5 shadow-[0_4px_16px_rgba(43,92,255,0.08)] backdrop-blur-sm">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2b5cff] opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#2b5cff]" />
+                </span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Who It&apos;s For</span>
+              </div>
+              <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                Built for people planning{" "}
+                <span className="bg-[linear-gradient(120deg,#2b5cff,#0099ff)] bg-clip-text text-transparent">
+                  real life goals
+                </span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
+                Whether you&apos;re saving for your child&apos;s education, your first home, or long-term family security —
+                Pravix turns your ambitions into a clear, disciplined plan.
+              </p>
+            </motion.div>
+
+            {/* ── Audience Cards — Icon-driven grid ── */}
+            <motion.div
+              className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              initial="hidden"
+              whileInView="show"
+              viewport={cardGridViewport}
+            >
+              {[
+                {
+                  icon: Wallet,
+                  title: "Salaried Professionals",
+                  desc: "Optimize monthly savings with structured SIP plans and tax-efficient strategies.",
+                  accent: "#2b5cff",
+                  accentBg: "#edf4ff",
+                },
+                {
+                  icon: Target,
+                  title: "Young Families",
+                  desc: "Plan for education, home, and family milestones with goal-first roadmaps.",
+                  accent: "#0099ff",
+                  accentBg: "#e8f6ff",
+                },
+                {
+                  icon: LineChartIcon,
+                  title: "Goal-Based Investors",
+                  desc: "Track progress across multiple goals with priority scoring and monthly actions.",
+                  accent: "#00b894",
+                  accentBg: "#e8fff5",
+                },
+                {
+                  icon: Calculator,
+                  title: "Tax-Conscious Earners",
+                  desc: "Stay ahead of 80C, ELSS, and tax-loss harvesting with quarterly runway tracking.",
+                  accent: "#6c5ce7",
+                  accentBg: "#f0edff",
+                },
+              ].map((card, index) => (
+                <motion.article
+                  key={card.title}
+                  className="group relative overflow-hidden rounded-[1.4rem] border border-white/80 bg-white/70 p-6 shadow-[0_8px_32px_rgba(43,92,255,0.06)] backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_20px_48px_rgba(43,92,255,0.14)]"
+                  variants={featureCardReveal}
+                  custom={index}
+                >
+                  {/* Top gradient accent bar */}
+                  <div
+                    className="absolute inset-x-0 top-0 h-1 transition-all duration-300 group-hover:h-1.5"
+                    style={{ background: `linear-gradient(90deg, ${card.accent}, ${card.accent}88)` }}
+                  />
+                  {/* Hover glow */}
+                  <div
+                    className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-0 blur-[40px] transition-opacity duration-500 group-hover:opacity-100"
+                    style={{ backgroundColor: `${card.accent}18` }}
+                  />
+
+                  <div
+                    className="relative inline-flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
+                    style={{ backgroundColor: card.accentBg }}
+                  >
+                    <card.icon className="h-5.5 w-5.5" style={{ color: card.accent }} />
+                  </div>
+                  <h3 className="mt-4 text-lg font-bold text-[#0a1930]">{card.title}</h3>
+                  <p className="mt-2 text-[13px] leading-relaxed text-[#586987]">{card.desc}</p>
+                </motion.article>
+              ))}
+            </motion.div>
+
+            {/* ── Main Content: Family Visual + Money Mistakes ── */}
+            <div className="mt-16 grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
+              {/* Left: Cinematic family image with floating stats */}
+              <motion.div
+                className="group relative overflow-hidden rounded-[2rem] shadow-[0_24px_64px_rgba(10,25,48,0.16)]"
+                variants={chartCardReveal}
                 custom={0}
               >
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2b5cff]">Who It&apos;s For</p>
-                <h3 className="mt-3 text-2xl font-bold tracking-tight text-[#0a1930] md:text-3xl">
-                  Built for people planning real life goals.
-                </h3>
-                <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
-                  {[
-                    "Salaried professionals",
-                    "Young families",
-                    "Goal-based investors",
-                    "Tax-conscious earners",
-                  ].map((item) => (
-                    <div key={item} className="rounded-xl border border-finance-border bg-[#f7f9ff] px-4 py-3 text-sm font-medium text-[#355a95]">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </motion.article>
+                <div className="relative aspect-[4/3] sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[420px]">
+                  <Image
+                    src="/image/about-hero-family.webp"
+                    alt="Indian family planning their financial future together"
+                    fill
+                    className="object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]"
+                    sizes="(min-width: 1024px) 56vw, 100vw"
+                  />
+                  {/* Dark gradient overlay */}
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0)_30%,rgba(10,25,48,0.65)_100%)]" />
+                  {/* Subtle blue tint */}
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(43,92,255,0.06),transparent_60%)]" />
 
-              <motion.article
-                className="rounded-3xl border border-finance-border/80 bg-white p-7 shadow-[0_16px_34px_rgba(43,92,255,0.08)]"
-                variants={featureCardReveal}
+                  {/* Floating stats badges */}
+                  <div className="absolute left-4 top-4 sm:left-6 sm:top-6">
+                    <motion.div
+                      className="rounded-2xl border border-white/25 bg-white/15 px-4 py-3 backdrop-blur-xl"
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.6, delay: 0.3 }}
+                      viewport={{ once: true }}
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Families Served</p>
+                      <p className="mt-0.5 text-2xl font-bold text-white">2,500+</p>
+                    </motion.div>
+                  </div>
+
+                  <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+                    <motion.div
+                      className="rounded-2xl border border-white/25 bg-white/15 px-4 py-3 backdrop-blur-xl"
+                      initial={{ opacity: 0, x: 20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.6, delay: 0.45 }}
+                      viewport={{ once: true }}
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Goals Tracked</p>
+                      <p className="mt-0.5 text-2xl font-bold text-white">8,200+</p>
+                    </motion.div>
+                  </div>
+
+                  {/* Bottom caption bar */}
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-5 py-4 sm:px-7 sm:py-5">
+                    <div>
+                      <p className="text-sm font-semibold text-white sm:text-base">Goal-first. Family-first. Mobile-first.</p>
+                      <p className="mt-0.5 text-xs text-white/70">Building India&apos;s most disciplined wealth planning experience</p>
+                    </div>
+                    <div className="hidden items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-3 py-1.5 backdrop-blur-md sm:inline-flex">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00e0ff] opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00e0ff]" />
+                      </span>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/90">Live Platform</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Right: Money Mistakes — premium checklist */}
+              <motion.div
+                className="flex flex-col gap-4"
+                variants={chartCardReveal}
                 custom={1}
               >
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2b5cff]">Money Mistakes Pravix Helps Prevent</p>
-                <div className="mt-5 space-y-2.5">
-                  {[
-                    "Missed SIPs and delayed monthly actions",
-                    "Poor diversification and unnoticed concentration",
-                    "Last-minute tax moves in March",
-                    "Emotional reactions to market noise",
-                  ].map((mistake) => (
-                    <div key={mistake} className="rounded-xl border border-finance-border bg-[#f7f9ff] px-4 py-3 text-sm text-[#4f6180]">
-                      {mistake}
+                {/* Money Mistakes Card */}
+                <div className="flex-1 rounded-[1.6rem] border border-[#d8e7ff] bg-white p-6 shadow-[0_16px_40px_rgba(43,92,255,0.08)] sm:p-7">
+                  <div className="flex items-center gap-3">
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff0f0]">
+                      <ShieldCheck className="h-5 w-5 text-[#e74c3c]" />
                     </div>
-                  ))}
-                </div>
-              </motion.article>
-            </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#e74c3c]/80">Common Pitfalls</p>
+                      <h3 className="text-lg font-bold text-[#0a1930]">Money mistakes Pravix prevents</h3>
+                    </div>
+                  </div>
 
-            <motion.article
-              className="mt-6 rounded-3xl border border-[#d8e7ff] bg-white p-7 shadow-[0_16px_34px_rgba(43,92,255,0.08)]"
-              variants={featureCardReveal}
-              custom={2}
-            >
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2b5cff]">Built For Indian Wealth Decisions</p>
-              <h3 className="mt-3 text-2xl font-bold tracking-tight text-[#0a1930] md:text-3xl">
-                Local context, family goals, and disciplined long-term planning.
-              </h3>
-              <div className="mt-5 flex flex-wrap gap-2.5">
-                {[
-                  "INR-based goals",
-                  "Section 80C and tax runway",
-                  "Family-focused milestones",
-                  "Monthly action nudges",
-                ].map((item) => (
-                  <span key={item} className="rounded-full border border-[#2b5cff]/18 bg-[#edf4ff] px-3.5 py-2 text-xs font-semibold text-[#2b5cff]">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </motion.article>
+                  <div className="mt-5 space-y-3">
+                    {[
+                      { mistake: "Missed SIPs and delayed monthly actions", icon: "⏰" },
+                      { mistake: "Poor diversification and unnoticed concentration", icon: "📊" },
+                      { mistake: "Last-minute tax moves in March", icon: "📋" },
+                      { mistake: "Emotional reactions to market noise", icon: "🧘" },
+                    ].map((item, index) => (
+                      <motion.div
+                        key={item.mistake}
+                        className="group flex items-start gap-3.5 rounded-xl border border-[#ffe0e0]/60 bg-gradient-to-r from-[#fff8f8] to-white px-4 py-3.5 transition-all duration-200 hover:border-[#2b5cff]/15 hover:from-[#f7f9ff] hover:to-white hover:shadow-[0_6px_20px_rgba(43,92,255,0.06)]"
+                        variants={featureCardReveal}
+                        custom={index}
+                      >
+                        <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white text-sm shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                          {item.icon}
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-[#1f365b] transition-colors group-hover:text-[#0a1930]">{item.mistake}</p>
+                          <div className="mt-1.5 h-1 w-0 rounded-full bg-gradient-to-r from-[#e74c3c]/40 to-[#2b5cff]/40 transition-all duration-500 group-hover:w-full" />
+                        </div>
+                        <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#e74c3c]/30 transition-colors group-hover:text-[#2b5cff]" />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Built for India — compact accent card */}
+                <div className="rounded-[1.4rem] border border-[#2b5cff]/12 bg-gradient-to-br from-[#2b5cff] to-[#1e44cd] p-5 text-white shadow-[0_16px_40px_rgba(43,92,255,0.2)] sm:p-6">
+                  <div className="flex items-center gap-2.5">
+                    <Globe2 className="h-5 w-5 text-[#00d8ff]" />
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Built for India</p>
+                  </div>
+                  <h3 className="mt-2.5 text-lg font-bold leading-snug text-white sm:text-xl">
+                    Local context, family goals, disciplined planning.
+                  </h3>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {[
+                      "INR-based goals",
+                      "Section 80C & tax runway",
+                      "Family milestones",
+                      "Monthly nudges",
+                    ].map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border border-white/20 bg-white/12 px-3 py-1.5 text-[11px] font-semibold text-white/90 backdrop-blur-sm transition-colors hover:bg-white/20"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           </div>
         </motion.section>
 
-        {/* SECTION: GOALS & PRIORITIES */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: GOALS & PRIORITIES — Premium Redesign
+            ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="insights-priorities"
-          className="relative w-full overflow-hidden bg-[linear-gradient(145deg,#2453be_0%,#264da8_48%,#203f8e_100%)] py-20 text-white md:py-24"
+          className="relative w-full overflow-hidden py-28 text-white md:py-36"
+          style={{ background: "linear-gradient(155deg, #1a3f8f 0%, #234daa 35%, #1e408c 70%, #172f6e 100%)" }}
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={sectionViewport}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(0,224,255,0.18),transparent_42%),radial-gradient(circle_at_18%_82%,rgba(255,255,255,0.08),transparent_50%)]" />
+          {/* Decorative elements */}
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(0,224,255,0.2),transparent_42%),radial-gradient(circle_at_18%_82%,rgba(255,255,255,0.06),transparent_50%)]" />
+          <div className="pointer-events-none absolute -left-24 top-1/4 h-[400px] w-[400px] rounded-full bg-[#2b5cff]/10 blur-[120px]" />
+          <div className="pointer-events-none absolute -right-24 bottom-1/4 h-[350px] w-[350px] rounded-full bg-[#00d8ff]/8 blur-[100px]" />
 
-          <div className="relative mx-auto grid w-full max-w-7xl gap-8 px-6 md:px-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch lg:gap-10 lg:px-14">
+          <div className="relative mx-auto grid w-full max-w-7xl gap-10 px-6 md:px-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch lg:gap-14 lg:px-14">
             <motion.div variants={chartCardReveal} custom={0}>
-              <div className="relative h-full min-h-[340px] overflow-hidden rounded-[2rem] border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] shadow-[0_24px_70px_rgba(7,30,92,0.35)]">
+              <div className="group relative h-full min-h-[380px] overflow-hidden rounded-[2rem] border border-white/15 shadow-[0_32px_80px_rgba(0,0,0,0.35)]">
                 <video
                   autoPlay
                   loop
                   muted
                   playsInline
-                  className="absolute inset-0 h-full w-full object-cover"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                 >
                   <source src="/video/pravix-sec2.mp4" type="video/mp4" />
                 </video>
-                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(39,86,240,0.2),rgba(35,78,225,0.52))]" />
-                <div className="pointer-events-none absolute inset-0 rounded-[2rem] border border-white/20" />
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(26,63,143,0.15),rgba(23,47,110,0.55))]" />
+                <div className="pointer-events-none absolute inset-0 rounded-[2rem] border border-white/10" />
+                {/* Floating label */}
+                <div className="absolute left-5 top-5 rounded-xl border border-white/20 bg-white/12 px-3.5 py-2 backdrop-blur-xl">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#00e0ff]">Live Preview</p>
+                </div>
               </div>
             </motion.div>
 
             <motion.div variants={chartCardReveal} custom={1} className="flex flex-col justify-center">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#00e0ff]">
-                YOUR PRAVIX AI INSIGHTS ARE BASED ON
-              </p>
-              <h3 className="mt-4 text-[clamp(2.1rem,4.8vw,4rem)] font-bold leading-[1.08] tracking-[-0.02em] text-white">
-                Your Goals &amp; Financial Priorities
+              <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-[#00e0ff]/25 bg-[#00e0ff]/8 px-3.5 py-1.5 backdrop-blur-sm">
+                <Sparkles className="h-3.5 w-3.5 text-[#00e0ff]" />
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#00e0ff]">AI-Powered Insights</span>
+              </div>
+              <h3 className="text-[clamp(2rem,4.5vw,3.6rem)] font-bold leading-[1.06] tracking-[-0.02em]">
+                <span className="text-white">Your Goals &amp; </span>
+                <span className="bg-[linear-gradient(120deg,#00d8ff,#7df9ff)] bg-clip-text text-transparent">Financial Priorities</span>
               </h3>
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-blue-100 md:text-lg">
-                Every recommendation is shaped around what matters most to you.
+              <p className="mt-5 max-w-2xl text-base leading-relaxed text-blue-100/90 md:text-lg">
+                Every recommendation is shaped around what matters most to you — your risk comfort, your timeline, your family.
               </p>
 
-              <div className="mt-8 space-y-4">
+              <div className="mt-9 space-y-4">
                 {[
                   {
                     title: "Market Trends & Data Signals",
                     detail: "Insights reflect current market movements and evolving patterns.",
+                    icon: LineChartIcon,
                   },
                   {
                     title: "Expert-Backed Analysis",
                     detail: "Guidance informed by Pravix's investment professionals and research.",
+                    icon: ShieldCheck,
                   },
                   {
                     title: "Global Economic Developments",
                     detail: "Broader events that influence markets and long-term opportunities.",
+                    icon: Globe2,
                   },
                 ].map((item, index) => (
                   <motion.article
                     key={item.title}
-                    className="rounded-3xl border border-white/20 bg-white/10 px-6 py-5 backdrop-blur-sm"
+                    className="group rounded-2xl border border-white/15 bg-white/8 px-5 py-4.5 backdrop-blur-sm transition-all duration-300 hover:border-[#00d8ff]/30 hover:bg-white/12"
                     variants={featureCardReveal}
                     custom={index}
                   >
                     <div className="flex items-start gap-4">
-                      <span className="mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#00d8ff] text-sm font-bold text-[#2759df]">
-                        {index + 1}
+                      <span className="mt-0.5 inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#00d8ff]/15 transition-colors duration-300 group-hover:bg-[#00d8ff]/25">
+                        <item.icon className="h-5 w-5 text-[#00d8ff]" />
                       </span>
                       <div>
-                        <h4 className="text-xl font-semibold text-white">{item.title}</h4>
-                        <p className="mt-2 text-sm leading-relaxed text-blue-100 md:text-lg">{item.detail}</p>
+                        <h4 className="text-lg font-semibold text-white">{item.title}</h4>
+                        <p className="mt-1.5 text-sm leading-relaxed text-blue-100/80">{item.detail}</p>
                       </div>
                     </div>
                   </motion.article>
@@ -720,120 +857,154 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* SECTION 3: HUMAN JOURNEY + EMOTIONAL CONNECT */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: HOW PRAVIX WORKS — Premium Redesign
+            ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="how-it-works"
-          className="border-y border-finance-border/70 bg-white py-24 md:py-28"
+          className="relative overflow-hidden bg-white py-28 md:py-36"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={denseSectionViewport}
         >
-          <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-14">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">How Pravix Works</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
-                A simple four-step path from goals to action.
+          {/* Subtle decorative background */}
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(43,92,255,0.03),transparent_50%),radial-gradient(circle_at_80%_80%,rgba(0,216,255,0.03),transparent_50%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            {/* Section Header */}
+            <motion.div className="mx-auto max-w-3xl text-center" variants={chartCardReveal} custom={0}>
+              <div className="mx-auto mb-5 inline-flex items-center gap-2.5 rounded-full border border-[#2b5cff]/12 bg-[#edf4ff] px-4 py-1.5">
+                <Compass className="h-3.5 w-3.5 text-[#2b5cff]" />
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">How It Works</span>
+              </div>
+              <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                A simple four-step path from{" "}
+                <span className="bg-[linear-gradient(120deg,#2b5cff,#0099ff)] bg-clip-text text-transparent">goals to action</span>
               </h2>
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
                 Share your goals, get a clear roadmap, follow monthly actions, and adjust with AI plus expert support.
               </p>
+            </motion.div>
 
-              <motion.div className="mt-10 space-y-4" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
-                {[
-                  {
-                    step: "01",
-                    title: "Tell us your goals",
-                    detail: "Capture your milestones, income profile, risk comfort, and preferences in one guided flow.",
-                    icon: CircleUserRound,
-                  },
-                  {
-                    step: "02",
-                    title: "Get your wealth roadmap",
-                    detail: "See a practical starting plan across goals, allocation, tax runway, and monthly focus.",
-                    icon: Target,
-                  },
-                  {
-                    step: "03",
-                    title: "Track progress and monthly actions",
-                    detail: "Stay disciplined with timely nudges, checklists, and progress tracking across each goal.",
-                    icon: RefreshCcw,
-                  },
-                  {
-                    step: "04",
-                    title: "Adjust with AI + expert support",
-                    detail: "Use Pravix AI Buddy and advisor guidance to refine the plan as life and markets change.",
-                    icon: Compass,
-                  },
-                ].map((item, index) => (
-                  <motion.article
-                    key={item.step}
-                    className="rounded-2xl border border-finance-border/70 bg-[#f7f9ff] p-5 sm:p-6"
-                    variants={featureCardReveal}
-                    custom={index}
+            {/* Steps Grid — connected timeline */}
+            <motion.div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
+              {[
+                {
+                  step: "01",
+                  title: "Tell us your goals",
+                  detail: "Capture your milestones, income, risk comfort, and preferences in one guided flow.",
+                  icon: CircleUserRound,
+                  accent: "#2b5cff",
+                  accentBg: "#edf4ff",
+                },
+                {
+                  step: "02",
+                  title: "Get your roadmap",
+                  detail: "See a practical plan across goals, allocation, tax runway, and monthly focus.",
+                  icon: Target,
+                  accent: "#0099ff",
+                  accentBg: "#e8f6ff",
+                },
+                {
+                  step: "03",
+                  title: "Track & act monthly",
+                  detail: "Stay disciplined with timely nudges, checklists, and progress tracking.",
+                  icon: RefreshCcw,
+                  accent: "#00b894",
+                  accentBg: "#e8fff5",
+                },
+                {
+                  step: "04",
+                  title: "Adjust with AI + experts",
+                  detail: "Use Pravix AI Buddy and advisor guidance as life and markets change.",
+                  icon: Compass,
+                  accent: "#6c5ce7",
+                  accentBg: "#f0edff",
+                },
+              ].map((item, index) => (
+                <motion.article
+                  key={item.step}
+                  className="group relative overflow-hidden rounded-[1.6rem] border border-[#e2ebff] bg-white p-6 shadow-[0_8px_28px_rgba(43,92,255,0.06)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(43,92,255,0.14)]"
+                  variants={featureCardReveal}
+                  custom={index}
+                >
+                  {/* Step number watermark */}
+                  <span className="pointer-events-none absolute -right-2 -top-4 text-[5rem] font-black leading-none text-[#2b5cff]/[0.04]">{item.step}</span>
+
+                  <div
+                    className="relative inline-flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
+                    style={{ backgroundColor: item.accentBg }}
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#2b5cff] text-white">
-                        <item.icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2b5cff]">Step {item.step}</p>
-                        <h3 className="mt-1 text-lg font-bold text-[#0a1930]">{item.title}</h3>
-                        <p className="mt-1.5 text-sm leading-relaxed text-[#586987]">{item.detail}</p>
-                      </div>
-                    </div>
-                  </motion.article>
-                ))}
-              </motion.div>
-            </div>
+                    <item.icon className="h-5.5 w-5.5" style={{ color: item.accent }} />
+                  </div>
+                  <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: item.accent }}>Step {item.step}</p>
+                  <h3 className="mt-1.5 text-lg font-bold text-[#0a1930]">{item.title}</h3>
+                  <p className="mt-2 text-[13px] leading-relaxed text-[#586987]">{item.detail}</p>
 
-            <div className="rounded-3xl border border-[#d8e7ff] bg-[linear-gradient(160deg,#21479e_0%,#2a4f9f_58%,#2a4a91_100%)] p-8 text-white shadow-[0_24px_56px_rgba(10,25,48,0.24)] sm:p-10">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Why Families Choose Pravix</p>
-              <h3 className="mt-4 text-2xl font-bold leading-tight sm:text-3xl">
-                Not just better returns.
-                <br />
-                Better financial behavior.
-              </h3>
+                  {/* Bottom accent line */}
+                  <div className="mt-5 h-0.5 w-0 rounded-full transition-all duration-500 group-hover:w-full" style={{ background: `linear-gradient(90deg, ${item.accent}, transparent)` }} />
+                </motion.article>
+              ))}
+            </motion.div>
 
-              <motion.div className="mt-7 space-y-5" initial="hidden" whileInView="show" viewport={cardGridViewport}>
-                {[
-                  {
-                    icon: ShieldCheck,
-                    title: "Disciplined decisioning",
-                    detail: "Priority scoring and checklist-driven execution reduce emotional investing mistakes.",
-                  },
-                  {
-                    icon: Sparkles,
-                    title: "Transparent intelligence",
-                    detail: "Every suggestion surfaces why it matters, risk implications, and what to do next.",
-                  },
-                  {
-                    icon: BellRing,
-                    title: "Timely interventions",
-                    detail: "Automated nudges keep goals on track before missed SIPs, drifts, or tax gaps become expensive.",
-                  },
-                ].map((point, index) => (
-                  <motion.div
-                    key={point.title}
-                    className="rounded-2xl border border-white/20 bg-white/10 px-4 py-4 backdrop-blur-sm"
-                    variants={featureCardReveal}
-                    custom={index}
-                  >
-                    <div className="flex items-start gap-3">
-                      <point.icon className="mt-0.5 h-5 w-5 text-[#00d8ff]" />
-                      <div>
-                        <p className="text-base font-semibold text-white">{point.title}</p>
-                        <p className="mt-1 text-sm leading-relaxed text-[#d9e6ff]">{point.detail}</p>
-                      </div>
-                    </div>
+            {/* Why Families Choose — premium dark card */}
+            <motion.div
+              className="mt-16 overflow-hidden rounded-[2rem] border border-[#2b5cff]/15 shadow-[0_32px_80px_rgba(10,25,48,0.2)]"
+              style={{ background: "linear-gradient(155deg, #1d4494 0%, #2650a6 50%, #1e3f85 100%)" }}
+              variants={chartCardReveal}
+              custom={0}
+            >
+              <div className="relative p-8 text-white sm:p-10 md:p-12">
+                <div className="pointer-events-none absolute -right-20 -top-20 h-[250px] w-[250px] rounded-full bg-[#00d8ff]/10 blur-[80px]" />
+                <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Why Families Choose Pravix</p>
+                    <h3 className="mt-4 text-2xl font-bold leading-tight sm:text-3xl md:text-4xl">
+                      Not just better returns.<br />
+                      <span className="bg-[linear-gradient(120deg,#00d8ff,#7df9ff)] bg-clip-text text-transparent">Better financial behavior.</span>
+                    </h3>
+                    <p className="mt-4 text-sm leading-relaxed text-blue-100/80 md:text-base">
+                      Pravix is designed to make wealth planning feel calm, clear, and confident — even during uncertain markets.
+                    </p>
+                  </div>
+                  <motion.div className="space-y-3.5" initial="hidden" whileInView="show" viewport={cardGridViewport}>
+                    {[
+                      {
+                        icon: ShieldCheck,
+                        title: "Disciplined decisioning",
+                        detail: "Priority scoring and checklist-driven execution reduce emotional investing mistakes.",
+                      },
+                      {
+                        icon: Sparkles,
+                        title: "Transparent intelligence",
+                        detail: "Every suggestion surfaces why it matters, risk implications, and what to do next.",
+                      },
+                      {
+                        icon: BellRing,
+                        title: "Timely interventions",
+                        detail: "Automated nudges keep goals on track before missed SIPs or tax gaps become expensive.",
+                      },
+                    ].map((point, index) => (
+                      <motion.div
+                        key={point.title}
+                        className="group rounded-xl border border-white/12 bg-white/8 px-4 py-3.5 backdrop-blur-sm transition-all duration-200 hover:border-[#00d8ff]/25 hover:bg-white/12"
+                        variants={featureCardReveal}
+                        custom={index}
+                      >
+                        <div className="flex items-start gap-3">
+                          <point.icon className="mt-0.5 h-4.5 w-4.5 text-[#00d8ff]" />
+                          <div>
+                            <p className="text-sm font-semibold text-white">{point.title}</p>
+                            <p className="mt-1 text-[13px] leading-relaxed text-blue-100/70">{point.detail}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
                   </motion.div>
-                ))}
-              </motion.div>
-
-              <div className="mt-8 rounded-2xl border border-white/25 bg-white/10 px-4 py-3.5 text-sm text-[#edf4ff]">
-                Pravix is designed to make wealth planning feel calm, clear, and confident even during uncertain markets.
+                </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </motion.section>
 
@@ -937,20 +1108,22 @@ export default function Home() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-semibold text-white">{indexItem.displayName}</p>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
                         indexItem.trend === "up"
-                          ? "bg-[#1a7f57]/30 text-[#c7f8de]"
+                          ? "bg-[#10b981]/20 text-[#6ee7b7] shadow-[0_0_8px_rgba(16,185,129,0.15)]"
                           : indexItem.trend === "down"
-                            ? "bg-[#a1263d]/30 text-[#ffd4dc]"
+                            ? "bg-[#ef4444]/20 text-[#fca5a5] shadow-[0_0_8px_rgba(239,68,68,0.15)]"
                             : "bg-white/15 text-[#dbe9ff]"
                       }`}>
-                        {indexItem.trend}
+                        {indexItem.trend === "up" ? "▲" : indexItem.trend === "down" ? "▼" : ""} {indexItem.trend}
                       </span>
                     </div>
                     <p className="mt-3 text-2xl font-semibold text-white">
                       {indexItem.value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                     </p>
-                    <p className="mt-1 text-xs text-[#d9e6ff]">
+                    <p className={`mt-1 text-xs font-medium ${
+                      indexItem.changePct > 0 ? "text-[#6ee7b7]" : indexItem.changePct < 0 ? "text-[#fca5a5]" : "text-[#d9e6ff]"
+                    }`}>
                       {changeAbsPrefix}{Math.abs(indexItem.changeAbs).toFixed(2)} • {changePctPrefix}{Math.abs(indexItem.changePct).toFixed(2)}%
                     </p>
                     <div className="mt-3 h-14">
@@ -958,15 +1131,15 @@ export default function Home() {
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={miniTrendPoints} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
                             <defs>
-                              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={indexItem.trend === "down" ? "#ff8a7b" : "#00d8ff"} stopOpacity={0.34} />
-                                <stop offset="95%" stopColor={indexItem.trend === "down" ? "#ff8a7b" : "#00d8ff"} stopOpacity={0.04} />
+                            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={indexItem.trend === "down" ? "#ef4444" : "#10b981"} stopOpacity={0.32} />
+                                <stop offset="95%" stopColor={indexItem.trend === "down" ? "#ef4444" : "#10b981"} stopOpacity={0.03} />
                               </linearGradient>
                             </defs>
                             <Area
                               type="monotone"
                               dataKey="close"
-                              stroke={indexItem.trend === "down" ? "#ff8a7b" : "#00d8ff"}
+                              stroke={indexItem.trend === "down" ? "#f87171" : "#34d399"}
                               strokeWidth={1.8}
                               fill={`url(#${gradientId})`}
                               dot={false}
@@ -1205,29 +1378,39 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* SECTION 2: DASHBOARD MODULES */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: DASHBOARD MODULES — Premium Redesign
+            ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="platform"
-          className="bg-[linear-gradient(180deg,#f5f9ff_0%,#edf4ff_100%)] py-24 md:py-28"
+          className="relative overflow-hidden py-28 md:py-36"
+          style={{ background: "linear-gradient(175deg, #f5f9ff 0%, #eaf1ff 40%, #f7f9ff 70%, #edf4ff 100%)" }}
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={denseSectionViewport}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+          <div className="pointer-events-none absolute -right-40 top-20 h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.05),transparent_70%)]" />
+          <div className="pointer-events-none absolute -left-32 bottom-40 h-[400px] w-[400px] rounded-full bg-[radial-gradient(circle,rgba(0,216,255,0.04),transparent_70%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
             <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">What You Can Do With Pravix</p>
-                <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
-                  Feature clusters built around your outcomes.
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-white/80 px-4 py-1.5 shadow-[0_4px_12px_rgba(43,92,255,0.06)] backdrop-blur-sm">
+                  <BarChart3 className="h-3.5 w-3.5 text-[#2b5cff]" />
+                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Platform Features</span>
+                </div>
+                <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                  Feature clusters built around{" "}
+                  <span className="bg-[linear-gradient(120deg,#2b5cff,#0099ff)] bg-clip-text text-transparent">your outcomes</span>
                 </h2>
               </div>
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 self-start rounded-full border border-[#2b5cff]/25 bg-white px-5 py-2.5 text-sm font-semibold text-[#2b5cff] transition-colors hover:bg-[#edf4ff]"
+                className="group inline-flex items-center gap-2 self-start rounded-full border border-[#2b5cff]/20 bg-white px-6 py-3 text-sm font-semibold text-[#2b5cff] shadow-[0_4px_16px_rgba(43,92,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(43,92,255,0.16)]"
               >
                 View dashboard preview
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
 
@@ -1268,9 +1451,11 @@ export default function Home() {
               ))}
             </motion.div>
 
-            <p className="mt-8 text-sm text-[#4f6180]">
-              Every module below remains available. They now work together to help you plan smarter, act on time, and optimize wealth.
-            </p>
+            <div className="mt-8 flex items-center gap-3">
+              <div className="h-px flex-1 bg-gradient-to-r from-[#d8e7ff] to-transparent" />
+              <p className="flex-shrink-0 text-xs font-bold uppercase tracking-[0.16em] text-[#2b5cff]/60">All Modules</p>
+              <div className="h-px flex-1 bg-gradient-to-l from-[#d8e7ff] to-transparent" />
+            </div>
 
             <motion.div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
               {[
@@ -1401,21 +1586,30 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* SECTION: ABOUT US */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: ABOUT US — Premium Redesign
+            ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="about-us"
-          className="bg-white py-24 md:py-28"
+          className="relative overflow-hidden bg-white py-28 md:py-36"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={denseSectionViewport}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="pointer-events-none absolute -left-32 top-20 h-[400px] w-[400px] rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.03),transparent_65%)]" />
+          <div className="pointer-events-none absolute -right-32 bottom-20 h-[350px] w-[350px] rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.03),transparent_65%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">About Pravix</p>
-                <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
-                  A trusted wealth partner for Indian families
+                <div className="mb-4 inline-flex items-center gap-2.5 rounded-full border border-[#2b5cff]/12 bg-[#edf4ff] px-4 py-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#2b5cff]" />
+                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">About Pravix</span>
+                </div>
+                <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                  A trusted wealth partner for{" "}
+                  <span className="bg-[linear-gradient(120deg,#2b5cff,#0099ff)] bg-clip-text text-transparent">Indian families</span>
                 </h2>
               </div>
               <p className="max-w-xl text-sm leading-relaxed text-[#50607d] md:text-base">
@@ -1534,29 +1728,38 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* SECTION: BLOG */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: BLOG — Premium Redesign
+            ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="blog"
-          className="bg-[linear-gradient(180deg,#f6f9ff_0%,#eef3ff_100%)] py-24 md:py-28"
+          className="relative overflow-hidden py-28 md:py-36"
+          style={{ background: "linear-gradient(175deg, #f6f9ff 0%, #edf4ff 50%, #f7f9ff 100%)" }}
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={denseSectionViewport}
         >
-          <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.04),transparent_65%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Personal Wealth Notes</p>
-                <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
-                  Insights you can apply this month
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-white/80 px-4 py-1.5 shadow-[0_4px_12px_rgba(43,92,255,0.06)] backdrop-blur-sm">
+                  <Sparkles className="h-3.5 w-3.5 text-[#2b5cff]" />
+                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Wealth Notes</span>
+                </div>
+                <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                  Insights you can{" "}
+                  <span className="bg-[linear-gradient(120deg,#2b5cff,#0099ff)] bg-clip-text text-transparent">apply this month</span>
                 </h2>
               </div>
               <Link
                 href="/learn"
-                className="inline-flex items-center gap-2 self-start rounded-full border border-[#2b5cff]/25 bg-white px-5 py-2.5 text-sm font-semibold text-[#2b5cff] transition-colors hover:bg-[#edf4ff]"
+                className="group inline-flex items-center gap-2 self-start rounded-full border border-[#2b5cff]/20 bg-white px-6 py-3 text-sm font-semibold text-[#2b5cff] shadow-[0_4px_16px_rgba(43,92,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(43,92,255,0.16)]"
               >
                 Browse all articles
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
 
@@ -1564,30 +1767,30 @@ export default function Home() {
               {featuredBlogPosts.map((post, index) => (
                 <motion.article
                   key={post.slug}
-                  className="overflow-hidden rounded-3xl border border-[#d8e7ff] bg-white shadow-[0_14px_34px_rgba(43,92,255,0.08)]"
+                  className="group overflow-hidden rounded-[1.4rem] border border-[#e2ebff] bg-white shadow-[0_8px_28px_rgba(43,92,255,0.06)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_20px_48px_rgba(43,92,255,0.14)]"
                   variants={featureCardReveal}
                   custom={index}
                 >
-                  <div className="overflow-hidden border-b border-[#d8e7ff]">
+                  <div className="overflow-hidden">
                     <Image
                       src={post.coverImage}
                       alt={post.title}
                       width={1600}
                       height={900}
-                      className="h-44 w-full object-cover"
+                      className="h-44 w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   </div>
                   <div className="p-5">
                     <div className="flex items-center justify-between text-[11px] text-[#5f7396]">
                       <span>{new Date(post.publishedAt).toLocaleDateString("en-IN")}</span>
-                      <span>{post.readTime}</span>
+                      <span className="rounded-full bg-[#f0f5ff] px-2 py-0.5 font-medium">{post.readTime}</span>
                     </div>
-                    <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-[#0a1930]">{post.title}</h3>
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#586987]">{post.excerpt}</p>
+                    <h3 className="mt-2.5 line-clamp-2 text-lg font-bold text-[#0a1930] transition-colors group-hover:text-[#2b5cff]">{post.title}</h3>
+                    <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-[#586987]">{post.excerpt}</p>
 
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {post.tags.slice(0, 2).map((tag) => (
-                        <span key={tag} className="rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-2.5 py-1 text-[10px] font-semibold text-[#2b5cff]">
+                        <span key={tag} className="rounded-full border border-[#2b5cff]/15 bg-[#f0f5ff] px-2.5 py-1 text-[10px] font-semibold text-[#2b5cff]">
                           {tag}
                         </span>
                       ))}
@@ -1595,10 +1798,10 @@ export default function Home() {
 
                     <Link
                       href={`/learn/${post.slug}`}
-                      className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#2b5cff]"
+                      className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#2b5cff] transition-colors group-hover:text-[#0066cc]"
                     >
                       Read article
-                      <ArrowRight className="h-4 w-4" />
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </Link>
                   </div>
                 </motion.article>
@@ -1610,81 +1813,106 @@ export default function Home() {
         {/* Calendly Booking Section */}
         <CalendlyBookingSection />
 
-        {/* SECTION 4: TRUST + LEARN + PREMIUM CTA */}
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: FINAL CTA — Premium Redesign
+            ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="contact"
-          className="relative overflow-hidden bg-[linear-gradient(160deg,#1e4389_0%,#244b95_58%,#1f4488_100%)] py-24 text-white md:py-28"
+          className="relative overflow-hidden py-28 text-white md:py-36"
+          style={{ background: "linear-gradient(160deg, #152d65 0%, #1d4494 35%, #1a3a7c 70%, #132552 100%)" }}
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
           viewport={denseSectionViewport}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(0,216,255,0.12),transparent_40%)]" />
+          {/* Decorative elements */}
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(0,216,255,0.15),transparent_42%),radial-gradient(circle_at_15%_85%,rgba(43,92,255,0.12),transparent_45%)]" />
+          <div className="pointer-events-none absolute right-0 top-0 h-[500px] w-[500px] bg-[radial-gradient(circle,rgba(0,216,255,0.06),transparent_60%)]" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/3 h-[300px] w-[300px] rounded-full bg-[#2b5cff]/8 blur-[100px]" />
 
           <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-            <motion.div className="grid gap-6 md:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
+            <motion.div className="grid gap-5 md:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
               {[
                 {
                   title: "Secure private profile",
                   desc: "Authenticated sessions with user-scoped access and robust backend enforcement for profile privacy.",
+                  icon: ShieldCheck,
                 },
                 {
-                  title: "Educational guidance with transparent reasoning",
+                  title: "Transparent reasoning",
                   desc: "Each recommendation explains what changed, why it matters, and what you can do next.",
+                  icon: Sparkles,
                 },
                 {
                   title: "Human + AI support",
                   desc: "Use self-serve guidance daily, and connect with an expert when you want deeper confidence.",
+                  icon: MessageCircle,
                 },
               ].map((item, index) => (
                 <motion.article
                   key={item.title}
-                  className="rounded-2xl border border-white/15 bg-white/8 p-5 backdrop-blur-sm"
+                  className="group rounded-2xl border border-white/10 bg-white/6 p-6 backdrop-blur-sm transition-all duration-300 hover:border-[#00d8ff]/20 hover:bg-white/10"
                   variants={featureCardReveal}
                   custom={index}
                 >
-                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#d9e6ff]">{item.desc}</p>
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#00d8ff]/12 transition-colors group-hover:bg-[#00d8ff]/20">
+                    <item.icon className="h-5 w-5 text-[#00d8ff]" />
+                  </div>
+                  <h3 className="mt-3 text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-blue-100/70">{item.desc}</p>
                 </motion.article>
               ))}
             </motion.div>
 
-            <div className="mt-6 rounded-2xl border border-white/20 bg-white/8 px-5 py-4 text-sm leading-relaxed text-[#d9e6ff]">
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-[13px] leading-relaxed text-blue-100/60">
               Pravix provides educational guidance and planning support. It does not promise guaranteed returns and does not replace personalized licensed investment advice.
             </div>
 
-            <div className="mt-14 rounded-3xl border border-[#4f73c2] bg-[linear-gradient(135deg,#23489b_0%,#2a4e98_58%,#274789_100%)] p-8 shadow-[0_24px_58px_rgba(0,0,0,0.28)] sm:p-10 md:p-12">
-              <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
-                <div className="max-w-2xl">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Start With Confidence</p>
-                  <h2 className="mt-3 text-3xl font-bold leading-tight text-white md:text-5xl">
-                    Stay on track for every major life goal.
-                  </h2>
-                  <p className="mt-4 text-base leading-relaxed text-[#d9e6ff] md:text-lg">
-                    Begin with guided onboarding, follow clear monthly actions, and use Pravix support whenever you need it.
-                  </p>
-                </div>
+            {/* Hero CTA Card */}
+            <div className="mt-16 overflow-hidden rounded-[2rem] border border-white/15 p-1 shadow-[0_32px_80px_rgba(0,0,0,0.3)]" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))" }}>
+              <div className="relative rounded-[1.6rem] p-8 sm:p-10 md:p-14" style={{ background: "linear-gradient(140deg, #1e4494 0%, #2650a6 50%, #1d3d82 100%)" }}>
+                <div className="pointer-events-none absolute -right-16 -top-16 h-[200px] w-[200px] rounded-full bg-[#00d8ff]/12 blur-[60px]" />
+                <div className="pointer-events-none absolute -bottom-12 -left-12 h-[180px] w-[180px] rounded-full bg-[#2b5cff]/15 blur-[60px]" />
 
-                <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[17rem]">
-                  <Link
-                    href="/onboarding"
-                    className="group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-[#2a53e8] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(0,0,0,0.12)]"
-                  >
-                    Start your plan
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Link>
-                  <Link
-                    href="/onboarding?mode=advisor"
-                    className="inline-flex h-12 items-center justify-center rounded-full border border-white/40 bg-white/10 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/20"
-                  >
-                    Talk to an expert
-                  </Link>
-                  <Link
-                    href="/dashboard"
-                    className="inline-flex h-12 items-center justify-center rounded-full border border-white/25 bg-transparent px-6 text-sm font-semibold text-[#d9e6ff] transition-colors hover:bg-white/10"
-                  >
-                    View dashboard preview
-                  </Link>
+                <div className="relative flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+                  <div className="max-w-2xl">
+                    <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#00d8ff]/25 bg-[#00d8ff]/8 px-3.5 py-1.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00d8ff] opacity-60" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d8ff]" />
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#00d8ff]">Start With Confidence</span>
+                    </div>
+                    <h2 className="text-[clamp(1.8rem,4vw,3rem)] font-bold leading-tight">
+                      <span className="text-white">Stay on track for every </span>
+                      <span className="bg-[linear-gradient(120deg,#00d8ff,#7df9ff)] bg-clip-text text-transparent">major life goal.</span>
+                    </h2>
+                    <p className="mt-4 max-w-xl text-base leading-relaxed text-blue-100/80">
+                      Begin with guided onboarding, follow clear monthly actions, and use Pravix support whenever you need it.
+                    </p>
+                  </div>
+
+                  <div className="flex w-full flex-col gap-3 sm:w-auto sm:min-w-[17rem]">
+                    <Link
+                      href="/onboarding"
+                      className="group inline-flex h-13 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-semibold text-[#1e4494] shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(0,0,0,0.22)]"
+                    >
+                      Start your plan
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                    <Link
+                      href="/onboarding?mode=advisor"
+                      className="inline-flex h-12 items-center justify-center rounded-full border border-white/30 bg-white/8 px-6 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15"
+                    >
+                      Talk to an expert
+                    </Link>
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 bg-transparent px-6 text-sm font-semibold text-blue-100/80 transition-colors hover:border-white/25 hover:bg-white/6 hover:text-white"
+                    >
+                      View dashboard preview
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

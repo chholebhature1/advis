@@ -35,3 +35,12 @@ body {
 a {
   transition: color 180ms ease;
 }
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
