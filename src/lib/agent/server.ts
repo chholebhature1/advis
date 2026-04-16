@@ -33,7 +33,9 @@ function getSupabaseServiceCredentials() {
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseServiceRoleKey) {
-    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable for automation routes.");
+    throw new Error(
+      "Missing SUPABASE_SERVICE_ROLE_KEY environment variable for server routes that require privileged Supabase access.",
+    );
   }
 
   return { supabaseUrl, supabaseServiceRoleKey };
@@ -51,6 +53,17 @@ export function createAuthedSupabaseClient(accessToken: string): SupabaseClient 
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+    },
+  });
+}
+
+export function createServerSupabaseClient(): SupabaseClient {
+  const { supabaseUrl, supabasePublishableKey } = getSupabaseServerCredentials();
+
+  return createClient(supabaseUrl, supabasePublishableKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 }

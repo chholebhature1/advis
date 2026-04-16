@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import { createServiceSupabaseClient } from "@/lib/agent/server";
+import { createServerSupabaseClient } from "@/lib/agent/server";
+import { cancelBookingReminderEmail, getBookingReminderEmailId } from "@/lib/booking/notifications";
 import { BookingValidationError, isRecord, parseEmail, parseOptionalString } from "@/lib/booking/validation";
 
 export const runtime = "nodejs";
-
-type BookingRow = {
-  id: string;
-  lead_email: string;
-};
 
 type CancelBody = {
   leadEmail?: unknown;
@@ -16,6 +12,14 @@ type CancelBody = {
 
 function classifyCancelError(error: Error): { status: number; message: string } {
   const lower = error.message.toLowerCase();
+
+  if (lower.includes("meeting not found")) {
+    return { status: 404, message: "Meeting not found." };
+  }
+
+  if (lower.includes("leademail does not match")) {
+    return { status: 403, message: "leadEmail does not match this meeting." };
+  }
 
   if (lower.includes("cannot be cancelled")) {
     return { status: 409, message: "This meeting can no longer be cancelled." };
@@ -47,30 +51,11 @@ export async function POST(
     const leadEmail = parseEmail(raw.leadEmail, "leadEmail");
     const reason = parseOptionalString(raw.reason, "reason", { maxLength: 500 }) ?? "Cancelled by user request";
 
-    const supabase = createServiceSupabaseClient();
+    const supabase = createServerSupabaseClient();
 
-    const bookingResult = await supabase
-      .from("booking_meetings")
-      .select("id,lead_email")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (bookingResult.error) {
-      throw bookingResult.error;
-    }
-
-    const booking = (bookingResult.data ?? null) as BookingRow | null;
-
-    if (!booking) {
-      return NextResponse.json({ error: "Meeting not found." }, { status: 404 });
-    }
-
-    if (booking.lead_email.toLowerCase() !== leadEmail) {
-      return NextResponse.json({ error: "leadEmail does not match this meeting." }, { status: 403 });
-    }
-
-    const rpcResult = await supabase.rpc("cancel_booking_slot", {
+    const rpcResult = await supabase.rpc("public_cancel_booking_slot", {
       p_booking_id: id,
+      p_lead_email: leadEmail,
       p_reason: reason,
     });
 
@@ -80,6 +65,15 @@ export async function POST(
     }
 
     const bookingRow = (rpcResult.data ?? null) as Record<string, unknown> | null;
+    const reminderEmailId = getBookingReminderEmailId(bookingRow);
+
+    if (reminderEmailId) {
+      try {
+        await cancelBookingReminderEmail(reminderEmailId);
+      } catch (reminderError) {
+        console.error("Booking reminder cancel synchronization failed.", reminderError);
+      }
+    }
 
     return NextResponse.json(
       {

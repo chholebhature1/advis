@@ -3,17 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { ArrowRight, UserRound } from "lucide-react";
+import { ArrowRight, Menu, UserRound, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const HOME_SCROLL_SECTIONS = [
+  { id: "how-it-works", hash: "#how-it-works" },
+  { id: "insights", hash: "#insights" },
+  { id: "about-us", hash: "#about-us" },
+  { id: "blog", hash: "#blog" },
+  { id: "contact", hash: "#book-discovery-call" },
+  { id: "book-discovery-call", hash: "#book-discovery-call" },
+] as const;
 
 export default function SiteHeader() {
   const pathname = usePathname();
   const isOnboarding = pathname.startsWith("/onboarding");
 
   const [scrolled, setScrolled] = useState(false);
+  const [activeHash, setActiveHash] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleScroll = useCallback(() => {
     setScrolled(window.scrollY > 80);
@@ -23,6 +34,33 @@ export default function SiteHeader() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  useEffect(() => {
+    const syncHash = () => {
+      setActiveHash(window.location.hash || "");
+    };
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, [pathname]);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname, activeHash]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -49,12 +87,25 @@ export default function SiteHeader() {
     async function syncCurrentUser() {
       try {
         const {
-          data: { user },
-        } = await supabaseClient.auth.getUser();
+          data: { session },
+          error: sessionError,
+        } = await supabaseClient.auth.getSession();
+
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        const user = session?.user ?? null;
 
         if (mounted) {
           setIsAuthenticated(Boolean(user));
           setSignedInEmail(user?.email ?? null);
+        }
+      } catch {
+        // Avoid surfacing transient Supabase auth lock contention as a runtime crash.
+        if (mounted) {
+          setIsAuthenticated(false);
+          setSignedInEmail(null);
         }
       } finally {
         if (mounted) {
@@ -106,13 +157,81 @@ export default function SiteHeader() {
   const baseNavItems = [
     { label: "How It Works", href: "/#how-it-works" },
     { label: "Dashboard", href: "/dashboard" },
-    { label: "Insights", href: "/#insights" },
-    { label: "Blog", href: "/learn" },
-    { label: "About Us", href: "/about" },
-    { label: "Why Pravix", href: "/#why-goals" },
-    { label: "Contact", href: "/#contact" },
+    { label: "Marketplace", href: "/#insights" },
+    { label: "Blog", href: "/#blog" },
+    { label: "About Us", href: "/#about-us" },
+    { label: "Contact", href: "/#book-discovery-call" },
   ];
   const navItems = baseNavItems;
+
+  useEffect(() => {
+    if (pathname !== "/") {
+      return;
+    }
+
+    const syncActiveSection = () => {
+      const markerY = window.scrollY + 140;
+      const sections: Array<{ hash: string; offsetTop: number }> = [];
+
+      for (const section of HOME_SCROLL_SECTIONS) {
+        const element = document.getElementById(section.id);
+
+        if (!element) {
+          continue;
+        }
+
+        sections.push({
+          hash: section.hash,
+          offsetTop: element.offsetTop,
+        });
+      }
+
+      if (sections.length === 0) {
+        return;
+      }
+
+      let nextHash = "";
+
+      for (const section of sections) {
+        if (markerY >= section.offsetTop) {
+          nextHash = section.hash;
+          continue;
+        }
+
+        break;
+      }
+
+      setActiveHash((currentHash) => (currentHash === nextHash ? currentHash : nextHash));
+    };
+
+    syncActiveSection();
+    window.addEventListener("scroll", syncActiveSection, { passive: true });
+    window.addEventListener("resize", syncActiveSection);
+
+    return () => {
+      window.removeEventListener("scroll", syncActiveSection);
+      window.removeEventListener("resize", syncActiveSection);
+    };
+  }, [pathname]);
+
+  function isNavItemActive(href: string): boolean {
+    if (!href.startsWith("/")) {
+      return false;
+    }
+
+    const [rawPath, rawHash] = href.split("#");
+    const itemPath = rawPath || "/";
+
+    if (!rawHash) {
+      return pathname === itemPath;
+    }
+
+    if (itemPath === "/") {
+      return pathname === "/" && activeHash === `#${rawHash}`;
+    }
+
+    return pathname === itemPath;
+  }
 
   /* ─── Main header ─── */
   return (
@@ -189,7 +308,7 @@ export default function SiteHeader() {
           {/* Center nav links */}
           <div className="hidden md:flex items-center" style={{ gap: scrolled ? "20px" : "28px", transition: "gap 0.45s cubic-bezier(0.22, 1, 0.36, 1)" }}>
             {navItems.map((item) => {
-              const isActive = item.href.startsWith("/") ? pathname === item.href : false;
+              const isActive = isNavItemActive(item.href);
               return (
                 <Link
                   key={item.label}
@@ -221,8 +340,19 @@ export default function SiteHeader() {
 
           {/* Right side: CTA */}
           <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-nav-panel"
+              className="inline-flex md:hidden h-9 w-9 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
+              onClick={() => setIsMobileMenuOpen((current) => !current)}
+            >
+              {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </button>
+
             {!isAuthResolved ? (
-              <span className="inline-flex h-8 w-8 animate-pulse items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted">
+              <span className="hidden md:inline-flex h-8 w-8 animate-pulse items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted">
                 <UserRound className="h-3.5 w-3.5" />
               </span>
             ) : isAuthenticated ? (
@@ -256,7 +386,7 @@ export default function SiteHeader() {
                   href="/profile"
                   aria-label={signedInEmail ? `Open profile for ${signedInEmail}` : "Open profile"}
                   title={signedInEmail ?? "Profile"}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
+                  className="hidden md:inline-flex h-8 w-8 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
                 >
                   <UserRound className="h-3.5 w-3.5" />
                 </Link>
@@ -304,7 +434,7 @@ export default function SiteHeader() {
                 <Link
                   href="/login"
                   aria-label="Open login"
-                  className="inline-flex sm:hidden h-8 w-8 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
+                  className="hidden sm:hidden h-8 w-8 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
                 >
                   <UserRound className="h-3.5 w-3.5" />
                 </Link>
@@ -313,6 +443,63 @@ export default function SiteHeader() {
           </div>
         </div>
       </nav>
+
+      <div
+        id="mobile-nav-panel"
+        className={`md:hidden fixed left-4 right-4 top-[74px] overflow-hidden rounded-2xl border border-[#cbdaf5]/90 bg-white/95 shadow-[0_16px_36px_rgba(20,42,74,0.18)] backdrop-blur-xl transition-all duration-300 ${isMobileMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"}`}
+      >
+        <div className="p-2.5">
+          {navItems.map((item) => {
+            const isActive = isNavItemActive(item.href);
+
+            return (
+              <Link
+                key={`mobile-${item.label}`}
+                href={item.href}
+                className={`block rounded-xl px-3.5 py-3 text-sm font-semibold transition-colors ${isActive ? "bg-[#edf4ff] text-[#2b5cff]" : "text-[#4d6389] hover:bg-[#f5f8ff] hover:text-[#1d3561]"}`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+
+          <div className="mt-2 grid gap-2 p-1">
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="inline-flex items-center justify-center rounded-full border border-[#d6e3fa] bg-white px-4 py-2.5 text-sm font-semibold text-[#274a86]"
+                >
+                  Profile
+                </Link>
+                <Link
+                  href="/onboarding"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2b5cff] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(43,92,255,0.35)]"
+                >
+                  Get Guidance
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center rounded-full border border-[#d6e3fa] bg-white px-4 py-2.5 text-sm font-semibold text-[#274a86]"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/onboarding"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2b5cff] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(43,92,255,0.35)]"
+                >
+                  Get Guidance
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* inject nav link hover styles */}
       <style jsx global>{`

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServiceSupabaseClient } from "@/lib/agent/server";
+import { createServerSupabaseClient } from "@/lib/agent/server";
+import {
+  getBookingReminderEmailId,
+  rescheduleBookingReminderEmail,
+  scheduleBookingReminderEmail,
+} from "@/lib/booking/notifications";
 import {
   BookingValidationError,
   isRecord,
@@ -11,13 +16,6 @@ import {
 
 export const runtime = "nodejs";
 
-type BookingRow = {
-  id: string;
-  lead_email: string;
-  starts_at: string;
-  ends_at: string;
-};
-
 type RescheduleBody = {
   leadEmail?: unknown;
   startsAt?: unknown;
@@ -27,6 +25,14 @@ type RescheduleBody = {
 
 function classifyRescheduleError(error: Error): { status: number; message: string } {
   const lower = error.message.toLowerCase();
+
+  if (lower.includes("meeting not found")) {
+    return { status: 404, message: "Meeting not found." };
+  }
+
+  if (lower.includes("leademail does not match")) {
+    return { status: 403, message: "leadEmail does not match this meeting." };
+  }
 
   if (lower.includes("booking_meetings_no_overlap") || lower.includes("conflicting key value")) {
     return { status: 409, message: "Selected slot overlaps with another booking. Please choose another time." };
@@ -69,41 +75,17 @@ export async function POST(
       throw new BookingValidationError("Reschedules must be at least 5 minutes in advance.");
     }
 
-    const supabase = createServiceSupabaseClient();
+    const supabase = createServerSupabaseClient();
 
-    const bookingResult = await supabase
-      .from("booking_meetings")
-      .select("id,lead_email,starts_at,ends_at")
-      .eq("id", id)
-      .maybeSingle();
+    const endsAtIso = endsAtFromBody ?? null;
 
-    if (bookingResult.error) {
-      throw bookingResult.error;
-    }
-
-    const booking = (bookingResult.data ?? null) as BookingRow | null;
-
-    if (!booking) {
-      return NextResponse.json({ error: "Meeting not found." }, { status: 404 });
-    }
-
-    if (booking.lead_email.toLowerCase() !== leadEmail) {
-      return NextResponse.json({ error: "leadEmail does not match this meeting." }, { status: 403 });
-    }
-
-    const currentDurationMs = Math.max(
-      10 * 60 * 1000,
-      new Date(booking.ends_at).getTime() - new Date(booking.starts_at).getTime(),
-    );
-
-    const endsAtIso = endsAtFromBody ?? new Date(startDate.getTime() + currentDurationMs).toISOString();
-
-    if (new Date(endsAtIso).getTime() <= startDate.getTime()) {
+    if (endsAtIso && new Date(endsAtIso).getTime() <= startDate.getTime()) {
       throw new BookingValidationError("endsAt must be after startsAt.");
     }
 
-    const rpcResult = await supabase.rpc("reschedule_booking_slot", {
+    const rpcResult = await supabase.rpc("public_reschedule_booking_slot", {
       p_booking_id: id,
+      p_lead_email: leadEmail,
       p_new_starts_at: startsAtIso,
       p_new_ends_at: endsAtIso,
       p_reason: reason,
@@ -114,7 +96,31 @@ export async function POST(
       return NextResponse.json({ error: classified.message }, { status: classified.status });
     }
 
-    const bookingRow = (rpcResult.data ?? null) as Record<string, unknown> | null;
+    let bookingRow = (rpcResult.data ?? null) as Record<string, unknown> | null;
+    const reminderEmailId = getBookingReminderEmailId(bookingRow);
+
+    try {
+      if (reminderEmailId) {
+        await rescheduleBookingReminderEmail(reminderEmailId, startsAtIso);
+      } else {
+        const scheduledReminderEmailId = await scheduleBookingReminderEmail(bookingRow);
+        if (scheduledReminderEmailId) {
+          const reminderRpcResult = await supabase.rpc("public_set_booking_reminder_email_id", {
+            p_booking_id: id,
+            p_lead_email: leadEmail,
+            p_reminder_email_id: scheduledReminderEmailId,
+          });
+
+          if (reminderRpcResult.error) {
+            console.error("Failed to persist scheduled reminder email id on rescheduled booking metadata.", reminderRpcResult.error);
+          } else {
+            bookingRow = (reminderRpcResult.data ?? bookingRow) as Record<string, unknown> | null;
+          }
+        }
+      }
+    } catch (reminderError) {
+      console.error("Booking reminder synchronization failed after reschedule.", reminderError);
+    }
 
     return NextResponse.json(
       {

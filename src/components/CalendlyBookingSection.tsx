@@ -47,6 +47,9 @@ type BookingApiResponse = {
   error?: string;
 };
 
+const BOOKING_TEMPORARY_UNAVAILABLE_MESSAGE =
+  "Discovery call booking is temporarily unavailable right now. Please use the email form and we will get back within 4 business hours.";
+
 function pickDefaultDateKey(dates: AvailabilityDate[], previous: string | null): string | null {
   if (previous) {
     const previousDate = dates.find((item) => item.dateKey === previous && item.isAvailable);
@@ -71,6 +74,20 @@ function formatSlotDateTime(startsAt: string, timezone: string): string {
   }).format(new Date(startsAt));
 }
 
+function normalizeBookingErrorMessage(message: string | null | undefined, fallback: string): string {
+  if (!message || message.trim().length === 0) {
+    return fallback;
+  }
+
+  const normalized = message.trim();
+
+  if (normalized.includes("SUPABASE_SERVICE_ROLE_KEY")) {
+    return BOOKING_TEMPORARY_UNAVAILABLE_MESSAGE;
+  }
+
+  return normalized;
+}
+
 export default function CalendlyBookingSection() {
   const [availability, setAvailability] = useState<AvailabilityPayload | null>(null);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -91,6 +108,7 @@ export default function CalendlyBookingSection() {
 
   const advisor = availability?.advisor ?? null;
   const advisorTimezone = advisor?.timezone ?? "Asia/Kolkata";
+  const contactEmail = advisor?.email ?? "usefullother6@gmail.com";
   const dateItems = useMemo(() => availability?.dates ?? [], [availability]);
 
   const selectedDate = useMemo(
@@ -103,7 +121,7 @@ export default function CalendlyBookingSection() {
     setAvailabilityError(null);
 
     try {
-      const response = await fetch("/api/booking/availability?days=14", {
+      const response = await fetch("/api/booking/availability/?days=14", {
         method: "GET",
         cache: "no-store",
       });
@@ -125,7 +143,7 @@ export default function CalendlyBookingSection() {
       setSelectedSlot(null);
       setShowBookingForm(false);
       const message = error instanceof Error ? error.message : "Could not load booking availability.";
-      setAvailabilityError(message);
+      setAvailabilityError(normalizeBookingErrorMessage(message, "Could not load booking availability."));
     } finally {
       setIsLoadingAvailability(false);
     }
@@ -162,7 +180,7 @@ export default function CalendlyBookingSection() {
     setSubmitError(null);
 
     try {
-      const response = await fetch("/api/booking/meetings", {
+      const response = await fetch("/api/booking/meetings/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -196,14 +214,14 @@ export default function CalendlyBookingSection() {
       await loadAvailability();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not confirm booking.";
-      setSubmitError(message);
+      setSubmitError(normalizeBookingErrorMessage(message, "Could not confirm booking."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <section className="w-full bg-gradient-to-b from-[#f8fafc] to-[#eef4ff] py-20 px-4 sm:px-6 lg:px-8">
+    <section id="book-discovery-call" className="w-full bg-gradient-to-b from-[#f8fafc] to-[#eef4ff] py-20 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -418,7 +436,10 @@ export default function CalendlyBookingSection() {
                     </div>
                     <h4 className="text-xl font-bold text-[#1e3a8a] mb-2">Booking Confirmed!</h4>
                     <p className="text-[#5f7396] mb-2">We&apos;ve reserved your slot for {confirmedSlotLabel}.</p>
-                    <p className="text-[#5f7396] mb-4">A reminder will be sent to {formData.email}.</p>
+                    <p className="text-[#5f7396] mb-4">
+                      A confirmation email has been sent to {formData.email}, and a reminder email will be sent before
+                      your meeting.
+                    </p>
                     <button
                       type="button"
                       onClick={() => {
@@ -488,10 +509,10 @@ export default function CalendlyBookingSection() {
                 <span className="text-sm">
                   Email:{" "}
                   <a
-                    href="mailto:hello@pravixwealth.com"
+                    href={`mailto:${contactEmail}`}
                     className="text-[#1e3a8a] font-medium hover:underline"
                   >
-                    hello@pravixwealth.com
+                    {contactEmail}
                   </a>
                 </span>
               </div>
@@ -501,7 +522,7 @@ export default function CalendlyBookingSection() {
               </div>
               <div className="flex items-center gap-3 text-[#5f7396]">
                 <Phone className="h-4 w-4" />
-                <span className="text-sm">Office hours: Mon-Fri, 9:00 AM-6:00 PM IST</span>
+                <span className="text-sm">Office hours: Mon-Sat, 10:00 AM-7:00 PM IST</span>
               </div>
             </div>
           </motion.div>

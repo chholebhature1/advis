@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServiceSupabaseClient } from "@/lib/agent/server";
+import { createServerSupabaseClient } from "@/lib/agent/server";
+import { scheduleBookingReminderEmail, sendBookingConfirmationEmail } from "@/lib/booking/notifications";
 import {
   BookingValidationError,
   isRecord,
@@ -13,10 +14,20 @@ import {
 
 export const runtime = "nodejs";
 
-type AdvisorRow = {
-  id: string;
-  meeting_duration_mins: number;
-};
+const BOOKING_TEMPORARY_UNAVAILABLE_MESSAGE =
+  "Discovery call booking is temporarily unavailable while server setup is being completed. Please use the email option below.";
+
+function isMissingServiceRoleKeyError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("SUPABASE_SERVICE_ROLE_KEY") ||
+    error.message.includes("public_book_meeting_slot") ||
+    error.message.toLowerCase().includes("permission denied")
+  );
+}
 
 type BookingPostBody = {
   advisorId?: unknown;
@@ -54,31 +65,6 @@ function parseAdvisorId(value: unknown): string | null {
   }
 
   return parseRequiredString(value, "advisorId", { minLength: 8, maxLength: 64 });
-}
-
-async function resolveAdvisor(advisorId: string | null): Promise<AdvisorRow> {
-  const supabase = createServiceSupabaseClient();
-
-  const baseQuery = supabase
-    .from("booking_advisors")
-    .select("id,meeting_duration_mins")
-    .eq("is_active", true);
-
-  const result = advisorId
-    ? await baseQuery.eq("id", advisorId).maybeSingle()
-    : await baseQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
-
-  if (result.error) {
-    throw result.error;
-  }
-
-  const advisor = (result.data ?? null) as AdvisorRow | null;
-
-  if (!advisor) {
-    throw new BookingValidationError("No active booking advisor configured.", 404);
-  }
-
-  return advisor;
 }
 
 function classifyBookingRpcError(error: Error): { status: number; message: string } {
@@ -122,26 +108,21 @@ export async function POST(request: Request) {
       throw new BookingValidationError("Bookings must be scheduled at least 5 minutes in advance.");
     }
 
-    const advisor = await resolveAdvisor(advisorId);
-
-    const endsAtIso =
-      endsAtFromBody ?? new Date(startDate.getTime() + advisor.meeting_duration_mins * 60 * 1000).toISOString();
-
-    if (new Date(endsAtIso).getTime() <= startDate.getTime()) {
+    if (endsAtFromBody && new Date(endsAtFromBody).getTime() <= startDate.getTime()) {
       throw new BookingValidationError("endsAt must be after startsAt.");
     }
 
-    const supabase = createServiceSupabaseClient();
+    const supabase = createServerSupabaseClient();
 
-    const rpcResult = await supabase.rpc("book_meeting_slot", {
-      p_advisor_id: advisor.id,
+    const rpcResult = await supabase.rpc("public_book_meeting_slot", {
+      p_advisor_id: advisorId,
       p_lead_name: leadName,
       p_lead_email: leadEmail,
       p_lead_phone_e164: leadPhoneE164,
       p_notes: notes,
       p_timezone: timezone,
       p_starts_at: startsAtIso,
-      p_ends_at: endsAtIso,
+      p_ends_at: endsAtFromBody,
       p_source: source,
       p_metadata: metadata,
     });
@@ -151,7 +132,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: classified.message }, { status: classified.status });
     }
 
-    const bookingRow = (rpcResult.data ?? null) as Record<string, unknown> | null;
+    let bookingRow = (rpcResult.data ?? null) as Record<string, unknown> | null;
+
+    try {
+      await sendBookingConfirmationEmail(bookingRow);
+
+      const reminderEmailId = await scheduleBookingReminderEmail(bookingRow);
+      const bookingId = bookingRow && typeof bookingRow.id === "string" ? bookingRow.id : null;
+
+      if (reminderEmailId && bookingId) {
+        const reminderRpcResult = await supabase.rpc("public_set_booking_reminder_email_id", {
+          p_booking_id: bookingId,
+          p_lead_email: leadEmail,
+          p_reminder_email_id: reminderEmailId,
+        });
+
+        if (reminderRpcResult.error) {
+          console.error("Failed to persist scheduled reminder email id on booking metadata.", reminderRpcResult.error);
+        } else {
+          bookingRow = (reminderRpcResult.data ?? bookingRow) as Record<string, unknown> | null;
+        }
+      }
+    } catch (confirmationEmailError) {
+      console.error("Booking notification dispatch failed.", confirmationEmailError);
+    }
 
     return NextResponse.json(
       {
@@ -163,6 +167,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof BookingValidationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    if (isMissingServiceRoleKeyError(error)) {
+      return NextResponse.json({ error: BOOKING_TEMPORARY_UNAVAILABLE_MESSAGE }, { status: 503 });
     }
 
     const message = error instanceof Error ? error.message : "Unexpected booking create error.";

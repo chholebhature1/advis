@@ -205,7 +205,7 @@ export default function HeroPhoneMockup() {
 
   return (
     <div
-      className="relative flex w-full min-h-[420px] items-center justify-center sm:min-h-[500px] lg:min-h-[560px] xl:min-h-[620px]"
+      className="relative flex w-full min-h-[330px] items-center justify-center sm:min-h-[500px] lg:min-h-[560px] xl:min-h-[620px]"
       style={{
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
@@ -252,7 +252,7 @@ export default function HeroPhoneMockup() {
         }}
       />
 
-      <div className="relative flex h-[660px] w-[350px] items-center justify-center origin-center scale-[0.62] sm:scale-[0.7] md:scale-[0.78] lg:scale-[0.75] xl:scale-[0.86] 2xl:scale-[0.94]">
+      <div className="relative flex h-[660px] w-[350px] items-center justify-center origin-center scale-[0.52] sm:scale-[0.7] md:scale-[0.78] lg:scale-[0.75] xl:scale-[0.86] 2xl:scale-[0.94]">
         <div
           className="hero-phone-float"
           style={{

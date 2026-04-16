@@ -1,5 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+
+export const metadata: Metadata = {
+  title: "Login",
+  description: "Sign in to your Pravix account or create a new one.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function LoginPage() {
   return (

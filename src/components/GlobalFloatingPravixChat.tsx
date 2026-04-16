@@ -26,12 +26,24 @@ export default function GlobalFloatingPravixChat() {
     const supabaseClient = supabase;
 
     async function syncCurrentUser() {
-      const {
-        data: { user },
-      } = await supabaseClient.auth.getUser();
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabaseClient.auth.getSession();
 
-      if (mounted) {
-        setSignedIn(Boolean(user));
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        if (mounted) {
+          setSignedIn(Boolean(session?.user));
+        }
+      } catch {
+        // Avoid surfacing transient auth-token lock contention as a runtime crash.
+        if (mounted) {
+          setSignedIn(false);
+        }
       }
     }
 

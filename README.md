@@ -16,6 +16,12 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Insights Data Stack
+
+For a compliant, free/low-cost market data strategy for the Insights experience, see:
+
+- [docs/insight-data-stack-playbook.md](docs/insight-data-stack-playbook.md)
+
 ## Supabase Connection
 
 This project is configured to use Supabase with:
@@ -62,7 +68,7 @@ Phase 1 introduces authenticated agent routes backed by Supabase context and NVI
 
 Optional for cron-style multi-user daily automation:
 
-- `SUPABASE_SERVICE_ROLE_KEY` (server-only, never expose client-side)
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only, never expose client-side) required for privileged automation routes (for example daily alerts and reminder runners). Public Discovery Call booking routes use dedicated RPC wrappers and do not require this key.
 - `ALERTS_CRON_SECRET` (shared secret expected by `x-pravix-cron-secret` header)
 - `CRON_SECRET` (optional Vercel Cron bearer secret; route accepts either `ALERTS_CRON_SECRET` or `CRON_SECRET`)
 

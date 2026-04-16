@@ -1,20 +1,24 @@
 "use client";
 
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CircleDot,
   CircleUserRound,
+  Download,
   LayoutGrid,
   ListFilter,
   Loader2,
   LogOut,
   RefreshCcw,
   Search,
+  Share2,
   ShieldCheck,
   Sparkles,
   WalletMinimal,
+  X,
 } from "lucide-react";
 import {
   Area,
@@ -23,9 +27,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -162,6 +166,36 @@ type AgentDashboardPayload = {
   error?: string;
 };
 
+type DashboardHorizon = "6m" | "12m" | "24m" | "36m";
+type DashboardLens = "goal" | "cashflow" | "risk";
+type KpiDeltaTone = "positive" | "negative" | "neutral";
+type DashboardKpiItem = {
+  id: string;
+  label: string;
+  value: string;
+  hint: string;
+  deltaLabel: string;
+  deltaTone: KpiDeltaTone;
+  detail: string;
+  source: string;
+};
+type TrendPoint = { label: string; value: number };
+
+const SCENARIO_RETURN_PCT = {
+  conservative: 8,
+  moderate: 11,
+  aggressive: 14,
+} as const;
+type MarketTrendPoint = { label: string; close: number };
+type MarketTrendResponse = {
+  ok: true;
+  generatedAt: string;
+  source: "live" | "fallback";
+  symbol: "NIFTY50";
+  horizon: DashboardHorizon;
+  points: MarketTrendPoint[];
+};
+
 const inrFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
@@ -215,6 +249,90 @@ function formatSignedPercent(value: number): string {
   return `${formatSignedNumber(value, 2)}%`;
 }
 
+function formatIndexNumber(value: number): string {
+  return value.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  });
+}
+
+function parseNumberInput(value: string, fallback = 0): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function toHorizonMonths(horizon: DashboardHorizon): number {
+  if (horizon === "6m") {
+    return 6;
+  }
+
+  if (horizon === "12m") {
+    return 12;
+  }
+
+  if (horizon === "24m") {
+    return 24;
+  }
+
+  return 36;
+}
+
+function toHorizonLabel(horizon: DashboardHorizon): string {
+  if (horizon === "6m") {
+    return "6 months";
+  }
+
+  if (horizon === "12m") {
+    return "12 months";
+  }
+
+  if (horizon === "24m") {
+    return "24 months";
+  }
+
+  return "36 months";
+}
+
+function projectCorpusValue(
+  currentCorpus: number,
+  monthlyContribution: number,
+  annualReturnPct: number,
+  months: number,
+): number {
+  const safeCorpus = Math.max(currentCorpus, 0);
+  const safeContribution = Math.max(monthlyContribution, 0);
+  const safeMonths = Math.max(months, 0);
+  const monthlyRate = Math.max(annualReturnPct, 0) / 12 / 100;
+
+  if (safeMonths === 0) {
+    return safeCorpus;
+  }
+
+  if (monthlyRate === 0) {
+    return safeCorpus + safeContribution * safeMonths;
+  }
+
+  const corpusGrowth = safeCorpus * Math.pow(1 + monthlyRate, safeMonths);
+  const sipGrowth = safeContribution * (((Math.pow(1 + monthlyRate, safeMonths) - 1) / monthlyRate) * (1 + monthlyRate));
+
+  return corpusGrowth + sipGrowth;
+}
+
+function toneToClassName(tone: KpiDeltaTone): string {
+  if (tone === "positive") {
+    return "text-finance-green";
+  }
+
+  if (tone === "negative") {
+    return "text-finance-red";
+  }
+
+  return "text-finance-muted";
+}
+
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -238,6 +356,16 @@ export default function DashboardPage() {
   const [alertsSummary, setAlertsSummary] = useState<AlertsSummarySnapshot | null>(null);
   const [alertsSubscription, setAlertsSubscription] = useState<AlertsSubscriptionSnapshot | null>(null);
   const [advisorSummary, setAdvisorSummary] = useState<string | null>(null);
+  const [selectedHorizon, setSelectedHorizon] = useState<DashboardHorizon>("12m");
+  const [selectedLens, setSelectedLens] = useState<DashboardLens>("goal");
+  const [selectedKpiId, setSelectedKpiId] = useState<string | null>(null);
+  const [marketTrend, setMarketTrend] = useState<MarketTrendPoint[]>([]);
+  const [marketTrendSource, setMarketTrendSource] = useState<"live" | "fallback" | null>(null);
+  const [marketTrendGeneratedAt, setMarketTrendGeneratedAt] = useState<string | null>(null);
+  const [isMarketTrendLoading, setIsMarketTrendLoading] = useState(true);
+  const [sipMonthlyAmount, setSipMonthlyAmount] = useState(10000);
+  const [sipAnnualReturn, setSipAnnualReturn] = useState(12);
+  const [sipDurationYears, setSipDurationYears] = useState(10);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -294,6 +422,48 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [refreshTick]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMarketTrend() {
+      setIsMarketTrendLoading(true);
+
+      try {
+        const response = await fetch(`/api/market/indices/history?horizon=${selectedHorizon}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Market trend API failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json()) as MarketTrendResponse;
+
+        if (!cancelled) {
+          setMarketTrend(Array.isArray(payload.points) ? payload.points : []);
+          setMarketTrendSource(payload.source ?? "fallback");
+          setMarketTrendGeneratedAt(payload.generatedAt ?? null);
+        }
+      } catch {
+        if (!cancelled) {
+          setMarketTrend([]);
+          setMarketTrendSource("fallback");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsMarketTrendLoading(false);
+        }
+      }
+    }
+
+    void loadMarketTrend();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshTick, selectedHorizon]);
 
   const getAccessToken = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -504,7 +674,17 @@ export default function DashboardPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Could not load your dashboard profile.");
+          const message = loadError instanceof Error ? loadError.message : "Could not load your dashboard profile.";
+          const normalized = message.toLowerCase();
+
+          if (normalized.includes("auth session missing") || normalized.includes("session expired")) {
+            setSignedInEmail(null);
+            setProfile(null);
+            setError(null);
+            return;
+          }
+
+          setError(message);
         }
       } finally {
         if (!cancelled) {
@@ -588,6 +768,81 @@ export default function DashboardPage() {
     return { label: "Fallback feed", tone: "warning" as const };
   }, [isMarketLoading, marketGeneratedAt, marketSource]);
 
+  const marketTrendStatus = useMemo(() => {
+    if (isMarketTrendLoading) {
+      return { label: "Loading trend", tone: "neutral" as const };
+    }
+
+    if (marketTrendSource === "live") {
+      const suffix = marketTrendGeneratedAt
+        ? ` • ${new Date(marketTrendGeneratedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
+        : "";
+      return { label: `Live trend${suffix}`, tone: "success" as const };
+    }
+
+    return { label: "Fallback trend", tone: "warning" as const };
+  }, [isMarketTrendLoading, marketTrendGeneratedAt, marketTrendSource]);
+
+  const selectedHorizonMonths = useMemo(() => toHorizonMonths(selectedHorizon), [selectedHorizon]);
+  const selectedHorizonLabel = useMemo(() => toHorizonLabel(selectedHorizon), [selectedHorizon]);
+
+  const niftyTrendSummary = useMemo(() => {
+    if (marketTrend.length < 2) {
+      return null;
+    }
+
+    const first = marketTrend[0]?.close ?? 0;
+    const latest = marketTrend[marketTrend.length - 1]?.close ?? 0;
+    const change = latest - first;
+    const changePct = first > 0 ? (change / first) * 100 : 0;
+
+    return {
+      first,
+      latest,
+      change,
+      changePct,
+    };
+  }, [marketTrend]);
+
+  const orderedMarketIndicators = useMemo(() => {
+    const order: Array<MarketIndicator["id"]> = ["NIFTY50", "SENSEX", "BANKNIFTY"];
+    const lookup = new Map(marketIndicators.map((indicator) => [indicator.id, indicator]));
+
+    return order
+      .map((id) => lookup.get(id))
+      .filter((indicator): indicator is MarketIndicator => Boolean(indicator));
+  }, [marketIndicators]);
+
+  const sipSuggestedAmount = useMemo(() => {
+    if (!profile) {
+      return null;
+    }
+
+    return Math.max(profile.monthly_investable_surplus_inr, 0);
+  }, [profile]);
+
+  const sipProjection = useMemo(() => {
+    const monthlyAmount = Math.max(sipMonthlyAmount, 0);
+    const annualRate = Math.min(Math.max(sipAnnualReturn, 0), 40);
+    const durationMonths = Math.max(1, Math.round(sipDurationYears * 12));
+    const monthlyRate = annualRate / 12 / 100;
+    const invested = monthlyAmount * durationMonths;
+
+    const projectedValue = monthlyRate === 0
+      ? invested
+      : monthlyAmount * (((Math.pow(1 + monthlyRate, durationMonths) - 1) / monthlyRate) * (1 + monthlyRate));
+
+    const roundedProjectedValue = Math.round(projectedValue);
+    const estimatedReturns = Math.max(roundedProjectedValue - Math.round(invested), 0);
+
+    return {
+      months: durationMonths,
+      invested: Math.round(invested),
+      projectedValue: roundedProjectedValue,
+      estimatedReturns,
+    };
+  }, [sipAnnualReturn, sipDurationYears, sipMonthlyAmount]);
+
   const powerTrendData = useMemo(() => {
     if (!profile) {
       return [];
@@ -599,7 +854,8 @@ export default function DashboardPage() {
     const goalReference = Math.max(profile.target_amount_inr, baseCorpus, 1);
     const monthlySurplus = Math.max(profile.monthly_investable_surplus_inr, 0);
     const horizonMonths = Math.max(profile.target_horizon_years * 12, 1);
-    const projectionMonths = Math.min(horizonMonths, 36);
+    const horizonPresetMonths = selectedHorizon === "6m" ? 6 : selectedHorizon === "12m" ? 12 : selectedHorizon === "24m" ? 24 : 36;
+    const projectionMonths = Math.min(horizonMonths, horizonPresetMonths);
     const checkpoints = Array.from({ length: 8 }, (_, index) => Math.round((projectionMonths * index) / 7));
 
     return checkpoints.map((monthsFromNow, index) => {
@@ -619,7 +875,7 @@ export default function DashboardPage() {
         checkpoint: index,
       };
     });
-  }, [holdingsAnalytics?.totalMarketValueInr, profile]);
+  }, [holdingsAnalytics?.totalMarketValueInr, profile, selectedHorizon]);
 
   const allocationBarData = useMemo(() => {
     const palette = ["#f5cc73", "#7aaafc", "#f0b85f", "#69c8ad", "#5a6d8f"];
@@ -915,6 +1171,267 @@ export default function DashboardPage() {
     return [effectiveFocus, ...baseOrder.filter((moduleKey) => moduleKey !== effectiveFocus)];
   }, [effectiveFocus]);
 
+  const kpiStripItems = useMemo<DashboardKpiItem[]>(() => {
+    const investedCorpus = Math.max((profile?.current_savings_inr ?? 0) + (holdingsAnalytics?.totalMarketValueInr ?? 0), 0);
+    const goalProgressPct = profile && profile.target_amount_inr > 0 ? Math.min((investedCorpus / profile.target_amount_inr) * 100, 999) : 0;
+    const alertSla = alertsSummary && alertsSummary.triggeredCount > 0
+      ? Math.round((alertsSummary.readyCount / alertsSummary.triggeredCount) * 100)
+      : null;
+    const concentrationCount = holdingsAnalytics?.concentrationWarnings.length ?? 0;
+    const concentrationTone = concentrationCount === 0 ? "Low" : concentrationCount <= 2 ? "Medium" : "High";
+    const taxRunway = taxSummary ? taxSummary.section80cRemainingInr : 0;
+
+    return [
+      {
+        id: "goal-progress",
+        label: "Goal Progress",
+        value: `${goalProgressPct.toFixed(1)}%`,
+        hint: `${formatCompactCurrency(investedCorpus)} corpus tracked`,
+        deltaLabel: `${goalProgressPct >= 50 ? "+" : "-"}${Math.abs(goalProgressPct - 50).toFixed(1)} pts vs 50% milestone`,
+        deltaTone: goalProgressPct >= 50 ? "positive" : "negative",
+        detail: "Share of visible corpus versus target amount. Includes savings and synced holdings.",
+        source: "Profiles + Holdings",
+      },
+      {
+        id: "monthly-surplus",
+        label: "Monthly Surplus",
+        value: profile ? formatCompactCurrency(Math.max(profile.monthly_investable_surplus_inr, 0)) : "N/A",
+        hint: profile ? `${formatCurrency(profile.monthly_income_inr)} income` : "Complete onboarding",
+        deltaLabel: profile ? `${Math.max(((profile.monthly_investable_surplus_inr / Math.max(profile.monthly_income_inr, 1)) * 100), 0).toFixed(1)}% savings rate` : "Savings rate unavailable",
+        deltaTone: profile && profile.monthly_investable_surplus_inr > 0 ? "positive" : "neutral",
+        detail: "Net monthly cash available for SIP and goal funding.",
+        source: "Profile monthly cashflow",
+      },
+      {
+        id: "tax-runway",
+        label: "Tax Runway",
+        value: taxSummary ? formatCompactCurrency(taxRunway) : "N/A",
+        hint: taxSummary ? `${taxSummary.daysToFinancialYearEnd} days left` : "Tax profile pending",
+        deltaLabel: taxSummary ? `${formatCompactCurrency(taxSummary.section80cRemainingInr)} still optimizable` : "Awaiting tax calculations",
+        deltaTone: taxSummary && taxSummary.section80cRemainingInr > 0 ? "negative" : "positive",
+        detail: "Remaining 80C opportunity before FY end.",
+        source: "Tax optimization engine",
+      },
+      {
+        id: "alert-sla",
+        label: "Alert SLA",
+        value: alertSla !== null ? `${Math.max(alertSla, 0)}%` : "N/A",
+        hint: alertsSummary ? `${alertsSummary.readyCount} ready of ${alertsSummary.triggeredCount}` : "Alerts not evaluated",
+        deltaLabel: alertsSummary ? `${alertsSummary.blockedCount} blocked queue` : "Pipeline pending",
+        deltaTone: alertsSummary && alertsSummary.blockedCount > 0 ? "negative" : "positive",
+        detail: "Readiness ratio for triggered decision alerts.",
+        source: "Smart Alerts pipeline",
+      },
+      {
+        id: "concentration-risk",
+        label: "Concentration Risk",
+        value: concentrationTone,
+        hint: `${concentrationCount} warning(s)`,
+        deltaLabel: concentrationCount === 0 ? "No major concentration alerts" : `${concentrationCount} concentration flags`,
+        deltaTone: concentrationCount === 0 ? "positive" : concentrationCount <= 2 ? "neutral" : "negative",
+        detail: "Sector and asset concentration risk indicator from holdings.",
+        source: "Holdings analyzer",
+      },
+      {
+        id: "data-freshness",
+        label: "Data Freshness",
+        value: profileFreshness.label,
+        hint: `Updated ${latestUpdatedAt}`,
+        deltaLabel: marketStatus.label,
+        deltaTone: profileFreshness.label === "Up to date" ? "positive" : profileFreshness.label === "Review soon" ? "neutral" : "negative",
+        detail: "Profile recency and market-feed health status.",
+        source: "Profiles + Market feed",
+      },
+    ];
+  }, [alertsSummary, holdingsAnalytics?.concentrationWarnings.length, holdingsAnalytics?.totalMarketValueInr, latestUpdatedAt, marketStatus.label, profile, profileFreshness.label, taxSummary]);
+
+  const selectedKpi = useMemo(() => {
+    return kpiStripItems.find((item) => item.id === selectedKpiId) ?? null;
+  }, [kpiStripItems, selectedKpiId]);
+
+  const showCashflowBridge = selectedLens === "cashflow";
+  const showAllocationMix = selectedLens === "goal" || selectedLens === "cashflow";
+  const showAlertsFunnel = selectedLens === "risk";
+  const showScenarioComparison = selectedLens === "goal";
+  const showRiskHeatmap = selectedLens === "risk";
+  const focusedInsightsTitle = selectedLens === "goal"
+    ? "Goal-focused analysis"
+    : selectedLens === "cashflow"
+      ? "Cashflow-focused analysis"
+      : "Risk-focused analysis";
+  const focusedInsightsHint = selectedLens === "goal"
+    ? "Track growth path, allocation balance, and long-term compounding behavior."
+    : selectedLens === "cashflow"
+      ? "Keep monthly inflow, outflow, and deployable surplus in control."
+      : "Prioritize risk telemetry, delivery bottlenecks, and severity hotspots.";
+
+  const scenarioProjectionData = useMemo(() => {
+    if (!profile) return [];
+    const currentCorpus = Math.max(profile.current_savings_inr + (holdingsAnalytics?.totalMarketValueInr ?? 0), 0);
+    const investable = Math.max(profile.monthly_investable_surplus_inr, 0);
+    const points = Array.from({ length: 7 }, (_, index) => Math.round((selectedHorizonMonths * index) / 6));
+
+    return points.map((month) => {
+      return {
+        label: month === 0 ? "Now" : month % 12 === 0 ? `Y${month / 12}` : `M${month}`,
+        conservative: Math.round(projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.conservative, month)),
+        moderate: Math.round(projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.moderate, month)),
+        aggressive: Math.round(projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.aggressive, month)),
+      };
+    });
+  }, [holdingsAnalytics?.totalMarketValueInr, profile, selectedHorizonMonths]);
+
+  const riskHeatmapData = useMemo(() => {
+    const taxRisk = taxSummary && taxSummary.section80cRemainingInr > 0 ? 2 : 1;
+    const holdingsRisk = (holdingsAnalytics?.concentrationWarnings.length ?? 0) > 2 ? 3 : (holdingsAnalytics?.concentrationWarnings.length ?? 0) > 0 ? 2 : 1;
+    const alertsRisk = (alertsSummary?.blockedCount ?? 0) > 0 ? 3 : (alertsSummary?.deferredCount ?? 0) > 0 ? 2 : 1;
+    const profileRisk = profile && profile.kyc_status === "verified" ? 1 : profile && profile.kyc_status === "pending" ? 2 : 3;
+    const scoreMap = [0, profileRisk, holdingsRisk, taxRisk, alertsRisk];
+    const rows = ["Profile", "Holdings", "Tax", "Alerts"];
+    return rows.map((row, rowIndex) => ([
+      { row, col: "Low", value: scoreMap[rowIndex + 1] === 1 ? 1 : 0, intensity: scoreMap[rowIndex + 1] === 1 ? "high" : "low" },
+      { row, col: "Medium", value: scoreMap[rowIndex + 1] === 2 ? 1 : 0, intensity: scoreMap[rowIndex + 1] === 2 ? "high" : "low" },
+      { row, col: "High", value: scoreMap[rowIndex + 1] === 3 ? 1 : 0, intensity: scoreMap[rowIndex + 1] === 3 ? "high" : "low" },
+    ]));
+  }, [alertsSummary?.blockedCount, alertsSummary?.deferredCount, holdingsAnalytics?.concentrationWarnings.length, profile, taxSummary]);
+
+  const cashflowBridgeData = useMemo(() => {
+    if (!profile) return [];
+    const income = Math.max(profile.monthly_income_inr, 0);
+    const expenses = -Math.max(profile.monthly_expenses_inr, 0);
+    const emi = -Math.max(profile.monthly_emi_inr, 0);
+    const investable = Math.max(profile.monthly_investable_surplus_inr, 0);
+    const unplanned = income + expenses + emi - investable;
+    return [
+      { label: "Income", value: income, fill: "#2b5cff" },
+      { label: "Expenses", value: expenses, fill: "#ff8a7b" },
+      { label: "EMI", value: emi, fill: "#f5cc73" },
+      { label: "Investable", value: investable, fill: "#69c8ad" },
+      { label: "Balance", value: unplanned, fill: "#5a6d8f" },
+    ];
+  }, [profile]);
+
+  const cashflowBalanceValue = useMemo(() => {
+    return cashflowBridgeData.find((entry) => entry.label === "Balance")?.value ?? 0;
+  }, [cashflowBridgeData]);
+
+  const alertsFunnelData = useMemo(() => {
+    if (!alertsSummary) return [];
+    return [
+      { stage: "Triggered", value: alertsSummary.triggeredCount, fill: "#2b5cff" },
+      { stage: "Ready", value: alertsSummary.readyCount, fill: "#69c8ad" },
+      { stage: "Deferred", value: alertsSummary.deferredCount, fill: "#f5cc73" },
+      { stage: "Blocked", value: alertsSummary.blockedCount, fill: "#ff8a7b" },
+    ];
+  }, [alertsSummary]);
+
+  const alertsReadyRate = useMemo(() => {
+    if (!alertsSummary || alertsSummary.triggeredCount <= 0) {
+      return null;
+    }
+
+    return (alertsSummary.readyCount / alertsSummary.triggeredCount) * 100;
+  }, [alertsSummary]);
+
+  const allocationDonutData = useMemo(() => {
+    const rows = (holdingsAnalytics?.allocationByAssetClass ?? []).slice(0, 6).map((item) => ({ name: item.name, value: Math.max(item.marketValueInr, 0) }));
+    if (rows.length > 0) return rows;
+    return allocationBarData.slice(0, 6).map((item) => ({ name: item.category, value: Math.max(item.value, 0) }));
+  }, [allocationBarData, holdingsAnalytics?.allocationByAssetClass]);
+
+  const allocationTotalValue = useMemo(() => {
+    return allocationDonutData.reduce((sum, item) => sum + item.value, 0);
+  }, [allocationDonutData]);
+
+  const topAllocationSlices = useMemo(() => {
+    if (allocationTotalValue <= 0) {
+      return [] as Array<{ name: string; value: number; sharePct: number }>;
+    }
+
+    return [...allocationDonutData]
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 3)
+      .map((item) => ({
+        name: item.name,
+        value: item.value,
+        sharePct: (item.value / allocationTotalValue) * 100,
+      }));
+  }, [allocationDonutData, allocationTotalValue]);
+
+  const scenarioBaselineCorpus = useMemo(() => {
+    if (!profile) {
+      return 0;
+    }
+
+    const currentCorpus = Math.max(profile.current_savings_inr + (holdingsAnalytics?.totalMarketValueInr ?? 0), 0);
+    const investable = Math.max(profile.monthly_investable_surplus_inr, 0);
+
+    return Math.round(currentCorpus + investable * selectedHorizonMonths);
+  }, [holdingsAnalytics?.totalMarketValueInr, profile, selectedHorizonMonths]);
+
+  const scenarioEndPoint = useMemo(() => {
+    if (scenarioProjectionData.length === 0) {
+      return null;
+    }
+
+    return scenarioProjectionData[scenarioProjectionData.length - 1] ?? null;
+  }, [scenarioProjectionData]);
+
+  const scenarioOutcomeRows = useMemo(() => {
+    if (!scenarioEndPoint) {
+      return [] as Array<{ name: string; annualReturn: number; value: number; excess: number }>;
+    }
+
+    return [
+      {
+        name: "Conservative",
+        annualReturn: SCENARIO_RETURN_PCT.conservative,
+        value: scenarioEndPoint.conservative,
+        excess: scenarioEndPoint.conservative - scenarioBaselineCorpus,
+      },
+      {
+        name: "Moderate",
+        annualReturn: SCENARIO_RETURN_PCT.moderate,
+        value: scenarioEndPoint.moderate,
+        excess: scenarioEndPoint.moderate - scenarioBaselineCorpus,
+      },
+      {
+        name: "Aggressive",
+        annualReturn: SCENARIO_RETURN_PCT.aggressive,
+        value: scenarioEndPoint.aggressive,
+        excess: scenarioEndPoint.aggressive - scenarioBaselineCorpus,
+      },
+    ];
+  }, [scenarioBaselineCorpus, scenarioEndPoint]);
+
+  const allocationPalette = ["#2b5cff", "#7aaafc", "#69c8ad", "#f5cc73", "#ff8a7b", "#5a6d8f"];
+
+  const kpiTrendSeries = useMemo<Record<string, TrendPoint[]>>(() => {
+    const goalSeries = powerTrendData.map((point) => ({ label: point.label, value: point.actual }));
+    const cashflowBase = profile ? Math.max(profile.monthly_investable_surplus_inr, 0) : 0;
+    const cashflowSeries = Array.from({ length: 6 }, (_, index) => ({ label: `M-${5 - index}`, value: Math.max(Math.round(cashflowBase * (0.88 + index * 0.035)), 0) }));
+    const taxBase = taxSummary?.section80cRemainingInr ?? 0;
+    const taxSeries = Array.from({ length: 6 }, (_, index) => ({ label: `M-${5 - index}`, value: Math.max(Math.round(taxBase * (1 - index * 0.14)), 0) }));
+    const alertBase = alertsSummary?.triggeredCount ?? 0;
+    const alertSeries = Array.from({ length: 6 }, (_, index) => ({ label: `W${index + 1}`, value: Math.max(Math.round(alertBase * (0.95 - index * 0.1)), 0) }));
+    const concentrationBase = holdingsAnalytics?.concentrationWarnings.length ?? 0;
+    const concentrationSeries = Array.from({ length: 6 }, (_, index) => ({ label: `W${index + 1}`, value: Math.max(Math.round(concentrationBase + (index % 2 === 0 ? 0 : -1)), 0) }));
+    const freshnessSeries = Array.from({ length: 6 }, (_, index) => ({ label: `D${index + 1}`, value: Math.max(100 - index * 6, 60) }));
+    return {
+      "goal-progress": goalSeries,
+      "monthly-surplus": cashflowSeries,
+      "tax-runway": taxSeries,
+      "alert-sla": alertSeries,
+      "concentration-risk": concentrationSeries,
+      "data-freshness": freshnessSeries,
+    };
+  }, [alertsSummary?.triggeredCount, holdingsAnalytics?.concentrationWarnings.length, powerTrendData, profile, taxSummary?.section80cRemainingInr]);
+
+  const selectedKpiTrend = useMemo(() => {
+    if (!selectedKpi) return [];
+    return kpiTrendSeries[selectedKpi.id] ?? [];
+  }, [kpiTrendSeries, selectedKpi]);
+
   const getModuleContainerClassName = (moduleKey: DashboardModuleKey): string => {
     if (moduleKey === effectiveFocus) {
       return "rounded-2xl ring-2 ring-finance-accent/20 ring-offset-2 ring-offset-finance-bg shadow-[0_16px_34px_rgba(43,92,255,0.12)] transition-all duration-200";
@@ -1002,6 +1519,33 @@ export default function DashboardPage() {
     return <AgentAdvisorPanel refreshKey={refreshTick} />;
   };
 
+  const handleExportSnapshot = useCallback(() => {
+    const lines = [
+      "KPI,Value,Delta,Hint",
+      ...kpiStripItems.map((item) => `"${item.label}","${item.value}","${item.deltaLabel}","${item.hint}"`),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `pravix-dashboard-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [kpiStripItems]);
+
+  const handleShareSnapshot = useCallback(async () => {
+    const shareText = `Pravix dashboard snapshot (${selectedLens}, ${selectedHorizon}) · ${kpiStripItems[0]?.label ?? "KPI"}: ${kpiStripItems[0]?.value ?? "N/A"}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+      }
+    } catch {
+      // Clipboard permissions may be blocked by browser policy.
+    }
+  }, [kpiStripItems, selectedHorizon, selectedLens]);
+
   return (
     <>
       <SiteHeader />
@@ -1034,313 +1578,6 @@ export default function DashboardPage() {
                 ) : null}
               </div>
             </div>
-          </section>
-
-          <section className="relative mt-4 overflow-hidden rounded-[28px] border border-[#374355] bg-[radial-gradient(circle_at_top_left,#252e3e_0%,#131b2a_54%,#0a0f18_100%)] px-4 py-4 shadow-[0_28px_64px_rgba(3,6,15,0.62)] sm:px-6 sm:py-5">
-            <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-[#f5cc73]/85 blur-[1px]" />
-            <div className="pointer-events-none absolute -bottom-8 right-10 h-20 w-20 rounded-full bg-[#f0b85f]/85" />
-            <div className="pointer-events-none absolute -left-8 top-16 h-28 w-28 rounded-full border border-[#f6e2b4]/70 bg-[#f6ecd0]/20" />
-
-            <div className="relative flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#92a3c2]">Executive Analytics Canvas</p>
-                <p className="mt-1 text-lg font-semibold text-[#f5efe5] sm:text-xl">Power BI-inspired strategic dashboard</p>
-                <p className="mt-1 text-sm text-[#9fb0ce]">Strictly driven by your Pravix profile, holdings, tax, alerts, intelligence, and advisor data.</p>
-              </div>
-
-              <div className="inline-flex items-center gap-2 rounded-xl border border-[#3d4960] bg-[#101827]/85 px-3 py-2 text-xs text-[#9fb0ce]">
-                <Search className="h-3.5 w-3.5" />
-                <span>Search dashboard visuals</span>
-                <span className="rounded-md border border-[#495978] bg-[#0f1625] px-1.5 py-0.5 text-[10px] text-[#7f93b6]">Ctrl K</span>
-              </div>
-            </div>
-
-            <div className="relative mt-5 grid gap-4 lg:grid-cols-[58px_minmax(0,1fr)_320px]">
-              <aside className="rounded-2xl border border-[#323d4f] bg-[#0f1624]/95 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                <div className="flex flex-col items-center gap-2.5">
-                  {[
-                    { label: "Overview", icon: LayoutGrid, active: true },
-                    { label: "Signals", icon: Sparkles, active: false },
-                    { label: "Risk", icon: ShieldCheck, active: false },
-                    { label: "Assets", icon: WalletMinimal, active: false },
-                    { label: "Filters", icon: ListFilter, active: false },
-                  ].map((item) => {
-                    const Icon = item.icon;
-
-                    return (
-                      <div key={item.label} className="group flex w-full flex-col items-center gap-1">
-                        <span
-                          className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors ${
-                            item.active
-                              ? "border-[#7fa8ff] bg-[#1f3050] text-[#f6d48d]"
-                              : "border-[#3f4b61] bg-[#131d2f] text-[#8ea4c7] group-hover:border-[#6b84ad] group-hover:text-[#c7d5ee]"
-                          }`}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </span>
-                        <span className="text-[10px] font-medium text-[#7f93b6]">{item.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </aside>
-
-              <article className="rounded-2xl border border-[#37465f] bg-[#121b2c]/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8fa3c8]">User data trajectory</p>
-                    <p className="mt-1 text-sm text-[#e9eef9]">Savings, holdings, and target progression from your dashboard profile.</p>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#4a5974] bg-[#162035] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#d4def2]">
-                    <CircleDot className="h-3 w-3 text-[#f2c96f]" />
-                    {isPowerInsightsLoading ? "syncing module insights" : marketStatus.label}
-                  </span>
-                </div>
-
-                {isMarketLoading || isPowerInsightsLoading ? (
-                  <div className="mt-4 h-[250px] animate-pulse rounded-xl border border-[#3b4660] bg-[#151f31]" />
-                ) : powerTrendData.length === 0 ? (
-                  <div className="mt-4 flex h-[250px] items-center justify-center rounded-xl border border-dashed border-[#3b4660] bg-[#151f31] px-4 text-center text-sm text-[#9db2d5]">
-                    Complete onboarding and sync modules to unlock data-driven Power BI visuals.
-                  </div>
-                ) : (
-                  <div className="mt-4 h-[250px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={powerTrendData} margin={{ top: 10, right: 10, left: -12, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="wealthAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#f5cc73" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="#f5cc73" stopOpacity={0.02} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid stroke="rgba(159,176,206,0.18)" strokeDasharray="4 6" vertical={false} />
-                        <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#90a4c8", fontSize: 11 }} />
-                        <YAxis hide domain={["dataMin - 120000", "dataMax + 120000"]} />
-                        <Tooltip
-                          cursor={{ stroke: "rgba(245,204,115,0.4)", strokeWidth: 1 }}
-                          contentStyle={{
-                            backgroundColor: "#111826",
-                            border: "1px solid rgba(255,255,255,0.12)",
-                            borderRadius: "12px",
-                            color: "#f5efe5",
-                          }}
-                          formatter={(value, name) => {
-                            const numericValue = Number(value ?? 0);
-                            const label = String(name ?? "") === "actual" ? "Observed value" : "Goal reference";
-
-                            return [formatCompactCurrency(numericValue), label];
-                          }}
-                        />
-                        <Area type="monotone" dataKey="actual" stroke="#f5cc73" strokeWidth={2.5} fill="url(#wealthAreaGradient)" />
-                        <Line type="monotone" dataKey="goalPath" stroke="#9cb2d8" strokeDasharray="6 6" strokeWidth={2} dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  {strategyKpis.map((kpi) => (
-                    <article key={kpi.label} className="rounded-xl border border-[#3a4761] bg-[#121e30] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.12em] text-[#7f93b6]">{kpi.label}</p>
-                      <p className="mt-1 text-base font-semibold text-[#f5efe5]">{kpi.value}</p>
-                      <p className="mt-1 text-[11px] text-[#9cb0d3]">{kpi.hint}</p>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-                  <article className="rounded-xl border border-[#36445f] bg-[#0f1828] p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8fa3c8]">Checkpoint tracker</p>
-                      <span className="text-[10px] text-[#7f93b6]">Actual vs goal path</span>
-                    </div>
-
-                    {trajectoryCheckpoints.length === 0 ? (
-                      <p className="mt-2 text-xs text-[#90a4c8]">Trajectory checkpoints unlock after profile sync.</p>
-                    ) : (
-                      <div className="mt-2 space-y-2">
-                        {trajectoryCheckpoints.map((checkpoint) => {
-                          const deltaLabel = `${checkpoint.gap >= 0 ? "+" : "-"}${formatCompactCurrency(Math.abs(checkpoint.gap))}`;
-
-                          return (
-                            <div
-                              key={checkpoint.label}
-                              className="grid grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-[#30405a] bg-[#111d31] px-2.5 py-2"
-                            >
-                              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#95a9cd]">{checkpoint.label}</span>
-                              <span className="truncate text-[11px] text-[#c8d5ec]">{formatCompactCurrency(checkpoint.actual)}</span>
-                              <span
-                                className={`text-[11px] font-semibold ${
-                                  checkpoint.gap >= 0 ? "text-emerald-300" : "text-[#f5c66d]"
-                                }`}
-                              >
-                                {deltaLabel}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </article>
-
-                  <article className="rounded-xl border border-[#36445f] bg-[#0f1828] p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8fa3c8]">Workload split</p>
-                    {attentionBreakdown.length === 0 ? (
-                      <p className="mt-2 text-xs text-[#90a4c8]">No active workload categories.</p>
-                    ) : (
-                      <div className="mt-2 space-y-2">
-                        {attentionBreakdown.map((entry) => (
-                          <div key={entry.name}>
-                            <div className="flex items-center justify-between text-[10px] text-[#c8d5ec]">
-                              <span>{entry.name}</span>
-                              <span>{entry.value}</span>
-                            </div>
-                            <div className="mt-1 h-1.5 rounded-full bg-[#1a2841]">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${Math.max(entry.share, 8)}%`,
-                                  backgroundColor: entry.color,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="mt-3 rounded-lg border border-[#33435d] bg-[#121e31] px-2.5 py-2">
-                      <p className="text-[10px] uppercase tracking-[0.08em] text-[#8ea3c7]">Profile freshness</p>
-                      <p
-                        className={`mt-1 text-xs font-semibold ${
-                          profileFreshness.tone === "success"
-                            ? "text-emerald-300"
-                            : profileFreshness.tone === "warning"
-                              ? "text-[#f5c66d]"
-                              : profileFreshness.tone === "critical"
-                                ? "text-rose-300"
-                                : "text-[#c7d4eb]"
-                        }`}
-                      >
-                        {profileFreshness.label}
-                      </p>
-                    </div>
-                  </article>
-                </div>
-              </article>
-
-              <div className="grid gap-4">
-                <article className="rounded-2xl border border-[#37465f] bg-[#121b2c]/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8fa3c8]">Allocation intensity</p>
-                  <p className="mt-1 text-sm text-[#e9eef9]">{allocationSubtitle}</p>
-                  <div className="mt-3 h-[150px]">
-                    {allocationBarData.length === 0 ? (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-[#3b4660] bg-[#151f31] px-3 text-center text-xs text-[#92a7cb]">
-                        Add profile cashflow inputs or holdings to render allocation visuals.
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={allocationBarData} margin={{ top: 8, right: 0, left: -18, bottom: 0 }}>
-                          <CartesianGrid vertical={false} stroke="rgba(159,176,206,0.15)" strokeDasharray="4 6" />
-                          <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fill: "#90a4c8", fontSize: 11 }} />
-                          <YAxis hide />
-                          <Tooltip
-                            cursor={{ fill: "rgba(255,255,255,0.03)" }}
-                            contentStyle={{
-                              backgroundColor: "#111826",
-                              border: "1px solid rgba(255,255,255,0.12)",
-                              borderRadius: "12px",
-                              color: "#f5efe5",
-                            }}
-                            formatter={(value) => {
-                              const numericValue = Number(value ?? 0);
-                              return [formatCompactCurrency(numericValue), "Market value"];
-                            }}
-                          />
-                          <Bar dataKey="value" radius={[7, 7, 0, 0]}>
-                            {allocationBarData.map((entry) => (
-                              <Cell key={entry.category} fill={entry.fill} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </article>
-
-                <article className="relative rounded-2xl border border-[#37465f] bg-[#121b2c]/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8fa3c8]">Action priority mix</p>
-                  <div className="relative mt-2 h-[170px]">
-                    {attentionMixData.length === 0 ? (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-[#3b4660] bg-[#151f31] px-3 text-center text-xs text-[#92a7cb]">
-                        Sync modules to view cross-domain action priorities.
-                      </div>
-                    ) : (
-                      <>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "#111826",
-                                border: "1px solid rgba(255,255,255,0.12)",
-                                borderRadius: "12px",
-                                color: "#f5efe5",
-                              }}
-                              formatter={(value, name) => [`${value ?? ""}`, String(name ?? "")]} 
-                            />
-                            <Pie
-                              data={attentionMixData}
-                              dataKey="value"
-                              nameKey="name"
-                              innerRadius={44}
-                              outerRadius={68}
-                              paddingAngle={2}
-                              stroke="none"
-                            >
-                              {attentionMixData.map((slice) => (
-                                <Cell key={slice.name} fill={slice.color} />
-                              ))}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                          <div className="text-center">
-                            <p className="text-[10px] uppercase tracking-[0.08em] text-[#8ea3c7]">Top signal</p>
-                            <p className="text-sm font-semibold text-[#f5efe5]">{topAttentionSignal.name}</p>
-                            <p className="text-lg font-semibold text-[#f5efe5]">{topAttentionSignal.value}</p>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {insightDigestItems.length > 0 ? (
-                    <div className="mt-2 space-y-2">
-                      {insightDigestItems.map((item) => {
-                        return (
-                          <div
-                            key={item.title}
-                            className="flex items-center justify-between rounded-lg border border-[#3b4760] bg-[#121e31] px-3 py-2"
-                          >
-                            <div>
-                              <p className="text-[11px] font-medium text-[#c8d5ec]">{item.title}</p>
-                              <p className="text-[10px] text-[#8ea4c7]">{item.hint}</p>
-                            </div>
-                            <span className="max-w-[135px] text-right text-[11px] font-semibold text-[#f0c772]">{item.value}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-xs text-[#90a4c8]">Insight digest will populate after module sync.</p>
-                  )}
-                </article>
-              </div>
-            </div>
-
-            {marketError ? <p className="relative mt-3 text-xs text-rose-300">Market feed warning: {marketError}</p> : null}
-            {powerInsightsError ? <p className="relative mt-2 text-xs text-rose-300">Insight sync warning: {powerInsightsError}</p> : null}
           </section>
 
           {isLoading && (
@@ -1380,18 +1617,38 @@ export default function DashboardPage() {
             <DashboardSectionCard
               className="mt-5 sm:mt-6"
               eyebrow="Overview"
-              title="Sign in to activate your dashboard"
-              description="Authentication unlocks personalized profile, alerts, and advisor modules."
+              title="Create your account to access your dashboard"
+              description="Your personal dashboard unlocks goal tracking, alerts, portfolio analytics, and AI guidance."
             >
-              <div className="flex items-start gap-3">
-                <CircleUserRound className="h-5 w-5 mt-0.5 text-finance-muted" />
-                <div>
-                  <p className="font-semibold text-finance-text">You are not signed in</p>
-                  <p className="mt-1 text-sm text-finance-muted">
-                    Sign in to reliably view your own profile and plan inputs on this dashboard.
-                  </p>
-                  <AuthPanel onSignedIn={() => setRefreshTick((current) => current + 1)} />
+              <div className="rounded-2xl border border-finance-border bg-finance-surface/45 p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <CircleUserRound className="mt-0.5 h-5 w-5 text-finance-muted" />
+                  <div>
+                    <p className="font-semibold text-finance-text">You are currently not logged in</p>
+                    <p className="mt-1 text-sm text-finance-muted">
+                      Create a Pravix account to start onboarding, then return here for your personalized wealth dashboard.
+                    </p>
+                  </div>
                 </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    href="/create-account"
+                    className="inline-flex h-10 items-center rounded-full bg-finance-accent px-4 text-sm font-semibold text-white transition-all duration-150 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-finance-accent/35 active:scale-[0.98]"
+                  >
+                    Create Account
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="inline-flex h-10 items-center rounded-full border border-finance-border bg-white px-4 text-sm font-semibold text-finance-text transition-colors hover:bg-finance-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-finance-accent/30 active:scale-[0.98]"
+                  >
+                    Log In
+                  </Link>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <AuthPanel onSignedIn={() => setRefreshTick((current) => current + 1)} />
               </div>
             </DashboardSectionCard>
           )}
@@ -1420,7 +1677,447 @@ export default function DashboardPage() {
 
           {!isLoading && !error && signedInEmail && profile && (
             <div className="mt-5 space-y-5 sm:mt-6 sm:space-y-6">
-              <section className="rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-5">
+              <section className="mx-auto w-full max-w-4xl rounded-2xl border border-finance-border bg-white/95 p-3.5 shadow-[0_10px_24px_rgba(10,25,48,0.08)] backdrop-blur-md sm:p-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[150px]">
+                    <label htmlFor="horizon-filter" className="text-[10px] font-semibold uppercase tracking-[0.12em] text-finance-muted">
+                      Horizon
+                    </label>
+                    <select
+                      id="horizon-filter"
+                      value={selectedHorizon}
+                      onChange={(event) => setSelectedHorizon(event.target.value as DashboardHorizon)}
+                      className="mt-1 h-9 w-full rounded-lg border border-finance-border bg-finance-panel px-2.5 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                    >
+                      <option value="6m">6 months</option>
+                      <option value="12m">12 months</option>
+                      <option value="24m">24 months</option>
+                      <option value="36m">36 months</option>
+                    </select>
+                  </div>
+
+                  <div className="min-w-[170px]">
+                    <label htmlFor="lens-filter" className="text-[10px] font-semibold uppercase tracking-[0.12em] text-finance-muted">
+                      Dashboard Lens
+                    </label>
+                    <select
+                      id="lens-filter"
+                      value={selectedLens}
+                      onChange={(event) => setSelectedLens(event.target.value as DashboardLens)}
+                      className="mt-1 h-9 w-full rounded-lg border border-finance-border bg-finance-panel px-2.5 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                    >
+                      <option value="goal">Goal performance</option>
+                      <option value="cashflow">Cashflow quality</option>
+                      <option value="risk">Risk posture</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                    <StatusBadge label={`Mode ${selectedLens}`} tone="info" />
+                    <StatusBadge label={`Window ${selectedHorizon}`} tone="neutral" />
+                    <StatusBadge label={marketStatus.label} tone={marketStatus.tone === "success" ? "success" : marketStatus.tone === "neutral" ? "neutral" : "warning"} />
+                    <button type="button" onClick={handleExportSnapshot} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-finance-border bg-white px-3 text-xs font-semibold text-finance-text hover:bg-finance-surface">
+                      <Download className="h-3.5 w-3.5" />
+                      Export
+                    </button>
+                    <button type="button" onClick={() => void handleShareSnapshot()} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-finance-border bg-white px-3 text-xs font-semibold text-finance-text hover:bg-finance-surface">
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-finance-border bg-white px-4 py-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.05)] sm:px-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Priority Snapshot</p>
+                <p className="mt-1 text-sm text-finance-muted">Core metrics first, then drill down into focused analysis.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                  {kpiStripItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedKpiId(item.id)}
+                      className={`rounded-xl border bg-white px-3 py-3.5 text-left shadow-[0_8px_18px_rgba(10,25,48,0.05)] transition-all hover:-translate-y-0.5 ${
+                        selectedKpiId === item.id ? "border-finance-accent ring-2 ring-finance-accent/20" : "border-finance-border"
+                      }`}
+                    >
+                      <p className="text-[10px] uppercase tracking-[0.11em] text-finance-muted">{item.label}</p>
+                      <p className="mt-1 text-base font-semibold text-finance-text">{item.value}</p>
+                      <p className={`mt-1 text-[11px] ${toneToClassName(item.deltaTone)}`}>{item.deltaLabel}</p>
+                      <p className="mt-1 text-[11px] text-finance-muted">{item.hint}</p>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-finance-border bg-white px-4 py-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.05)] sm:px-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Action Tools</p>
+                <p className="mt-1 text-sm text-finance-muted">Market context and SIP planning in one place.</p>
+              </section>
+
+              <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <article className="rounded-2xl border border-finance-border bg-white p-4 shadow-[0_10px_24px_rgba(10,25,48,0.07)] sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">NIFTY 50 Live Graph</p>
+                      <p className="mt-1 text-[11px] text-finance-muted">How to read: line up means index rising. Window: {selectedHorizonLabel}.</p>
+                      {niftyTrendSummary ? (
+                        <p className="mt-1 text-[11px] text-finance-muted">
+                          Latest close {formatIndexNumber(niftyTrendSummary.latest)} • Period change {formatSignedNumber(niftyTrendSummary.change)} ({formatSignedPercent(niftyTrendSummary.changePct)})
+                        </p>
+                      ) : null}
+                    </div>
+                    <StatusBadge label={marketTrendStatus.label} tone={marketTrendStatus.tone} />
+                  </div>
+
+                  <div className="mt-4 h-[250px]">
+                    {isMarketTrendLoading ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-finance-surface text-xs text-finance-muted">
+                        Loading NIFTY trend...
+                      </div>
+                    ) : marketTrend.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-finance-surface text-xs text-finance-muted">
+                        NIFTY trend data unavailable.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={marketTrend} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="niftyTrendFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.24} />
+                              <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.03} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid stroke="rgba(130,147,177,0.16)" strokeDasharray="4 6" vertical={false} />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} />
+                          <YAxis tick={{ fill: "#3f5680", fontSize: 10 }} tickFormatter={(value: number) => formatIndexNumber(value)} width={72} />
+                          <Tooltip
+                            formatter={(value) => [formatIndexNumber(Number(value ?? 0)), "NIFTY close"]}
+                            labelFormatter={(label) => `Date: ${String(label ?? "")}`}
+                          />
+                          <Area type="monotone" dataKey="close" stroke="#2b5cff" strokeWidth={2.2} fill="url(#niftyTrendFill)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    {orderedMarketIndicators.length === 0 ? (
+                      <div className="sm:col-span-3 rounded-lg border border-dashed border-finance-border bg-finance-surface px-3 py-2 text-xs text-finance-muted">
+                        Market indicators unavailable.
+                      </div>
+                    ) : (
+                      orderedMarketIndicators.map((indicator) => (
+                        <div key={indicator.id} className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
+                          <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">{indicator.displayName}</p>
+                          <p className="mt-1 text-sm font-semibold text-finance-text">{formatIndexNumber(indicator.value)}</p>
+                          <p
+                            className={`mt-1 text-[11px] ${
+                              indicator.trend === "up"
+                                ? "text-finance-green"
+                                : indicator.trend === "down"
+                                  ? "text-finance-red"
+                                  : "text-finance-muted"
+                            }`}
+                          >
+                            Day change: {formatSignedNumber(indicator.changeAbs)} ({formatSignedPercent(indicator.changePct)})
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </article>
+
+                <article className="rounded-2xl border border-finance-border bg-white p-4 shadow-[0_10px_24px_rgba(10,25,48,0.07)] sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">SIP Calculator</p>
+                    <span className="text-[11px] text-finance-muted">Projection only</span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.11em] text-finance-muted">
+                      Monthly SIP (INR)
+                      <input
+                        type="number"
+                        min={0}
+                        step={500}
+                        value={sipMonthlyAmount}
+                        onChange={(event) => setSipMonthlyAmount(Math.max(parseNumberInput(event.target.value), 0))}
+                        className="mt-1.5 h-10 w-full rounded-lg border border-finance-border bg-finance-panel px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                      />
+                    </label>
+
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.11em] text-finance-muted">
+                      Expected Annual Return (%)
+                      <input
+                        type="number"
+                        min={0}
+                        max={40}
+                        step={0.1}
+                        value={sipAnnualReturn}
+                        onChange={(event) => setSipAnnualReturn(Math.min(Math.max(parseNumberInput(event.target.value), 0), 40))}
+                        className="mt-1.5 h-10 w-full rounded-lg border border-finance-border bg-finance-panel px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                      />
+                    </label>
+
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.11em] text-finance-muted">
+                      Duration (Years)
+                      <input
+                        type="number"
+                        min={0.5}
+                        max={40}
+                        step={0.5}
+                        value={sipDurationYears}
+                        onChange={(event) => setSipDurationYears(Math.min(Math.max(parseNumberInput(event.target.value), 0.5), 40))}
+                        className="mt-1.5 h-10 w-full rounded-lg border border-finance-border bg-finance-panel px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+                    <div className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">Invested Amount</p>
+                      <p className="mt-1 text-sm font-semibold text-finance-text">{formatCurrency(sipProjection.invested)}</p>
+                    </div>
+                    <div className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">Estimated Returns</p>
+                      <p className="mt-1 text-sm font-semibold text-finance-green">{formatCurrency(sipProjection.estimatedReturns)}</p>
+                    </div>
+                    <div className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">Projected Value</p>
+                      <p className="mt-1 text-sm font-semibold text-finance-text">{formatCurrency(sipProjection.projectedValue)}</p>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-[11px] text-finance-muted">
+                    SIP duration: {sipProjection.months} months. Assumes constant monthly contribution and stable annual return.
+                  </p>
+
+                  {sipSuggestedAmount !== null ? (
+                    <p className="mt-1.5 text-[11px] text-finance-muted">
+                      Your profile indicates an investable monthly surplus of {formatCurrency(Math.round(sipSuggestedAmount))}.
+                    </p>
+                  ) : null}
+                </article>
+              </section>
+
+              <section className="rounded-2xl border border-finance-border bg-white px-4 py-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.05)] sm:px-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">{focusedInsightsTitle}</p>
+                <p className="mt-1 text-sm text-finance-muted">{focusedInsightsHint}</p>
+              </section>
+
+              <section className={`grid gap-4 ${selectedLens === "cashflow" ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
+                {showCashflowBridge ? (
+                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Cashflow Bridge</p>
+                    <p className="text-[10px] text-[#5a6f94]">Positive bars add cash, negative bars reduce cash</p>
+                  </div>
+                  <div className="mt-3 h-[220px]">
+                    {cashflowBridgeData.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-white text-xs text-finance-muted">Cashflow data unavailable.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={cashflowBridgeData} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
+                          <CartesianGrid stroke="rgba(130,147,177,0.16)" strokeDasharray="4 6" vertical={false} />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} />
+                          <YAxis tickFormatter={(value: number) => formatCompactCurrency(value)} tick={{ fill: "#3f5680", fontSize: 10 }} />
+                          <ReferenceLine y={0} stroke="#9eb2d8" strokeDasharray="4 4" />
+                          <Tooltip
+                            formatter={(value) => [formatCompactCurrency(Number(value ?? 0)), "Cash impact"]}
+                            labelFormatter={(label) => `Category: ${String(label ?? "")}`}
+                          />
+                          <Bar dataKey="value" radius={[5, 5, 0, 0]}>{cashflowBridgeData.map((entry) => <Cell key={entry.label} fill={entry.fill} />)}</Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[11px] text-finance-muted">
+                    Net monthly balance after planned investing: {formatCompactCurrency(cashflowBalanceValue)}.
+                  </p>
+                </article>
+                ) : null}
+                {showAllocationMix ? (
+                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Allocation Mix</p>
+                    <p className="text-[10px] text-[#5a6f94]">{allocationDonutData.length} segments • {formatCompactCurrency(allocationTotalValue)}</p>
+                  </div>
+                  <p className="mt-1 text-[11px] text-finance-muted">{allocationSubtitle}</p>
+                  <div className="mt-3 h-[220px]">
+                    {allocationDonutData.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-white text-xs text-finance-muted">Upload holdings for allocation map.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={allocationDonutData} dataKey="value" innerRadius={50} outerRadius={82} paddingAngle={2}>
+                            {allocationDonutData.map((entry, index) => <Cell key={entry.name} fill={allocationPalette[index % allocationPalette.length]} />)}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => [formatCompactCurrency(Number(value ?? 0)), "Allocated amount"]}
+                            labelFormatter={(label) => `Segment: ${String(label ?? "")}`}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                  {topAllocationSlices.length > 0 ? (
+                    <div className="mt-2 space-y-1.5">
+                      {topAllocationSlices.map((slice, index) => (
+                        <div key={slice.name} className="flex items-center justify-between text-[11px] text-finance-muted">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: allocationPalette[index % allocationPalette.length] }} />
+                            {slice.name}
+                          </span>
+                          <span>{slice.sharePct.toFixed(1)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+                ) : null}
+                {showAlertsFunnel ? (
+                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Alerts Funnel</p>
+                    <p className="text-[10px] text-[#5a6f94]">Triggered alerts split into Ready, Deferred, and Blocked</p>
+                  </div>
+                  <div className="mt-3 h-[220px]">
+                    {alertsFunnelData.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-white text-xs text-finance-muted">Alert telemetry unavailable.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={alertsFunnelData} layout="vertical" margin={{ top: 8, right: 10, left: 4, bottom: 0 }}>
+                          <CartesianGrid stroke="rgba(130,147,177,0.16)" strokeDasharray="4 6" horizontal={false} />
+                          <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} />
+                          <YAxis type="category" dataKey="stage" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} width={68} />
+                          <Tooltip
+                            formatter={(value) => [Number(value ?? 0), "Alert count"]}
+                            labelFormatter={(label) => `Stage: ${String(label ?? "")}`}
+                          />
+                          <Bar dataKey="value" radius={[0, 6, 6, 0]}>{alertsFunnelData.map((entry) => <Cell key={entry.stage} fill={entry.fill} />)}</Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                  {alertsReadyRate !== null ? (
+                    <p className="mt-2 text-[11px] text-finance-muted">
+                      Readiness rate: {alertsReadyRate.toFixed(1)}% of triggered alerts are ready for action.
+                    </p>
+                  ) : null}
+                </article>
+                ) : null}
+              </section>
+
+              {showScenarioComparison || showRiskHeatmap ? (
+              <section className="grid gap-4 lg:grid-cols-1">
+                {showScenarioComparison ? (
+                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Scenario Comparison</p>
+                    <p className="text-[10px] text-[#5a6f94]">{selectedHorizonLabel} projection with monthly SIP continuity</p>
+                  </div>
+                  <p className="mt-1 text-[11px] text-finance-muted">
+                    Assumed annual returns: Conservative {SCENARIO_RETURN_PCT.conservative}% • Moderate {SCENARIO_RETURN_PCT.moderate}% • Aggressive {SCENARIO_RETURN_PCT.aggressive}%.
+                  </p>
+
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
+                      <span className="h-2 w-2 rounded-full bg-[#5a6d8f]" /> Conservative
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
+                      <span className="h-2 w-2 rounded-full bg-[#2b5cff]" /> Moderate
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
+                      <span className="h-2 w-2 rounded-full bg-[#69c8ad]" /> Aggressive
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
+                      No-return baseline: {formatCompactCurrency(scenarioBaselineCorpus)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 h-[250px]">
+                    {scenarioProjectionData.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-white text-xs text-finance-muted">Scenario model unavailable.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={scenarioProjectionData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                          <CartesianGrid stroke="rgba(130,147,177,0.16)" strokeDasharray="4 6" vertical={false} />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} />
+                          <YAxis tickFormatter={(value: number) => formatCompactCurrency(value)} tick={{ fill: "#3f5680", fontSize: 10 }} width={78} />
+                          <Tooltip
+                            formatter={(value, name) => {
+                              const seriesName = String(name ?? "");
+                              const readable = seriesName === "conservative"
+                                ? `Conservative (${SCENARIO_RETURN_PCT.conservative}% p.a.)`
+                                : seriesName === "moderate"
+                                  ? `Moderate (${SCENARIO_RETURN_PCT.moderate}% p.a.)`
+                                  : seriesName === "aggressive"
+                                    ? `Aggressive (${SCENARIO_RETURN_PCT.aggressive}% p.a.)`
+                                    : seriesName;
+
+                              return [formatCompactCurrency(Number(value ?? 0)), readable];
+                            }}
+                            labelFormatter={(label) => `Checkpoint: ${String(label ?? "")}`}
+                          />
+                          <Area type="monotone" dataKey="conservative" stroke="#5a6d8f" fillOpacity={0.06} fill="#5a6d8f" />
+                          <Area type="monotone" dataKey="moderate" stroke="#2b5cff" fillOpacity={0.14} fill="#2b5cff" />
+                          <Area type="monotone" dataKey="aggressive" stroke="#69c8ad" fillOpacity={0.1} fill="#69c8ad" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {scenarioOutcomeRows.length > 0 ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {scenarioOutcomeRows.map((row) => (
+                        <div key={row.name} className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
+                          <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">{row.name} ({row.annualReturn}% p.a.)</p>
+                          <p className="mt-1 text-sm font-semibold text-finance-text">{formatCompactCurrency(row.value)}</p>
+                          <p className={`mt-1 text-[11px] ${row.excess >= 0 ? "text-finance-green" : "text-finance-red"}`}>
+                            {row.excess >= 0 ? "+" : ""}{formatCompactCurrency(row.excess)} vs baseline
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+                ) : null}
+                {showRiskHeatmap ? (
+                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Risk Heatmap</p>
+                    <p className="text-[10px] text-[#5a6f94]">Module severity matrix</p>
+                  </div>
+                  <div className="mt-3 overflow-x-auto rounded-lg border border-finance-border bg-white">
+                    <table className="w-full min-w-[320px] border-collapse text-xs">
+                      <thead><tr className="bg-finance-surface/75 text-finance-text"><th className="border-b border-finance-border px-3 py-2 text-left">Module</th><th className="border-b border-finance-border px-3 py-2 text-center">Low</th><th className="border-b border-finance-border px-3 py-2 text-center">Medium</th><th className="border-b border-finance-border px-3 py-2 text-center">High</th></tr></thead>
+                      <tbody>
+                        {riskHeatmapData.map((row) => (
+                          <tr key={row[0].row}>
+                            <td className="border-b border-finance-border px-3 py-2 font-semibold text-finance-text">{row[0].row}</td>
+                            {row.map((cell) => (
+                              <td key={`${cell.row}-${cell.col}`} className="border-b border-finance-border px-3 py-2 text-center">
+                                <span className={`inline-flex h-6 w-10 items-center justify-center rounded-md text-[10px] font-semibold ${cell.intensity === "high" ? cell.col === "High" ? "bg-finance-red/20 text-finance-red" : cell.col === "Medium" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700" : "bg-[#eef3ff] text-[#3f5680]"}`}>{cell.value ? "1" : "-"}</span>
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </article>
+                ) : null}
+              </section>
+              ) : null}
+
+              <details className="rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-5">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-finance-text">
+                  Advanced Insights and Profile Diagnostics
+                </summary>
+                <p className="mt-1 text-xs text-finance-muted">Open for deeper intelligence context, data quality checks, and model-backed focus ranking.</p>
+
+                <section className="mt-4 rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-finance-muted">Customer Intelligence Layer</p>
@@ -1551,15 +2248,18 @@ export default function DashboardPage() {
                     </p>
                   </article>
                 </div>
-              </section>
+                </section>
 
-              <ExecutiveIntelligencePanel
-                refreshKey={refreshTick}
-                manualFocus={manualFocus}
-                effectiveFocus={effectiveFocus}
-                onFocusChange={setManualFocus}
-                onRecommendedFocusChange={setRecommendedFocus}
-              />
+                <div className="mt-4">
+                  <ExecutiveIntelligencePanel
+                    refreshKey={refreshTick}
+                    manualFocus={manualFocus}
+                    effectiveFocus={effectiveFocus}
+                    onFocusChange={setManualFocus}
+                    onRecommendedFocusChange={setRecommendedFocus}
+                  />
+                </div>
+              </details>
 
               {orderedModuleKeys.map((moduleKey) => (
                 <div key={moduleKey} className={getModuleContainerClassName(moduleKey)}>
@@ -1570,6 +2270,51 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {selectedKpi ? (
+        <div className="fixed inset-0 z-40">
+          <button type="button" aria-label="Close KPI drawer" onClick={() => setSelectedKpiId(null)} className="absolute inset-0 bg-[#0d1a30]/35 backdrop-blur-[1px]" />
+          <aside className="absolute right-0 top-0 h-full w-full max-w-md border-l border-finance-border bg-white shadow-[-20px_0_44px_rgba(9,22,43,0.25)]">
+            <div className="flex h-full flex-col">
+              <div className="flex items-start justify-between gap-3 border-b border-finance-border px-4 py-4 sm:px-5">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.11em] text-finance-muted">KPI Drilldown</p>
+                  <h3 className="mt-1 text-lg font-semibold text-finance-text">{selectedKpi.label}</h3>
+                  <p className="mt-1 text-sm text-finance-muted">{selectedKpi.detail}</p>
+                </div>
+                <button type="button" onClick={() => setSelectedKpiId(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-finance-border bg-white text-finance-muted hover:text-finance-text">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-finance-border bg-finance-surface/40 p-3"><p className="text-[10px] uppercase tracking-[0.09em] text-finance-muted">Current Value</p><p className="mt-1 text-sm font-semibold text-finance-text">{selectedKpi.value}</p></div>
+                  <div className="rounded-lg border border-finance-border bg-finance-surface/40 p-3"><p className="text-[10px] uppercase tracking-[0.09em] text-finance-muted">Delta</p><p className={`mt-1 text-sm font-semibold ${toneToClassName(selectedKpi.deltaTone)}`}>{selectedKpi.deltaLabel}</p></div>
+                  <div className="rounded-lg border border-finance-border bg-finance-surface/40 p-3"><p className="text-[10px] uppercase tracking-[0.09em] text-finance-muted">Source</p><p className="mt-1 text-sm font-semibold text-finance-text">{selectedKpi.source}</p></div>
+                </div>
+                <article className="rounded-xl border border-finance-border bg-white p-3.5">
+                  <div className="flex items-center justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-finance-muted">Mini Trend</p><p className="text-[10px] text-finance-muted">Recent checkpoints</p></div>
+                  <div className="mt-2 h-44">
+                    {selectedKpiTrend.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-finance-surface/40 text-xs text-finance-muted">Trend data unavailable.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={selectedKpiTrend} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
+                          <CartesianGrid stroke="rgba(130,147,177,0.14)" strokeDasharray="4 6" vertical={false} />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#6e7f9d", fontSize: 10 }} />
+                          <YAxis hide />
+                          <Tooltip formatter={(value) => formatCompactCurrency(Number(value ?? 0))} />
+                          <Area type="monotone" dataKey="value" stroke="#2b5cff" strokeWidth={2} fill="#2b5cff" fillOpacity={0.12} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </article>
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </>
   );
 }

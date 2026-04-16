@@ -1,5 +1,15 @@
+import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import AuthForm from "@/components/AuthForm";
+
+export const metadata: Metadata = {
+  title: "Sign In",
+  description: "Access your Pravix account.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function SignInPage() {
   return (

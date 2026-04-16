@@ -1,5 +1,15 @@
+import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import AuthForm from "@/components/AuthForm";
+
+export const metadata: Metadata = {
+  title: "Create Account",
+  description: "Create your Pravix account to start personalized wealth planning.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function CreateAccountPage() {
   return (

@@ -1,6 +1,16 @@
+import type { Metadata } from "next";
 import OnboardingForm from "@/components/OnboardingForm";
 import OnboardingQuestionnairePlan from "@/components/OnboardingQuestionnairePlan";
 import SiteHeader from "@/components/SiteHeader";
+
+export const metadata: Metadata = {
+  title: "Onboarding",
+  description: "Complete your Pravix onboarding to receive personalized wealth guidance.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function OnboardingPage() {
   return (

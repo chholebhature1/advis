@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -38,11 +38,8 @@ import {
 } from "recharts";
 import SiteHeader from "@/components/SiteHeader";
 import HeroPhoneMockup from "../components/HeroPhoneMockup";
-
-const CalendlyBookingSection = dynamic(() => import("@/components/CalendlyBookingSection"), {
-  ssr: false,
-  loading: () => <section className="w-full py-20" aria-label="Loading booking section" />,
-});
+import CalendlyBookingSection from "@/components/CalendlyBookingSection";
+import { blogPosts } from "@/app/learn/blog-data";
 
 type LiveChartPoint = {
   label: string;
@@ -64,6 +61,38 @@ type HomepageMarketPayload = {
   fearGreedTrend?: LiveChartPoint[];
   usdInrTrend?: LiveFxPoint[];
   error?: string;
+};
+
+type MarketIndicator = {
+  id: "NIFTY50" | "BANKNIFTY" | "SENSEX";
+  displayName: string;
+  value: number;
+  changeAbs: number;
+  changePct: number;
+  trend: "up" | "down" | "flat";
+};
+
+type MarketIndicatorsResponse = {
+  ok?: boolean;
+  generatedAt?: string;
+  source?: "live" | "fallback";
+  indices?: MarketIndicator[];
+};
+
+type DashboardHorizon = "12m" | "24m" | "36m";
+
+type MarketTrendPoint = {
+  label: string;
+  close: number;
+};
+
+type MarketTrendResponse = {
+  ok?: boolean;
+  generatedAt?: string;
+  source?: "live" | "fallback";
+  symbol?: "NIFTY50";
+  horizon?: DashboardHorizon;
+  points?: MarketTrendPoint[];
 };
 
 const fallbackSentimentTrend: LiveChartPoint[] = [
@@ -131,11 +160,10 @@ function createSectionReveal(isCompactMotion: boolean) {
 
 function createChartCardReveal(isCompactMotion: boolean) {
   return {
-    hidden: { opacity: 0, y: isCompactMotion ? 12 : 24, scale: isCompactMotion ? 0.996 : 0.985 },
+    hidden: { opacity: 0, y: isCompactMotion ? 12 : 24 },
     show: (delayOrder: number) => ({
       opacity: 1,
       y: 0,
-      scale: 1,
       transition: {
         duration: isCompactMotion ? 0.38 : 0.56,
         delay: (isCompactMotion ? 0.045 : 0.08) * delayOrder,
@@ -147,11 +175,10 @@ function createChartCardReveal(isCompactMotion: boolean) {
 
 function createFeatureCardReveal(isCompactMotion: boolean) {
   return {
-    hidden: { opacity: 0, y: isCompactMotion ? 10 : 16, scale: isCompactMotion ? 0.997 : 0.992 },
+    hidden: { opacity: 0, y: isCompactMotion ? 10 : 16 },
     show: (delayOrder: number) => ({
       opacity: 1,
       y: 0,
-      scale: 1,
       transition: {
         duration: isCompactMotion ? 0.34 : 0.48,
         delay: (isCompactMotion ? 0.03 : 0.05) * delayOrder,
@@ -165,6 +192,10 @@ export default function Home() {
   const [isHeroReady, setIsHeroReady] = useState(false);
   const [liveMarket, setLiveMarket] = useState<HomepageMarketPayload | null>(null);
   const [isLiveMarketLoading, setIsLiveMarketLoading] = useState(true);
+  const [marketIndices, setMarketIndices] = useState<MarketIndicatorsResponse | null>(null);
+  const [marketTrend, setMarketTrend] = useState<MarketTrendResponse | null>(null);
+  const [selectedHorizon, setSelectedHorizon] = useState<DashboardHorizon>("12m");
+  const [isInsightDataLoading, setIsInsightDataLoading] = useState(true);
   const [isCompactMotion, setIsCompactMotion] = useState(false);
 
   useEffect(() => {
@@ -206,29 +237,68 @@ export default function Home() {
 
     async function loadLiveMarket() {
       setIsLiveMarketLoading(true);
+      setIsInsightDataLoading(true);
 
       try {
-        const response = await fetch("/api/market/homepage", {
-          method: "GET",
-          cache: "force-cache",
-        });
-
-        const payload = (await response.json().catch(() => ({}))) as HomepageMarketPayload;
+        const [homeResponse, indicesResponse, trendResponse] = await Promise.allSettled([
+          fetch("/api/market/homepage", {
+            method: "GET",
+            cache: "no-store",
+          }),
+          fetch("/api/market/indices", {
+            method: "GET",
+            cache: "no-store",
+          }),
+          fetch(`/api/market/indices/history?horizon=${selectedHorizon}`, {
+            method: "GET",
+            cache: "no-store",
+          }),
+        ]);
 
         if (!cancelled) {
-          if (response.ok && payload.ok) {
-            setLiveMarket(payload);
+          if (homeResponse.status === "fulfilled") {
+            const payload = (await homeResponse.value.json().catch(() => ({}))) as HomepageMarketPayload;
+            if (homeResponse.value.ok && payload.ok) {
+              setLiveMarket(payload);
+            } else {
+              setLiveMarket(null);
+            }
           } else {
             setLiveMarket(null);
+          }
+
+          if (indicesResponse.status === "fulfilled") {
+            const payload = (await indicesResponse.value.json().catch(() => ({}))) as MarketIndicatorsResponse;
+            if (indicesResponse.value.ok && payload.ok) {
+              setMarketIndices(payload);
+            } else {
+              setMarketIndices(null);
+            }
+          } else {
+            setMarketIndices(null);
+          }
+
+          if (trendResponse.status === "fulfilled") {
+            const payload = (await trendResponse.value.json().catch(() => ({}))) as MarketTrendResponse;
+            if (trendResponse.value.ok && payload.ok) {
+              setMarketTrend(payload);
+            } else {
+              setMarketTrend(null);
+            }
+          } else {
+            setMarketTrend(null);
           }
         }
       } catch {
         if (!cancelled) {
           setLiveMarket(null);
+          setMarketIndices(null);
+          setMarketTrend(null);
         }
       } finally {
         if (!cancelled) {
           setIsLiveMarketLoading(false);
+          setIsInsightDataLoading(false);
         }
       }
     }
@@ -238,7 +308,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedHorizon]);
 
   const sentimentChartData = liveMarket?.fearGreedTrend?.length
     ? liveMarket.fearGreedTrend
@@ -256,9 +326,79 @@ export default function Home() {
     ? "Live source: Frankfurter USD/INR"
     : "Fallback mode: FX baseline";
 
+  const indicesSourceLabel = marketIndices?.source === "live"
+    ? "Live source: Yahoo index snapshot"
+    : "Fallback mode: index baseline";
+
+  const trendSourceLabel = marketTrend?.source === "live"
+    ? "Live source: Yahoo NIFTY trend"
+    : "Fallback mode: NIFTY synthetic trend";
+
+  const indexCards = marketIndices?.indices ?? [];
+  const trendPoints = marketTrend?.points ?? [];
+  const miniTrendPoints = trendPoints.slice(-24);
+  const horizonOptions: DashboardHorizon[] = ["12m", "24m", "36m"];
+
+  const trendDeltaLabel = useMemo(() => {
+    if (trendPoints.length < 2) {
+      return "N/A";
+    }
+
+    const first = trendPoints[0]?.close ?? null;
+    const last = trendPoints[trendPoints.length - 1]?.close ?? null;
+
+    if (first === null || last === null || first <= 0) {
+      return "N/A";
+    }
+
+    const abs = last - first;
+    const pct = (abs / first) * 100;
+    const absPrefix = abs > 0 ? "+" : abs < 0 ? "-" : "";
+    const pctPrefix = pct > 0 ? "+" : pct < 0 ? "-" : "";
+
+    return `${absPrefix}${Math.abs(abs).toFixed(2)} (${pctPrefix}${Math.abs(pct).toFixed(2)}%)`;
+  }, [trendPoints]);
+
+  const breadthProxy = useMemo(() => {
+    if (!liveMarket || indexCards.length === 0) {
+      return null;
+    }
+
+    const advances = indexCards.filter((item) => item.changePct > 0).length;
+    const declines = indexCards.filter((item) => item.changePct < 0).length;
+    const avgIndexMove = indexCards.reduce((sum, item) => sum + item.changePct, 0) / indexCards.length;
+    const fearGreed = liveMarket.fearGreedTrend?.[liveMarket.fearGreedTrend.length - 1]?.value ?? 50;
+    const fearGreedAdj = ((fearGreed - 50) / 50) * 20;
+    const fxMove = liveMarket.usdInrTrend?.[liveMarket.usdInrTrend.length - 1]?.rolling
+      && liveMarket.usdInrTrend?.[0]?.rolling
+      ? ((liveMarket.usdInrTrend[liveMarket.usdInrTrend.length - 1].rolling - liveMarket.usdInrTrend[0].rolling) / liveMarket.usdInrTrend[0].rolling) * 100
+      : 0;
+
+    const first = trendPoints[0]?.close ?? null;
+    const last = trendPoints[trendPoints.length - 1]?.close ?? null;
+    const trendPct = first && first > 0 && last ? ((last - first) / first) * 100 : 0;
+    const trendAdj = Math.max(-12, Math.min(12, trendPct));
+    const rawScore = 50 + avgIndexMove * 9 + fearGreedAdj - fxMove * 5 + trendAdj;
+    const score = Math.round(Math.max(0, Math.min(100, rawScore)));
+    const proxyUniverse = 500;
+    const proxyAdvances = Math.round((score / 100) * proxyUniverse);
+    const proxyDeclines = proxyUniverse - proxyAdvances;
+
+    return {
+      score,
+      advances,
+      declines,
+      proxyAdvances,
+      proxyDeclines,
+      regime: score >= 68 ? "Broad Risk-On" : score <= 38 ? "Defensive / Risk-Off" : "Mixed / Rotation",
+      avgIndexMove,
+    };
+  }, [indexCards, liveMarket, trendPoints]);
+
   const sectionReveal = useMemo(() => createSectionReveal(isCompactMotion), [isCompactMotion]);
   const chartCardReveal = useMemo(() => createChartCardReveal(isCompactMotion), [isCompactMotion]);
   const featureCardReveal = useMemo(() => createFeatureCardReveal(isCompactMotion), [isCompactMotion]);
+  const featuredBlogPosts = useMemo(() => blogPosts.slice(0, 4), []);
 
   const sectionViewport = { once: true, amount: isCompactMotion ? 0.12 : 0.22 };
   const denseSectionViewport = { once: true, amount: isCompactMotion ? 0.1 : 0.2 };
@@ -277,26 +417,26 @@ export default function Home() {
       )}
 
       <SiteHeader />
-      <div className={`flex flex-col min-h-screen transition-opacity duration-700 ${isHeroReady ? "opacity-100" : "opacity-0"}`}>
+      <div className={`flex min-h-screen flex-col bg-[linear-gradient(180deg,#f8fbff_0%,#f1f6ff_42%,#e8f0ff_100%)] transition-opacity duration-700 ${isHeroReady ? "opacity-100" : "opacity-0"}`}>
         {/* HERO SECTION */}
-        <section className="relative overflow-hidden pt-24 pb-12 md:pt-28 lg:min-h-screen">
+        <section className="relative overflow-hidden pt-20 pb-10 sm:pt-24 md:pb-12 md:pt-28 lg:min-h-screen">
           <div className="absolute inset-0">
             <div
               aria-hidden="true"
               className="absolute inset-0 bg-no-repeat"
               style={{
                 backgroundImage: "url('/image/hero-banner-3.png')",
-                backgroundPosition: "center",
-                backgroundSize: "100% 100%",
+                backgroundPosition: isCompactMotion ? "62% center" : "center",
+                backgroundSize: "cover",
               }}
             />
-            <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(5,16,37,0.68),rgba(5,16,37,0.5)_38%,rgba(255,255,255,0.12)_100%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(8,20,44,0.78),rgba(8,20,44,0.56)_40%,rgba(165,198,255,0.2)_100%)]" />
           </div>
 
           <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-center gap-8 px-6 md:gap-10 md:px-10 lg:min-h-[calc(100vh-7rem)] lg:flex-row lg:items-center lg:gap-6 lg:px-14 xl:gap-10">
             {/* Left: Hero Content */}
-            <div className="relative z-20 -mt-8 flex w-full max-w-[36rem] flex-1 flex-col items-center text-center sm:-mt-10 md:-mt-12 lg:-mt-14 lg:items-start lg:text-left xl:-mt-16 2xl:-mt-20">
-              <div className="mb-6 flex w-full justify-center">
+            <div className="relative z-20 mt-2 flex w-full max-w-[36rem] flex-1 flex-col items-center text-center sm:mt-0 lg:-mt-12 lg:items-start lg:text-left xl:-mt-16 2xl:-mt-20">
+              <div className="mb-5 flex w-full justify-center lg:justify-start">
                 <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-50 shadow-sm backdrop-blur-md md:text-xs">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00e0ff] opacity-75" />
@@ -307,39 +447,39 @@ export default function Home() {
               </div>
 
               {/* Glassmorphism brand box */}
-              <div className="group relative mb-8 flex w-full flex-col items-center justify-center overflow-hidden rounded-[2rem] border border-white/20 bg-gradient-to-b from-white/15 to-white/5 p-7 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl md:p-10">
+              <div className="group relative mb-6 flex w-full flex-col items-center justify-center overflow-hidden rounded-[1.6rem] border border-white/20 bg-gradient-to-b from-white/15 to-white/5 p-5 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl sm:p-6 md:mb-8 md:rounded-[2rem] md:p-10">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.1),transparent_70%)]" />
                 <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#00e0ff]/15 blur-[80px]" />
 
                 <div className="relative z-10 flex w-full flex-col items-center justify-center">
                   <h1 className="m-0 flex w-full flex-col items-center justify-center text-center">
                     <span
-                      className="block w-full text-center text-[clamp(3.3rem,8.2vw,5.8rem)] font-bold leading-[0.85] tracking-tight text-white drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-colors duration-300"
+                      className="block w-full text-center text-[clamp(2.6rem,14vw,5.8rem)] font-bold leading-[0.88] tracking-tight text-white drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-colors duration-300"
                     >
                       Pravix
                     </span>
-                    <span className="mt-3 block w-full pl-1 text-center text-[clamp(0.75rem,1.7vw,1.05rem)] font-bold uppercase tracking-[0.42em] text-[#00e0ff] drop-shadow-[0_0_16px_rgba(0,224,255,0.78)]">
+                    <span className="mt-2.5 block w-full pl-1 text-center text-[clamp(0.66rem,2.8vw,1.05rem)] font-bold uppercase tracking-[0.24em] text-[#00e0ff] drop-shadow-[0_0_16px_rgba(0,224,255,0.78)] sm:mt-3 sm:tracking-[0.42em]">
                       Wealth Management
                     </span>
                   </h1>
 
                   <div className="mt-6 h-px w-2/3 max-w-[220px] bg-gradient-to-r from-transparent via-[#00e0ff]/60 to-transparent" />
 
-                  <p className="mt-4 max-w-sm text-center text-xs font-medium uppercase leading-snug tracking-[0.05em] text-blue-50/90 md:text-[13px]">
+                  <p className="mt-4 max-w-sm text-center text-[11px] font-medium uppercase leading-snug tracking-[0.04em] text-blue-50/90 sm:text-xs md:text-[13px]">
                     India&apos;s first goal-based AI wealth platform
                   </p>
                 </div>
               </div>
 
-              <div className="flex w-full flex-col items-center text-center">
-                <h2 className="mb-3 text-2xl font-bold leading-[1.15] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] md:text-[1.9rem]">
+              <div className="flex w-full flex-col items-center text-center lg:items-start lg:text-left">
+                <h2 className="mb-3 text-[1.45rem] font-bold leading-[1.15] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] sm:text-2xl md:text-[1.9rem]">
                   Powered by{" "}
                   <span className="inline-flex items-center rounded-full bg-[linear-gradient(120deg,rgba(255,255,255,0.18),rgba(126,239,255,0.12))] px-3 py-0.5 text-[#c5f6ff] shadow-[0_8px_20px_rgba(0,216,255,0.18)]">
                     Smart AI Insights
                   </span>
                 </h2>
 
-                <p className="mb-6 max-w-[34rem] text-[15px] font-medium leading-[1.55] text-blue-100/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] md:text-base">
+                <p className="mb-5 max-w-[34rem] text-[14px] font-medium leading-[1.55] text-blue-100/90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] sm:mb-6 md:text-base">
                   Share your goals and preferences, and Pravix will create a clear path to grow your wealth - simple, transparent, and built entirely for you.
                 </p>
 
@@ -367,10 +507,60 @@ export default function Home() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="flex w-full max-w-[20rem] flex-1 justify-center sm:max-w-[24rem] md:max-w-[27rem] lg:max-w-[30rem] lg:-translate-x-4 lg:justify-end xl:max-w-[34rem]"
+              className="mt-1 flex w-full max-w-[18.5rem] flex-1 justify-center sm:max-w-[22rem] md:max-w-[27rem] lg:mt-0 lg:max-w-[30rem] lg:-translate-x-4 lg:justify-end xl:max-w-[34rem]"
             >
               <HeroPhoneMockup />
             </motion.div>
+          </div>
+        </section>
+
+        <section className="bg-[linear-gradient(180deg,#eef4ff_0%,#e7efff_100%)] px-4 py-16 sm:px-6 sm:py-20">
+          <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:gap-8">
+            <div className="max-w-xl">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#2b5cff]">Built for Indian Families</p>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#0a1930] sm:text-3xl md:text-4xl">
+                A calm planning space for real life decisions.
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-[#50607d] sm:text-base">
+                Pravix combines a clean visual roadmap, practical guidance, and human support so the next step always feels clear.
+              </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                {[
+                  "Clear goal roadmap",
+                  "Monthly action nudges",
+                  "Expert-backed support",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-2xl border border-[#d8e7ff] bg-white px-4 py-3 text-sm font-semibold text-[#1f365b] shadow-[0_10px_24px_rgba(43,92,255,0.06)]"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-5 max-w-lg text-sm leading-relaxed text-[#5f7396] sm:text-[15px]">
+                Use this section as a bridge between the discovery call and the deeper homepage content, so visitors immediately see the value of starting a plan.
+              </p>
+            </div>
+
+            <div className="overflow-hidden rounded-[2rem] border border-[#d8e7ff] bg-white shadow-[0_20px_50px_rgba(43,92,255,0.12)]">
+              <div className="relative aspect-[4/3] sm:aspect-[16/10]">
+                <Image
+                  src="/image/about-hero-family.webp"
+                  alt="Indian family planning their financial future together"
+                  fill
+                  className="object-cover object-center"
+                  sizes="(min-width: 1024px) 56vw, 100vw"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0.02)_20%,rgba(10,25,48,0.28)_100%)]" />
+              </div>
+              <div className="px-4 py-4 sm:px-6 sm:py-5">
+                <p className="text-sm font-semibold text-[#0a1930]">Goal-first, family-first, mobile-first.</p>
+                <p className="mt-1 text-sm leading-relaxed text-[#5f7396]">
+                  This section now lives below the discovery call block so the homepage closes with a strong visual finish.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -457,7 +647,7 @@ export default function Home() {
         {/* SECTION: GOALS & PRIORITIES */}
         <motion.section
           id="insights-priorities"
-          className="relative w-full overflow-hidden bg-[linear-gradient(145deg,#2f63ff_0%,#3158ea_48%,#2e52d0_100%)] py-20 text-white md:py-24"
+          className="relative w-full overflow-hidden bg-[linear-gradient(145deg,#2453be_0%,#264da8_48%,#203f8e_100%)] py-20 text-white md:py-24"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
@@ -597,7 +787,7 @@ export default function Home() {
               </motion.div>
             </div>
 
-            <div className="rounded-3xl border border-[#d8e7ff] bg-[linear-gradient(160deg,#2048d6_0%,#2b5cff_58%,#2b5cff_100%)] p-8 text-white shadow-[0_24px_56px_rgba(10,25,48,0.24)] sm:p-10">
+            <div className="rounded-3xl border border-[#d8e7ff] bg-[linear-gradient(160deg,#21479e_0%,#2a4f9f_58%,#2a4a91_100%)] p-8 text-white shadow-[0_24px_56px_rgba(10,25,48,0.24)] sm:p-10">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Why Families Choose Pravix</p>
               <h3 className="mt-4 text-2xl font-bold leading-tight sm:text-3xl">
                 Not just better returns.
@@ -650,7 +840,7 @@ export default function Home() {
         {/* SECTION 1: EXECUTIVE INTELLIGENCE LAYER */}
         <motion.section
           id="insights"
-          className="relative overflow-hidden bg-[#1f4fe3] py-24 text-white md:py-28"
+          className="relative overflow-hidden bg-[linear-gradient(160deg,#214a98_0%,#24539f_54%,#1f468d_100%)] py-24 text-white md:py-28"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
@@ -731,6 +921,150 @@ export default function Home() {
                 </motion.article>
               ))}
             </motion.div>
+
+            <motion.div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3" initial="hidden" whileInView="show" viewport={cardGridViewport}>
+              {indexCards.map((indexItem, index) => {
+                const gradientId = `homepageMiniSpark-${indexItem.id}`;
+                const changeAbsPrefix = indexItem.changeAbs > 0 ? "+" : indexItem.changeAbs < 0 ? "-" : "";
+                const changePctPrefix = indexItem.changePct > 0 ? "+" : indexItem.changePct < 0 ? "-" : "";
+
+                return (
+                  <motion.article
+                    key={indexItem.id}
+                    className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm"
+                    variants={featureCardReveal}
+                    custom={index}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-white">{indexItem.displayName}</p>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+                        indexItem.trend === "up"
+                          ? "bg-[#1a7f57]/30 text-[#c7f8de]"
+                          : indexItem.trend === "down"
+                            ? "bg-[#a1263d]/30 text-[#ffd4dc]"
+                            : "bg-white/15 text-[#dbe9ff]"
+                      }`}>
+                        {indexItem.trend}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-semibold text-white">
+                      {indexItem.value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="mt-1 text-xs text-[#d9e6ff]">
+                      {changeAbsPrefix}{Math.abs(indexItem.changeAbs).toFixed(2)} • {changePctPrefix}{Math.abs(indexItem.changePct).toFixed(2)}%
+                    </p>
+                    <div className="mt-3 h-14">
+                      {miniTrendPoints.length > 1 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={miniTrendPoints} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={indexItem.trend === "down" ? "#ff8a7b" : "#00d8ff"} stopOpacity={0.34} />
+                                <stop offset="95%" stopColor={indexItem.trend === "down" ? "#ff8a7b" : "#00d8ff"} stopOpacity={0.04} />
+                              </linearGradient>
+                            </defs>
+                            <Area
+                              type="monotone"
+                              dataKey="close"
+                              stroke={indexItem.trend === "down" ? "#ff8a7b" : "#00d8ff"}
+                              strokeWidth={1.8}
+                              fill={`url(#${gradientId})`}
+                              dot={false}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="flex h-full items-center justify-center rounded-lg border border-white/15 bg-white/8 text-[11px] text-[#d9e6ff]">
+                          Sparkline unavailable
+                        </div>
+                      )}
+                    </div>
+                  </motion.article>
+                );
+              })}
+            </motion.div>
+
+            {breadthProxy ? (
+              <motion.div className="mt-4 grid gap-4 md:grid-cols-3" initial="hidden" whileInView="show" viewport={cardGridViewport}>
+                <motion.article className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm" variants={featureCardReveal} custom={0}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#00d8ff]">Breadth Proxy Score</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{breadthProxy.score}/100</p>
+                  <p className="mt-1 text-xs text-[#d9e6ff]">{breadthProxy.regime}</p>
+                </motion.article>
+
+                <motion.article className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm" variants={featureCardReveal} custom={1}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#00d8ff]">Index Adv / Dec</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{breadthProxy.advances} / {breadthProxy.declines}</p>
+                  <p className="mt-1 text-xs text-[#d9e6ff]">From tracked benchmarks</p>
+                </motion.article>
+
+                <motion.article className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm" variants={featureCardReveal} custom={2}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#00d8ff]">Proxy Market Breadth</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{breadthProxy.proxyAdvances} / {breadthProxy.proxyDeclines}</p>
+                  <p className="mt-1 text-xs text-[#d9e6ff]">Derived, non-exchange official</p>
+                </motion.article>
+              </motion.div>
+            ) : null}
+
+            <motion.article
+              className="mt-4 rounded-3xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm"
+              variants={chartCardReveal}
+              custom={0}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-white">NIFTY 50 Trend ({selectedHorizon.toUpperCase()})</p>
+                <p className="text-xs text-[#d9e6ff]">Change: {trendDeltaLabel}</p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {horizonOptions.map((horizon) => (
+                  <button
+                    key={horizon}
+                    type="button"
+                    onClick={() => setSelectedHorizon(horizon)}
+                    disabled={isInsightDataLoading}
+                    className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-semibold transition-colors ${
+                      selectedHorizon === horizon
+                        ? "border-[#00d8ff] bg-[#00d8ff]/20 text-[#d9f8ff]"
+                        : "border-white/25 bg-white/10 text-[#d9e6ff] hover:bg-white/15"
+                    } disabled:cursor-not-allowed disabled:opacity-70`}
+                  >
+                    {horizon.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-[#d9e6ff]">
+                {isInsightDataLoading ? "Loading trend feed..." : trendSourceLabel}
+              </p>
+              <div className="mt-4 h-56">
+                {isHeroReady && trendPoints.length > 1 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="niftyTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.6} />
+                          <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.06} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="4 4" stroke="rgba(219,234,254,0.18)" />
+                      <XAxis dataKey="label" stroke="#c4d7fb" fontSize={12} />
+                      <YAxis stroke="#c4d7fb" fontSize={12} tickFormatter={(value) => `${Number(value).toFixed(0)}`} />
+                      <Tooltip
+                        formatter={(value) => [
+                          `${Number(value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`,
+                          "NIFTY 50",
+                        ]}
+                        contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
+                        labelStyle={{ color: "#dce8ff" }}
+                        itemStyle={{ color: "#f2f7ff" }}
+                      />
+                      <Area type="monotone" dataKey="close" stroke="#2b5cff" fill="url(#niftyTrendGradient)" strokeWidth={2.5} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full animate-pulse rounded-2xl border border-white/20 bg-white/10" />
+                )}
+              </div>
+            </motion.article>
 
             <motion.div className="mt-10 grid gap-5 lg:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
               <motion.article
@@ -1067,10 +1401,219 @@ export default function Home() {
           </div>
         </motion.section>
 
+        {/* SECTION: ABOUT US */}
+        <motion.section
+          id="about-us"
+          className="bg-white py-24 md:py-28"
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={denseSectionViewport}
+        >
+          <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">About Pravix</p>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
+                  A trusted wealth partner for Indian families
+                </h2>
+              </div>
+              <p className="max-w-xl text-sm leading-relaxed text-[#50607d] md:text-base">
+                Pravix combines disciplined planning systems, real market intelligence, and human advisory context so families
+                can make calm, high-quality financial decisions over the long term.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+              <motion.article
+                className="rounded-3xl border border-[#d8e7ff] bg-[linear-gradient(160deg,#f7f9fc_0%,#eef4ff_100%)] p-7 shadow-[0_16px_36px_rgba(43,92,255,0.08)] sm:p-8"
+                variants={featureCardReveal}
+                custom={0}
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2b5cff]">Director&apos;s Vision</p>
+                <blockquote className="mt-4 border-l-2 border-[#2b5cff] pl-4 text-[#1f365b]">
+                  <p className="text-base leading-relaxed md:text-lg">
+                    &quot;Our vision at Pravix is to make high-quality wealth strategy accessible, structured, and actionable for
+                    every Indian family. We want investors to move from confusion to confidence by using disciplined systems,
+                    not market speculation.&quot;
+                  </p>
+                </blockquote>
+                <p className="mt-3 text-sm font-semibold text-[#0a1930]">- Umesh Kumar Sharma, Director</p>
+
+                <div className="mt-6 grid gap-2.5 sm:grid-cols-3">
+                  {[
+                    ["Core Focus", "Goal-first wealth systems"],
+                    ["Approach", "Data + expert judgement"],
+                    ["Outcome", "Confidence through discipline"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-[#d8e7ff] bg-white px-3 py-2.5">
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-[#5f7396]">{label}</p>
+                      <p className="mt-1 text-sm font-semibold text-[#0a1930]">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-7 flex flex-wrap gap-2">
+                  {[
+                    "Trust-first architecture",
+                    "Goal-centric design",
+                    "Execution over noise",
+                    "Human + AI guidance",
+                  ].map((tag) => (
+                    <span key={tag} className="rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#2b5cff]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-8 rounded-2xl border border-[#d8e7ff] bg-white/70 p-5 shadow-[0_10px_24px_rgba(43,92,255,0.05)]">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2b5cff]">What families get</p>
+                  <div className="mt-4 space-y-3">
+                    {[
+                      "A clear monthly plan that turns goals into action.",
+                      "A calmer decision process when markets feel noisy.",
+                      "A simple way to stay aligned with long-term family priorities.",
+                    ].map((point) => (
+                      <div key={point} className="flex items-start gap-3 text-sm leading-relaxed text-[#1f365b]">
+                        <span className="mt-1 inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-[#2b5cff]" />
+                        <span>{point}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-4 text-sm leading-relaxed text-[#5f7396]">
+                    This space now works as a real explanation panel, so the About section reads like a finished story rather than an empty column.
+                  </p>
+                </div>
+              </motion.article>
+
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+                <motion.article
+                  className="overflow-hidden rounded-3xl border border-[#d8e7ff] bg-white shadow-[0_16px_36px_rgba(43,92,255,0.10)]"
+                  variants={featureCardReveal}
+                  custom={1}
+                >
+                  <div className="relative aspect-[5/4] overflow-hidden">
+                    <Image
+                      src="/image/about-umesh-kumar-sharma.jpg"
+                      alt="Umesh Kumar Sharma, Director"
+                      fill
+                      className="object-cover object-top"
+                      sizes="(min-width: 1280px) 28vw, (min-width: 768px) 46vw, 100vw"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0)_25%,rgba(10,25,48,0.62)_100%)]" />
+                    <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                      <p className="text-xl font-semibold">Umesh Kumar Sharma</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Director · Vision & Strategy</p>
+                    </div>
+                  </div>
+                </motion.article>
+
+                <motion.article
+                  className="overflow-hidden rounded-3xl border border-[#d8e7ff] bg-white shadow-[0_16px_36px_rgba(43,92,255,0.10)]"
+                  variants={featureCardReveal}
+                  custom={2}
+                >
+                  <div className="relative aspect-[5/4] overflow-hidden">
+                    <Image
+                      src="/image/about-aditya-saini.jpg"
+                      alt="Aditya Saini, Advocate and Tax Consultant"
+                      fill
+                      className="object-cover object-center"
+                      sizes="(min-width: 1280px) 28vw, (min-width: 768px) 46vw, 100vw"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0)_25%,rgba(10,25,48,0.62)_100%)]" />
+                    <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                      <p className="text-xl font-semibold">Aditya Saini</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Advocate & Tax Consultant · B.Sc, LLB</p>
+                    </div>
+                  </div>
+                  <div className="border-t border-[#d8e7ff] px-4 py-3 text-xs text-[#50607d]">Contact: adv.aaditya00@gmail.com</div>
+                </motion.article>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* SECTION: BLOG */}
+        <motion.section
+          id="blog"
+          className="bg-[linear-gradient(180deg,#f6f9ff_0%,#eef3ff_100%)] py-24 md:py-28"
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={denseSectionViewport}
+        >
+          <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Personal Wealth Notes</p>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0a1930] md:text-5xl">
+                  Insights you can apply this month
+                </h2>
+              </div>
+              <Link
+                href="/learn"
+                className="inline-flex items-center gap-2 self-start rounded-full border border-[#2b5cff]/25 bg-white px-5 py-2.5 text-sm font-semibold text-[#2b5cff] transition-colors hover:bg-[#edf4ff]"
+              >
+                Browse all articles
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <motion.div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
+              {featuredBlogPosts.map((post, index) => (
+                <motion.article
+                  key={post.slug}
+                  className="overflow-hidden rounded-3xl border border-[#d8e7ff] bg-white shadow-[0_14px_34px_rgba(43,92,255,0.08)]"
+                  variants={featureCardReveal}
+                  custom={index}
+                >
+                  <div className="overflow-hidden border-b border-[#d8e7ff]">
+                    <Image
+                      src={post.coverImage}
+                      alt={post.title}
+                      width={1600}
+                      height={900}
+                      className="h-44 w-full object-cover"
+                    />
+                  </div>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between text-[11px] text-[#5f7396]">
+                      <span>{new Date(post.publishedAt).toLocaleDateString("en-IN")}</span>
+                      <span>{post.readTime}</span>
+                    </div>
+                    <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-[#0a1930]">{post.title}</h3>
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#586987]">{post.excerpt}</p>
+
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {post.tags.slice(0, 2).map((tag) => (
+                        <span key={tag} className="rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-2.5 py-1 text-[10px] font-semibold text-[#2b5cff]">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <Link
+                      href={`/learn/${post.slug}`}
+                      className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#2b5cff]"
+                    >
+                      Read article
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </motion.article>
+              ))}
+            </motion.div>
+          </div>
+        </motion.section>
+
+        {/* Calendly Booking Section */}
+        <CalendlyBookingSection />
+
         {/* SECTION 4: TRUST + LEARN + PREMIUM CTA */}
         <motion.section
           id="contact"
-          className="relative overflow-hidden bg-[#1b47d8] py-24 text-white md:py-28"
+          className="relative overflow-hidden bg-[linear-gradient(160deg,#1e4389_0%,#244b95_58%,#1f4488_100%)] py-24 text-white md:py-28"
           variants={sectionReveal}
           initial="hidden"
           whileInView="show"
@@ -1110,7 +1653,7 @@ export default function Home() {
               Pravix provides educational guidance and planning support. It does not promise guaranteed returns and does not replace personalized licensed investment advice.
             </div>
 
-            <div className="mt-14 rounded-3xl border border-[#4f73c2] bg-[linear-gradient(135deg,#2147d3_0%,#2a53e8_58%,#2b5cff_100%)] p-8 shadow-[0_24px_58px_rgba(0,0,0,0.28)] sm:p-10 md:p-12">
+            <div className="mt-14 rounded-3xl border border-[#4f73c2] bg-[linear-gradient(135deg,#23489b_0%,#2a4e98_58%,#274789_100%)] p-8 shadow-[0_24px_58px_rgba(0,0,0,0.28)] sm:p-10 md:p-12">
               <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
                 <div className="max-w-2xl">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00d8ff]">Start With Confidence</p>
@@ -1147,9 +1690,6 @@ export default function Home() {
             </div>
           </div>
         </motion.section>
-
-        {/* Calendly Booking Section */}
-        <CalendlyBookingSection />
 
         <div className="fixed inset-x-0 bottom-3 z-40 px-4 sm:hidden">
           <Link

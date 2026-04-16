@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2, LogIn, UserPlus } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -13,16 +13,48 @@ function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function isRateLimitError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("rate limit") ||
+    normalized.includes("over_email_send_rate_limit") ||
+    normalized.includes("email rate limit exceeded")
+  );
+}
+
+function toFriendlyAuthError(message: string, isSignUp: boolean): string {
+  if (isSignUp && isRateLimitError(message)) {
+    return "Too many signup attempts from this email right now. Please wait a minute, then try again, or sign in if you already created the account.";
+  }
+
+  return message;
+}
+
 export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) {
   const [email, setEmail] = useState(defaultEmail ?? "");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState<"signin" | "signup" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [signupRetrySeconds, setSignupRetrySeconds] = useState(0);
 
   const isBusy = isSubmitting !== null;
 
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
+
+  useEffect(() => {
+    if (signupRetrySeconds <= 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setSignupRetrySeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [signupRetrySeconds]);
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,7 +119,11 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
 
       setPassword("");
     } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "Unable to create account right now.");
+      const rawMessage = authError instanceof Error ? authError.message : "Unable to create account right now.";
+      if (isRateLimitError(rawMessage)) {
+        setSignupRetrySeconds((current) => (current > 0 ? current : 60));
+      }
+      setError(toFriendlyAuthError(rawMessage, true));
     } finally {
       setIsSubmitting(null);
     }
@@ -148,11 +184,11 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
         <button
           type="button"
           onClick={handleCreateAccount}
-          disabled={isBusy}
+          disabled={isBusy || signupRetrySeconds > 0}
           className="inline-flex items-center gap-2 rounded-full border border-finance-border px-4 py-2 text-sm font-semibold text-finance-text hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isSubmitting === "signup" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-          Create Account
+          {signupRetrySeconds > 0 ? `Try again in ${signupRetrySeconds}s` : "Create Account"}
         </button>
       </div>
     </form>

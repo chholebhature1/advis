@@ -14,7 +14,7 @@ export default function Footer() {
           <div>
             <h5 className="text-finance-text font-semibold text-sm uppercase tracking-[0.14em] mb-4">Company</h5>
             <ul className="space-y-2 text-sm text-finance-dim">
-              <li><Link href="/" className="hover:text-finance-text">About Us</Link></li>
+              <li><Link href="/about" className="hover:text-finance-text">About Us</Link></li>
               <li><Link href="#why-goals" className="hover:text-finance-text">Philosophy</Link></li>
               <li><Link href="/learn" className="hover:text-finance-text">Learn</Link></li>
             </ul>

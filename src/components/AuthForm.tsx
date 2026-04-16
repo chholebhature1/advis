@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -16,6 +16,23 @@ function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function isRateLimitError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("rate limit") ||
+    normalized.includes("over_email_send_rate_limit") ||
+    normalized.includes("email rate limit exceeded")
+  );
+}
+
+function toFriendlyAuthError(message: string, isSignUp: boolean): string {
+  if (isSignUp && isRateLimitError(message)) {
+    return "Too many signup attempts from this email right now. Please wait a minute, then try again, or sign in if you already created the account.";
+  }
+
+  return message;
+}
+
 export default function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -24,9 +41,24 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [signupRetrySeconds, setSignupRetrySeconds] = useState(0);
 
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
   const isSignUp = mode === "signup";
+
+  useEffect(() => {
+    if (signupRetrySeconds <= 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setSignupRetrySeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [signupRetrySeconds]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,7 +119,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
       router.push("/dashboard");
       router.refresh();
     } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "Authentication failed.");
+      const rawMessage = authError instanceof Error ? authError.message : "Authentication failed.";
+      if (isSignUp && isRateLimitError(rawMessage)) {
+        setSignupRetrySeconds((current) => (current > 0 ? current : 60));
+      }
+      setError(toFriendlyAuthError(rawMessage, isSignUp));
     } finally {
       setIsSubmitting(false);
     }
@@ -166,11 +202,15 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || (isSignUp && signupRetrySeconds > 0)}
         className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-finance-accent px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {isSignUp ? "Create Account" : "Sign In"}
+        {isSignUp
+          ? signupRetrySeconds > 0
+            ? `Try again in ${signupRetrySeconds}s`
+            : "Create Account"
+          : "Sign In"}
       </button>
 
       <p className="mt-4 text-center text-sm text-finance-muted">

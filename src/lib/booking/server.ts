@@ -64,8 +64,7 @@ type DateOnlyParts = {
   day: number;
 };
 
-const ACTIVE_MEETING_STATUSES = ["pending", "confirmed", "rescheduled"] as const;
-const ACTIVE_MEETING_STATUS_SET = new Set<MeetingRow["status"]>(ACTIVE_MEETING_STATUSES);
+const ACTIVE_MEETING_STATUSES: Array<"pending" | "confirmed" | "rescheduled" | "cancelled" | "completed" | "no_show"> = ["pending", "confirmed", "rescheduled"];
 
 export type BookingAdvisor = {
   id: string;
@@ -548,7 +547,7 @@ export async function runDueBookingReminders(limit = 100): Promise<ReminderRunRe
 
     const booking = (bookingResult.data ?? null) as MeetingRow | null;
 
-    if (!booking || !ACTIVE_MEETING_STATUS_SET.has(booking.status)) {
+    if (!booking || !ACTIVE_MEETING_STATUSES.includes(booking.status as "pending" | "confirmed" | "rescheduled")) {
       skipped += 1;
       await markReminderSkipped(supabase, reminder.id, "Booking not active.");
       continue;
