@@ -176,7 +176,7 @@ export default function AboutPage() {
               <article className="group overflow-hidden rounded-2xl border border-finance-border bg-white shadow-[0_16px_36px_rgba(10,25,48,0.10)]">
                 <div className="relative aspect-[5/4] overflow-hidden">
                   <Image
-                    src="/image/about-aditya-saini.jpg"
+                    src="/image/aditya-saini-profile-2026.jpg"
                     alt="Aditya Saini, Advocate and Tax Consultant"
                     fill
                     className="object-cover object-center transition-transform duration-500 group-hover:scale-[1.04]"

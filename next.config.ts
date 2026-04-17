@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  async redirects() {
+    return [
+      {
+        source: "/image/about-aditya-saini.jpg",
+        destination: "/image/aditya-saini-profile-2026.jpg",
+        permanent: true,
+      },
+    ];
+  },
   trailingSlash: true,
 };
 

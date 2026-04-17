@@ -34,11 +34,22 @@ function toFriendlyAuthError(message: string, isSignUp: boolean): string {
   return message;
 }
 
+function parseWaitSeconds(message: string): number | null {
+  const match = message.match(/wait\s+(\d+)\s+seconds/i);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export default function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<FormStep>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [signUpPassword, setSignUpPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,7 +111,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
       setMessage("Verification code sent! Check your email.");
       setVerificationCode("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send verification email");
+      const message = err instanceof Error ? err.message : "Failed to send verification email";
+      const waitSeconds = parseWaitSeconds(message);
+      if (waitSeconds) {
+        setVerifyRetrySeconds(waitSeconds);
+      }
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -132,11 +148,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
         throw new Error(data.error || "Verification failed");
       }
 
-      // Email verified! Now sign in
       const supabase = getSupabaseBrowserClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
-        password,
+        password: signUpPassword || password,
       });
 
       if (signInError) {
@@ -145,6 +160,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
       router.push("/dashboard");
       router.refresh();
+      setSignUpPassword("");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Verification failed";
       setError(errorMsg);
@@ -177,32 +193,35 @@ export default function AuthForm({ mode }: AuthFormProps) {
     setMessage(null);
 
     try {
-      const supabase = getSupabaseBrowserClient();
-
       if (isSignUp) {
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password,
+        const registerResponse = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalizedEmail, password }),
         });
 
-        if (signUpError) {
-          throw signUpError;
+        const registerPayload = await registerResponse.json();
+
+        if (!registerResponse.ok) {
+          throw new Error(registerPayload.error || "Unable to create account right now.");
         }
 
-        if (data.session) {
-          router.push("/dashboard");
-          router.refresh();
+        if (registerPayload.verificationMode === "supabase-email") {
+          setMessage("Account created. Please verify from the Supabase email, then sign in.");
+          setPassword("");
+          setConfirmPassword("");
+          setSignUpPassword("");
           return;
         }
 
-        // Move to verification step and send verification email via Resend
+        setSignUpPassword(password);
         setStep("verification");
-        setPassword("");
         setConfirmPassword("");
         await sendVerificationEmail();
         return;
       }
 
+      const supabase = getSupabaseBrowserClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password,
@@ -247,14 +266,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
           >
             <ArrowLeft className="h-5 w-5 text-finance-accent" />
           </button>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-finance-muted">
-            Verify Email
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.16em] text-finance-muted">Verify Email</p>
         </div>
 
-        <h1 className="text-2xl font-semibold tracking-tight text-finance-text">
-          Check your email
-        </h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-finance-text">Check your email</h1>
         <p className="mt-2 text-sm text-finance-muted">
           We sent a 6-digit verification code to <span className="font-semibold">{normalizedEmail}</span>
         </p>
@@ -301,10 +316,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
           <button
             type="button"
             onClick={sendVerificationEmail}
-            disabled={isSubmitting}
+            disabled={isSubmitting || verifyRetrySeconds > 0}
             className="font-semibold text-finance-accent hover:underline disabled:opacity-50"
           >
-            Resend
+            {verifyRetrySeconds > 0 ? `Resend in ${verifyRetrySeconds}s` : "Resend"}
           </button>
         </p>
       </form>
@@ -312,10 +327,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="w-full max-w-md rounded-2xl border border-finance-border bg-finance-panel p-6 md:p-8 shadow-[0_18px_36px_rgba(31,42,36,0.08)]"
-    >
+    <form onSubmit={handleSubmit} className="w-full max-w-md rounded-2xl border border-finance-border bg-finance-panel p-6 md:p-8 shadow-[0_18px_36px_rgba(31,42,36,0.08)]">
       <p className="text-[11px] uppercase tracking-[0.16em] text-finance-muted">
         {isSignUp ? "Create Account" : "Sign In"}
       </p>

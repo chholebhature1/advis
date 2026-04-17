@@ -32,6 +32,16 @@ function toFriendlyAuthError(message: string, isSignUp: boolean): string {
   return message;
 }
 
+function parseWaitSeconds(message: string): number | null {
+  const match = message.match(/wait\s+(\d+)\s+seconds/i);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) {
   const [step, setStep] = useState<AuthStep>("credentials");
   const [email, setEmail] = useState(defaultEmail ?? "");
@@ -44,7 +54,6 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
   const [verifyRetrySeconds, setVerifyRetrySeconds] = useState(0);
 
   const isBusy = isSubmitting !== null;
-
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
 
   useEffect(() => {
@@ -80,6 +89,7 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
 
     setIsSubmitting("signup");
     setError(null);
+    setMessage(null);
 
     try {
       const response = await fetch("/api/auth/send-verification-email", {
@@ -97,7 +107,12 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
       setMessage("Verification code sent! Check your email.");
       setVerificationCode("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send verification email");
+      const message = err instanceof Error ? err.message : "Failed to send verification email";
+      const waitSeconds = parseWaitSeconds(message);
+      if (waitSeconds) {
+        setVerifyRetrySeconds(waitSeconds);
+      }
+      setError(message);
     } finally {
       setIsSubmitting(null);
     }
@@ -129,7 +144,6 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
         throw new Error(data.error || "Verification failed");
       }
 
-      // Email verified! Now sign in
       const supabase = getSupabaseBrowserClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -197,24 +211,26 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
     setMessage(null);
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
+      const registerResponse = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
-      if (signUpError) {
-        throw signUpError;
+      const registerPayload = await registerResponse.json();
+
+      if (!registerResponse.ok) {
+        throw new Error(registerPayload.error || "Unable to create account right now.");
       }
 
-      if (data.session) {
-        setMessage("Account created and signed in.");
-        onSignedIn?.();
-      } else {
-        // Move to verification step and send verification email via Resend
-        setStep("verification");
-        await sendVerificationEmail();
+      if (registerPayload.verificationMode === "supabase-email") {
+        setMessage("Account created. Please verify from the Supabase email, then sign in.");
+        setPassword("");
+        return;
       }
+
+      setStep("verification");
+      await sendVerificationEmail();
     } catch (authError) {
       const rawMessage = authError instanceof Error ? authError.message : "Unable to create account right now.";
       if (isRateLimitError(rawMessage)) {
@@ -242,9 +258,7 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
           >
             <ArrowLeft className="h-4 w-4 text-finance-accent" />
           </button>
-          <p className="text-xs uppercase tracking-[0.14em] text-finance-muted">
-            Verify Email
-          </p>
+          <p className="text-xs uppercase tracking-[0.14em] text-finance-muted">Verify Email</p>
         </div>
 
         <p className="text-sm font-semibold text-finance-text">Check your email</p>
@@ -294,10 +308,10 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
           <button
             type="button"
             onClick={sendVerificationEmail}
-            disabled={isBusy}
+            disabled={isBusy || verifyRetrySeconds > 0}
             className="text-sm font-semibold text-finance-accent hover:underline disabled:opacity-50"
           >
-            Resend Code
+            {verifyRetrySeconds > 0 ? `Resend in ${verifyRetrySeconds}s` : "Resend Code"}
           </button>
         </div>
       </div>

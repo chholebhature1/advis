@@ -112,6 +112,16 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Verification error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Internal server error";
+    if (message.startsWith("Missing environment variable:")) {
+      return NextResponse.json(
+        {
+          error: `${message}. Please set it in .env.local and restart the server.`,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ error: message || "Internal server error" }, { status: 500 });
   }
 }

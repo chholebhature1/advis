@@ -38,6 +38,7 @@ import {
 } from "recharts";
 import SiteHeader from "@/components/SiteHeader";
 import HeroPhoneMockup from "../components/HeroPhoneMockup";
+import AllModulesVideoSection from "@/components/AllModulesVideoSection";
 import CalendlyBookingSection from "@/components/CalendlyBookingSection";
 import { blogPosts } from "@/app/learn/blog-data";
 
@@ -123,21 +124,6 @@ const allocationMixData = [
   { name: "International Equity", value: 12 },
   { name: "Gold", value: 7 },
   { name: "Liquidity", value: 5 },
-];
-
-const moduleImpactData = [
-  { module: "Alerts", score: 88 },
-  { module: "Holdings", score: 93 },
-  { module: "Tax", score: 81 },
-  { module: "Profile", score: 76 },
-  { module: "Copilot", score: 90 },
-];
-
-const taxEfficiencyData = [
-  { quarter: "Q1", used: 28, potential: 40 },
-  { quarter: "Q2", used: 47, potential: 63 },
-  { quarter: "Q3", used: 71, potential: 84 },
-  { quarter: "Q4", used: 96, potential: 100 },
 ];
 
 const allocationColors = ["#2b5cff", "#00d8ff", "#86a9a3", "#6fa39a", "#dce8ff"];
@@ -1378,213 +1364,7 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            SECTION: DASHBOARD MODULES — Premium Redesign
-            ═══════════════════════════════════════════════════════════════════ */}
-        <motion.section
-          id="platform"
-          className="relative overflow-hidden py-28 md:py-36"
-          style={{ background: "linear-gradient(175deg, #f5f9ff 0%, #eaf1ff 40%, #f7f9ff 70%, #edf4ff 100%)" }}
-          variants={sectionReveal}
-          initial="hidden"
-          whileInView="show"
-          viewport={denseSectionViewport}
-        >
-          <div className="pointer-events-none absolute -right-40 top-20 h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.05),transparent_70%)]" />
-          <div className="pointer-events-none absolute -left-32 bottom-40 h-[400px] w-[400px] rounded-full bg-[radial-gradient(circle,rgba(0,216,255,0.04),transparent_70%)]" />
-
-          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-              <div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-white/80 px-4 py-1.5 shadow-[0_4px_12px_rgba(43,92,255,0.06)] backdrop-blur-sm">
-                  <BarChart3 className="h-3.5 w-3.5 text-[#2b5cff]" />
-                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Platform Features</span>
-                </div>
-                <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
-                  Feature clusters built around{" "}
-                  <span className="bg-[linear-gradient(120deg,#2b5cff,#0099ff)] bg-clip-text text-transparent">your outcomes</span>
-                </h2>
-              </div>
-              <Link
-                href="/dashboard"
-                className="group inline-flex items-center gap-2 self-start rounded-full border border-[#2b5cff]/20 bg-white px-6 py-3 text-sm font-semibold text-[#2b5cff] shadow-[0_4px_16px_rgba(43,92,255,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(43,92,255,0.16)]"
-              >
-                View dashboard preview
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </div>
-
-            <motion.div className="mt-8 grid gap-5 lg:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
-              {[
-                {
-                  title: "Plan smarter",
-                  summary: "Set goals clearly, personalize risk, and build the right baseline allocation.",
-                  items: ["Smart onboarding", "Goal setup", "Risk profile"],
-                },
-                {
-                  title: "Act on time",
-                  summary: "Stay consistent with monthly actions instead of reacting late.",
-                  items: ["Smart alerts", "Focus ranking", "Monthly checklist"],
-                },
-                {
-                  title: "Optimize wealth",
-                  summary: "Improve long-term outcomes across tax, holdings, and guided decisions.",
-                  items: ["Tax assistant", "Holdings analysis", "Pravix AI Buddy"],
-                },
-              ].map((cluster, index) => (
-                <motion.article
-                  key={cluster.title}
-                  className="rounded-2xl border border-[#d8e7ff] bg-white p-5 shadow-[0_12px_28px_rgba(43,92,255,0.08)]"
-                  variants={featureCardReveal}
-                  custom={index}
-                >
-                  <h3 className="text-xl font-bold text-[#0a1930]">{cluster.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#50607d]">{cluster.summary}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {cluster.items.map((item) => (
-                      <span key={item} className="rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#2b5cff]">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </motion.article>
-              ))}
-            </motion.div>
-
-            <div className="mt-8 flex items-center gap-3">
-              <div className="h-px flex-1 bg-gradient-to-r from-[#d8e7ff] to-transparent" />
-              <p className="flex-shrink-0 text-xs font-bold uppercase tracking-[0.16em] text-[#2b5cff]/60">All Modules</p>
-              <div className="h-px flex-1 bg-gradient-to-l from-[#d8e7ff] to-transparent" />
-            </div>
-
-            <motion.div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
-              {[
-                {
-                  icon: BellRing,
-                  title: "Smart Alerts Panel",
-                  desc: "Proactive signal routing for market crash, SIP due, rebalance drift, and tax deadline conditions.",
-                  badge: "Risk Radar",
-                },
-                {
-                  icon: BarChart3,
-                  title: "Holdings Analyzer",
-                  desc: "Manual or CSV holdings ingestion, allocation analytics, sector exposure, and concentration warnings.",
-                  badge: "Portfolio Depth",
-                },
-                {
-                  icon: Calculator,
-                  title: "Tax Optimization Assistant",
-                  desc: "Tracks Section 80C progress, regime direction, and practical monthly tax actions before FY close.",
-                  badge: "Tax Clarity",
-                },
-                {
-                  icon: Sparkles,
-                  title: "Next Best Action Engine",
-                  desc: "Combines goals, alerts, holdings, and tax context to show what needs attention first.",
-                  badge: "Action Priority",
-                },
-                {
-                  icon: MessageCircle,
-                  title: "Pravix AI Buddy",
-                  desc: "Conversational guidance with recommendation, reason, risk warning, and next action in every response.",
-                  badge: "Human + AI",
-                },
-                {
-                  icon: CircleUserRound,
-                  title: "Secure Profile Core",
-                  desc: "Authenticated sessions and user-scoped data access ensure your financial context stays private.",
-                  badge: "Trust Layer",
-                },
-              ].map((module, index) => (
-                <motion.article
-                  key={module.title}
-                  className="rounded-2xl border border-[#d8e7ff] bg-white p-6 shadow-[0_14px_34px_rgba(43,92,255,0.08)] transition-all duration-200 hover:-translate-y-1 hover:border-[#2b5cff]/30"
-                  variants={featureCardReveal}
-                  custom={index}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf4ff] text-[#2b5cff]">
-                      <module.icon className="h-5 w-5" />
-                    </div>
-                    <span className="rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2b5cff]">
-                      {module.badge}
-                    </span>
-                  </div>
-
-                  <h3 className="mt-4 text-xl font-bold text-[#0a1930]">{module.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#50607d]">{module.desc}</p>
-                </motion.article>
-              ))}
-            </motion.div>
-
-            <motion.div className="mt-12 grid gap-5 lg:grid-cols-2" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
-              <motion.article
-                className="rounded-3xl border border-[#d8e7ff] bg-white p-6 shadow-[0_14px_34px_rgba(43,92,255,0.08)]"
-                variants={chartCardReveal}
-                custom={0}
-              >
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4.5 w-4.5 text-[#2b5cff]" />
-                  <p className="text-sm font-semibold text-[#0a1930]">Module Impact Index</p>
-                </div>
-                <p className="mt-1 text-xs text-[#60739a]">How strongly each module contributes to monthly execution quality</p>
-                <div className="mt-4 h-64">
-                  {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={moduleImpactData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#d7e6ff" />
-                        <XAxis dataKey="module" stroke="#6d86b4" fontSize={12} />
-                        <YAxis stroke="#6d86b4" fontSize={12} />
-                        <Tooltip
-                          formatter={(value) => [`${Number(value ?? 0).toFixed(0)}/100`, "Impact"]}
-                          contentStyle={{ backgroundColor: "#f7f9ff", borderColor: "#c5d8fb", borderRadius: "10px" }}
-                          labelStyle={{ color: "#173a85" }}
-                          itemStyle={{ color: "#3f66ab" }}
-                        />
-                        <Bar dataKey="score" radius={[8, 8, 0, 0]} fill="#2b5cff" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#d8e7ff] bg-[#eff5ff]" />
-                  )}
-                </div>
-              </motion.article>
-
-              <motion.article
-                className="rounded-3xl border border-[#d8e7ff] bg-white p-6 shadow-[0_14px_34px_rgba(43,92,255,0.08)]"
-                variants={chartCardReveal}
-                custom={1}
-              >
-                <div className="flex items-center gap-2">
-                  <Calculator className="h-4.5 w-4.5 text-[#2b5cff]" />
-                  <p className="text-sm font-semibold text-[#0a1930]">Tax Efficiency Runway</p>
-                </div>
-                <p className="mt-1 text-xs text-[#60739a]">Quarterly progression of 80C utilization versus potential optimization path</p>
-                <div className="mt-4 h-64">
-                  {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={taxEfficiencyData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#d7e6ff" />
-                        <XAxis dataKey="quarter" stroke="#6d86b4" fontSize={12} />
-                        <YAxis stroke="#6d86b4" fontSize={12} tickFormatter={(value) => `${value}%`} />
-                        <Tooltip
-                          formatter={(value) => [`${Number(value ?? 0).toFixed(0)}%`, "Coverage"]}
-                          contentStyle={{ backgroundColor: "#f7f9ff", borderColor: "#c5d8fb", borderRadius: "10px" }}
-                          labelStyle={{ color: "#173a85" }}
-                          itemStyle={{ color: "#3f66ab" }}
-                        />
-                        <Line type="monotone" dataKey="potential" stroke="#86a9a3" strokeWidth={2} strokeDasharray="6 4" dot={false} />
-                        <Line type="monotone" dataKey="used" stroke="#2b5cff" strokeWidth={2.6} dot={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#d8e7ff] bg-[#eff5ff]" />
-                  )}
-                </div>
-              </motion.article>
-            </motion.div>
-          </div>
-        </motion.section>
+        <AllModulesVideoSection isCompactMotion={isCompactMotion} isHeroReady={isHeroReady} />
 
         {/* ═══════════════════════════════════════════════════════════════════
             SECTION: ABOUT US — Premium Redesign
@@ -1709,7 +1489,7 @@ export default function Home() {
                 >
                   <div className="relative aspect-[5/4] overflow-hidden">
                     <Image
-                      src="/image/about-aditya-saini.jpg"
+                      src="/image/aditya-saini-profile-2026.jpg"
                       alt="Aditya Saini, Advocate and Tax Consultant"
                       fill
                       className="object-cover object-center"

@@ -33,7 +33,7 @@ function getResendClient(): Resend | null {
 }
 
 function getFromAddress(): string {
-  return process.env.BOOKING_EMAIL_FROM?.trim() || process.env.ALERTS_EMAIL_FROM?.trim() || "no-reply@pravix.ai";
+  return process.env.BOOKING_EMAIL_FROM?.trim() || process.env.ALERTS_EMAIL_FROM?.trim() || "no-reply@weberaexperts.com";
 }
 
 function escapeHtml(input: string): string {
