@@ -127,6 +127,7 @@ const allocationMixData = [
 ];
 
 const allocationColors = ["#2b5cff", "#00d8ff", "#86a9a3", "#6fa39a", "#dce8ff"];
+const MARKET_POLL_INTERVAL_MS = 500;
 
 const motionEase = [0.22, 1, 0.36, 1] as const;
 
@@ -226,12 +227,8 @@ export default function Home() {
       setIsInsightDataLoading(true);
 
       try {
-        const [homeResponse, indicesResponse, trendResponse] = await Promise.allSettled([
+        const [homeResponse, trendResponse] = await Promise.allSettled([
           fetch("/api/market/homepage", {
-            method: "GET",
-            cache: "no-store",
-          }),
-          fetch("/api/market/indices", {
             method: "GET",
             cache: "no-store",
           }),
@@ -251,17 +248,6 @@ export default function Home() {
             }
           } else {
             setLiveMarket(null);
-          }
-
-          if (indicesResponse.status === "fulfilled") {
-            const payload = (await indicesResponse.value.json().catch(() => ({}))) as MarketIndicatorsResponse;
-            if (indicesResponse.value.ok && payload.ok) {
-              setMarketIndices(payload);
-            } else {
-              setMarketIndices(null);
-            }
-          } else {
-            setMarketIndices(null);
           }
 
           if (trendResponse.status === "fulfilled") {
@@ -295,6 +281,42 @@ export default function Home() {
       cancelled = true;
     };
   }, [selectedHorizon]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshIndices() {
+      try {
+        const response = await fetch(`/api/market/indices?ts=${Date.now()}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Market indices API failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json().catch(() => ({}))) as MarketIndicatorsResponse;
+        if (!cancelled) {
+          setMarketIndices(payload.ok ? payload : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setMarketIndices(null);
+        }
+      }
+    }
+
+    void refreshIndices();
+    const refreshTimer = window.setInterval(() => {
+      void refreshIndices();
+    }, MARKET_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
+  }, []);
 
   const sentimentChartData = liveMarket?.fearGreedTrend?.length
     ? liveMarket.fearGreedTrend

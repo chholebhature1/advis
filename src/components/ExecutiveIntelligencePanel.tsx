@@ -237,6 +237,42 @@ export default function ExecutiveIntelligencePanel({
     void loadIntelligence();
   }, [loadIntelligence, refreshKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshIndices() {
+      try {
+        const response = await fetch(`/api/market/indices?ts=${Date.now()}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Market indices API failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json().catch(() => ({}))) as MarketIndicatorsResponse;
+        if (!cancelled) {
+          setMarketIndices(response.ok && payload.ok ? payload : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setMarketIndices(null);
+        }
+      }
+    }
+
+    void refreshIndices();
+    const refreshTimer = window.setInterval(() => {
+      void refreshIndices();
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
+  }, []);
+
   const sentimentStatus = snapshot?.market.sentimentSourceStatus ?? "fallback";
   const fxStatus = snapshot?.market.fxSourceStatus ?? "fallback";
   const indicesStatus = marketIndices?.source ?? "fallback";

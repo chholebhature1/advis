@@ -111,7 +111,7 @@ export default function SiteHeader() {
     };
 
     void fetchTicker();
-    const refreshTimer = window.setInterval(fetchTicker, 5_000);
+    const refreshTimer = window.setInterval(fetchTicker, 500);
 
     return () => {
       mounted = false;

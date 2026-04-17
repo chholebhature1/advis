@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 const EMAIL_COOLDOWN_SECONDS = 60;
@@ -36,7 +37,7 @@ function getClientIp(request: NextRequest): string | null {
 }
 
 async function enforceRateLimits(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any, any, any, any, any>,
   normalizedEmail: string,
   requestIp: string | null
 ): Promise<string | null> {
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(resendApiKey);
     const from = process.env.ALERTS_EMAIL_FROM?.trim() || "no-reply@weberaexperts.com";
 
-    const { error: emailError, id: messageId } = await resend.emails.send({
+    const sendResult = await resend.emails.send({
       from,
       to: [recipientEmail],
       subject: "Verify your Pravix account",
@@ -184,6 +185,9 @@ export async function POST(request: NextRequest) {
         </div>
       `,
     });
+
+    const emailError = sendResult.error;
+    const messageId = typeof sendResult.data?.id === "string" ? sendResult.data.id : null;
 
     if (emailError) {
       console.error("Resend error details:", {

@@ -388,7 +388,7 @@ export default function DashboardPage() {
       setMarketError(null);
 
       try {
-        const response = await fetch("/api/market/indices", {
+        const response = await fetch(`/api/market/indices?ts=${Date.now()}`, {
           method: "GET",
           cache: "no-store",
         });
@@ -417,9 +417,13 @@ export default function DashboardPage() {
     }
 
     void loadMarketIndicators();
+    const refreshTimer = window.setInterval(() => {
+      void loadMarketIndicators();
+    }, 500);
 
     return () => {
       cancelled = true;
+      window.clearInterval(refreshTimer);
     };
   }, [refreshTick]);
 
