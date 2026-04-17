@@ -4,8 +4,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const CACHE_WINDOW_MS = 500;
-const CACHE_CONTROL_VALUE = "no-store, no-cache, must-revalidate";
+const CACHE_WINDOW_MS = 60 * 1000;
+const CACHE_CONTROL_VALUE = "public, s-maxage=60, stale-while-revalidate=30";
 const YAHOO_QUOTES_URLS = [
   "https://query1.finance.yahoo.com/v7/finance/quote?symbols=%5ENSEI,%5ENSEBANK,%5EBSESN",
   "https://query2.finance.yahoo.com/v7/finance/quote?symbols=%5ENSEI,%5ENSEBANK,%5EBSESN",

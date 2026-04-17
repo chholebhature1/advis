@@ -383,12 +383,14 @@ export default function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadMarketIndicators() {
-      setIsMarketLoading(true);
+    async function loadMarketIndicators(showLoadingState: boolean) {
+      if (showLoadingState) {
+        setIsMarketLoading(true);
+      }
       setMarketError(null);
 
       try {
-        const response = await fetch(`/api/market/indices?ts=${Date.now()}`, {
+        const response = await fetch("/api/market/indices", {
           method: "GET",
           cache: "no-store",
         });
@@ -416,10 +418,10 @@ export default function DashboardPage() {
       }
     }
 
-    void loadMarketIndicators();
+    void loadMarketIndicators(true);
     const refreshTimer = window.setInterval(() => {
-      void loadMarketIndicators();
-    }, 500);
+      void loadMarketIndicators(false);
+    }, 60_000);
 
     return () => {
       cancelled = true;
@@ -757,19 +759,17 @@ export default function DashboardPage() {
   }, [profile?.full_name, signedInEmail]);
 
   const marketStatus = useMemo(() => {
-    if (isMarketLoading) {
-      return { label: "Loading", tone: "neutral" as const };
-    }
+    const suffix = marketGeneratedAt
+      ? ` • ${new Date(marketGeneratedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
+      : "";
 
-    if (marketSource === "live") {
-      const suffix = marketGeneratedAt
-        ? ` • ${new Date(marketGeneratedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
-        : "";
+    const tone = isMarketLoading
+      ? ("neutral" as const)
+      : marketSource === "live"
+        ? ("success" as const)
+        : ("warning" as const);
 
-      return { label: `Live feed${suffix}`, tone: "success" as const };
-    }
-
-    return { label: "Fallback feed", tone: "warning" as const };
+    return { label: `Live feed${suffix}`, tone };
   }, [isMarketLoading, marketGeneratedAt, marketSource]);
 
   const marketTrendStatus = useMemo(() => {
