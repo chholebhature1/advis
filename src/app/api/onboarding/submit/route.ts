@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { buildTaxOptimizationSummary } from "@/lib/agent/tax-optimization";
 
 type SubmitBody = {
   sessionId?: unknown;
@@ -37,21 +36,6 @@ function getBearerToken(request: Request): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseAmount(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/,/g, "").trim());
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return 0;
 }
 
 export const runtime = "nodejs";
@@ -101,16 +85,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    const taxSummary = buildTaxOptimizationSummary({
-      taxRegime: typeof answers.tax_regime === "string" ? answers.tax_regime : null,
-      annualTaxableIncomeInr: parseAmount(answers.annual_taxable_income_inr),
-      section80cUsedInr: parseAmount(answers.section_80c_used_inr),
-      section80dUsedInr: parseAmount(answers.section_80d_used_inr),
-      homeLoanInterestInr: parseAmount(answers.home_loan_interest_inr),
-      monthlyInvestableSurplusInr: parseAmount(answers.monthly_investable_surplus_inr),
-    });
-
-    return NextResponse.json({ ok: true, result: data, taxSummary }, { status: 200 });
+    return NextResponse.json({ ok: true, result: data }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected onboarding submit error.";
     return NextResponse.json({ error: message }, { status: 500 });

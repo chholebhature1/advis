@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AgentStructuredAdvice } from "@/lib/agent/types";
 
@@ -37,6 +38,8 @@ function formatTime(value: string): string {
 }
 
 export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPravixChatProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [hasBootstrapped, setHasBootstrapped] = useState(false);
@@ -131,6 +134,14 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
   }, [starterPrompts]);
 
   async function openPanel() {
+    if (!signedIn) {
+      setIsOpen(false);
+      if (pathname !== "/create-account") {
+        router.push("/create-account");
+      }
+      return;
+    }
+
     setIsOpen(true);
     if (signedIn) {
       await bootstrap();

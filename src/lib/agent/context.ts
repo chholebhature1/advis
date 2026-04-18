@@ -56,7 +56,7 @@ export async function loadAgentContext(supabase: SupabaseClient, userId: string)
     const profileQuery = supabase
       .from("profiles")
       .select(
-        "full_name,email,phone_e164,date_of_birth,city,state,country_code,tax_residency_country,occupation_title,employment_type,monthly_income_inr,monthly_expenses_inr,monthly_emi_inr,monthly_investable_surplus_inr,current_savings_inr,emergency_fund_months,loss_tolerance_pct,liquidity_needs_notes,risk_appetite,target_horizon_years,tax_regime,kyc_status,onboarding_completed_at",
+        "full_name,email,phone_e164,date_of_birth,city,state,country_code,tax_residency_country,occupation_title,employment_type,monthly_income_inr,monthly_expenses_inr,monthly_emi_inr,monthly_investable_surplus_inr,current_savings_inr,emergency_fund_months,loss_tolerance_pct,liquidity_needs_notes,risk_appetite,target_horizon_years,tax_regime,kyc_status,onboarding_completed_at,primary_financial_goal,target_goal_horizon_band,monthly_investment_capacity_band,monthly_income_band,has_existing_investments,existing_investment_types",
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false })

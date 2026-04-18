@@ -36,6 +36,12 @@ export type AgentProfileSnapshot = {
   tax_regime: string | null;
   kyc_status: string | null;
   onboarding_completed_at: string | null;
+  primary_financial_goal?: string | null;
+  target_goal_horizon_band?: string | null;
+  monthly_investment_capacity_band?: string | null;
+  monthly_income_band?: string | null;
+  has_existing_investments?: boolean | null;
+  existing_investment_types?: string[] | null;
 };
 
 export type AgentRiskSnapshot = {

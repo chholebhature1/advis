@@ -42,7 +42,7 @@ import ExecutiveIntelligencePanel from "@/components/ExecutiveIntelligencePanel"
 import HoldingsAnalyzerPanel from "@/components/HoldingsAnalyzerPanel";
 import SmartAlertsPanel from "@/components/SmartAlertsPanel";
 import TaxOptimizationPanel from "@/components/TaxOptimizationPanel";
-import { DashboardSectionCard, EmptyState, StatCard, StatusBadge } from "@/components/dashboard/DashboardPrimitives";
+import { DashboardSectionCard, StatCard, StatusBadge } from "@/components/dashboard/DashboardPrimitives";
 import type { DashboardIntelligenceSnapshot, DashboardModuleKey } from "@/lib/agent/types";
 import type { TaxOptimizationSummary } from "@/lib/agent/tax-optimization";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -1664,18 +1664,32 @@ export default function DashboardPage() {
               title="Complete onboarding to enable insights"
               description={`No profile rows are available yet for ${signedInEmail}.`}
             >
-              <EmptyState
-                title="Your personalized dashboard is waiting"
-                description="Complete onboarding while signed in, then refresh this page to unlock profile and module analytics."
-                action={
-                  <Link
-                    href="/onboarding"
-                    className="inline-flex h-10 items-center rounded-full bg-finance-accent px-4 text-sm font-semibold text-white transition-all duration-150 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-finance-accent/40 active:scale-[0.98]"
-                  >
-                    Complete Onboarding
-                  </Link>
-                }
-              />
+              <div
+                className="relative overflow-hidden rounded-2xl border border-finance-border/70 p-4 sm:p-5"
+                style={{
+                  backgroundImage: "url('/image/banner1 (1).webp')",
+                  backgroundPosition: "center",
+                  backgroundSize: "cover",
+                }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-[#0c2347]/90 via-[#0c2347]/78 to-[#0c2347]/58" />
+
+                <div className="relative max-w-xl">
+                  <p className="text-sm font-semibold text-white">Your personalized dashboard is waiting</p>
+                  <p className="mt-1.5 text-sm text-white/90">
+                    Complete onboarding while signed in, then refresh this page to unlock profile and module analytics.
+                  </p>
+
+                  <div className="mt-3.5">
+                    <Link
+                      href="/onboarding"
+                      className="inline-flex h-10 items-center rounded-full bg-white px-4 text-sm font-semibold text-[#102f67] transition-all duration-150 hover:bg-white/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-[0.98]"
+                    >
+                      Complete Onboarding
+                    </Link>
+                  </div>
+                </div>
+              </div>
             </DashboardSectionCard>
           )}
 

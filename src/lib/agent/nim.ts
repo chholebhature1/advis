@@ -1358,12 +1358,13 @@ function buildPersonalizationAnchor(context: AgentContext): string {
   const surplus = resolveMonthlySurplus(context);
   const surplusBand =
     surplus === null ? "unknown" : surplus < 10000 ? "low_surplus" : surplus < 50000 ? "mid_surplus" : "high_surplus";
-  const topGoal = context.goals[0]?.category ?? "goal_unspecified";
+  const topGoal = context.goals[0]?.category ?? context.profile?.primary_financial_goal ?? "goal_unspecified";
   const taxRegime = context.latestTaxProfile?.tax_regime ?? context.profile?.tax_regime ?? "tax_unknown";
   const holdingsBand =
     context.holdings.length === 0 ? "no_holdings" : context.holdings.length < 5 ? "focused_holdings" : "diversified_holdings";
+  const investmentExperienceBand = context.profile?.has_existing_investments ? "has_existing_investments" : "no_existing_investments";
 
-  return [riskBucket, surplusBand, topGoal, taxRegime, holdingsBand].join("|");
+  return [riskBucket, surplusBand, topGoal, taxRegime, holdingsBand, investmentExperienceBand].join("|");
 }
 
 function contextKeywordsForValidation(context: AgentContext): string[] {
@@ -1382,6 +1383,23 @@ function contextKeywordsForValidation(context: AgentContext): string[] {
   const employmentType = (context.profile?.employment_type ?? "").toLowerCase();
   if (employmentType) {
     keywords.add(employmentType.replace("_", " "));
+  }
+
+  const primaryGoal = (context.profile?.primary_financial_goal ?? "").toLowerCase();
+  if (primaryGoal) {
+    keywords.add(primaryGoal.replaceAll("_", " "));
+    for (const token of primaryGoal.split(/[_\s]+/)) {
+      if (token.length >= 3) {
+        keywords.add(token);
+      }
+    }
+  }
+
+  for (const investmentType of context.profile?.existing_investment_types ?? []) {
+    const normalized = investmentType.toLowerCase().replaceAll("_", " ").trim();
+    if (normalized.length > 0) {
+      keywords.add(normalized);
+    }
   }
 
   const topGoalTitle = context.goals[0]?.title?.toLowerCase() ?? "";
@@ -1403,6 +1421,10 @@ function buildPersonalizationSnippet(context: AgentContext): string | null {
   const surplus = resolveMonthlySurplus(context);
   const topGoal = context.goals[0]?.title ?? null;
   const taxRegime = context.latestTaxProfile?.tax_regime ?? context.profile?.tax_regime ?? null;
+  const primaryGoal = context.profile?.primary_financial_goal ?? null;
+  const horizonBand = context.profile?.target_goal_horizon_band ?? null;
+  const monthlyCapacityBand = context.profile?.monthly_investment_capacity_band ?? null;
+  const existingInvestments = context.profile?.existing_investment_types ?? [];
 
   if (firstName) {
     parts.push(`${firstName}, this aligns with your current profile.`);
@@ -1418,6 +1440,22 @@ function buildPersonalizationSnippet(context: AgentContext): string | null {
 
   if (topGoal) {
     parts.push(`Your top stated goal is ${topGoal}.`);
+  }
+
+  if (primaryGoal) {
+    parts.push(`Your selected primary goal is ${primaryGoal.replaceAll("_", " ")}.`);
+  }
+
+  if (horizonBand) {
+    parts.push(`You chose a ${horizonBand.replaceAll("_", " ")} horizon for this goal.`);
+  }
+
+  if (monthlyCapacityBand) {
+    parts.push(`Your monthly investment capacity band is ${monthlyCapacityBand.replaceAll("_", " ")}.`);
+  }
+
+  if (existingInvestments.length > 0) {
+    parts.push(`You already invest via ${existingInvestments.map((entry) => entry.replaceAll("_", " ")).join(", ")}.`);
   }
 
   if (taxRegime) {
@@ -1469,6 +1507,7 @@ function buildSystemInstruction(mode: "chat" | "dashboard"): string {
     "Sound warm, human, and engaging. Use natural conversation style and avoid robotic phrasing.",
     "Open with one short empathetic sentence and maintain a confident but friendly tone.",
     "Personalize every answer by referencing at least two concrete user facts from the provided context.",
+    "When available, ground advice on primary goal, target amount, time horizon, monthly investment capacity, risk preference, monthly income band, and existing investments.",
     "Never invent numbers. Mention currency values only if present in context or clearly derived from context math.",
     "Run feasibility math before giving SIP suggestions. If required monthly SIP exceeds user surplus or implies unrealistic growth, explicitly say the goal is not feasible under current assumptions.",
     "Respond in valid JSON only with exactly these string keys: recommendation, reason, riskWarning, nextAction.",
@@ -1484,6 +1523,18 @@ export function buildContextBlock(context: AgentContext): string {
   const holdingsSummary = summarizeHoldings(context);
   const goalsSummary = summarizeGoals(context);
   const personalizationAnchor = buildPersonalizationAnchor(context);
+  const onboardingAnswers = profile
+    ? {
+        primaryFinancialGoal: profile.primary_financial_goal ?? null,
+        targetGoalAmountInr: context.goals[0]?.target_amount_inr ?? null,
+        targetHorizonBand: profile.target_goal_horizon_band ?? null,
+        monthlyInvestmentCapacityBand: profile.monthly_investment_capacity_band ?? null,
+        monthlyIncomeBand: profile.monthly_income_band ?? null,
+        riskPreference: profile.risk_appetite ?? null,
+        hasExistingInvestments: profile.has_existing_investments ?? null,
+        existingInvestmentTypes: profile.existing_investment_types ?? [],
+      }
+    : null;
 
   const onboardingProfile = profile
     ? {
@@ -1497,6 +1548,7 @@ export function buildContextBlock(context: AgentContext): string {
     {
       personalizationAnchor,
       onboardingProfile,
+      onboardingAnswers,
       risk,
       goals: context.goals,
       goalsSummary,
@@ -1705,6 +1757,7 @@ export async function generateAdvisorChatReply(input: {
         "User question:",
         input.message,
         "Use personalizationAnchor and onboardingProfile to tailor the response for this exact user.",
+        "Treat onboardingAnswers as the source of truth for goal, horizon, capacity, income, risk, and investment background.",
         "Reference at least two concrete data points from context (numbers or specific goals/risks).",
         "Provide a clear, engaging response with 2-4 practical next steps.",
       ].join("\n\n"),
