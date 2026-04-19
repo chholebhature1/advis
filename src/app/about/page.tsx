@@ -18,16 +18,16 @@ import SiteHeader from "@/components/SiteHeader";
 import { absoluteUrl } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "About Us",
+  title: "Pravix Team",
   description:
-    "Meet the Pravix leadership team and learn our vision for disciplined, goal-based wealth management for Indian families.",
+    "Meet the Pravix Team and learn our vision for disciplined, goal-based wealth management for Indian families.",
   alternates: {
     canonical: "/about",
   },
   openGraph: {
-    title: "About Pravix | Vision, Leadership, and Advisory Team",
+    title: "Pravix Team | Vision, Leadership, and Advisory Team",
     description:
-      "Meet the Pravix leadership team and learn our vision for disciplined, goal-based wealth management for Indian families.",
+      "Meet the Pravix Team and learn our vision for disciplined, goal-based wealth management for Indian families.",
     url: absoluteUrl("/about"),
     type: "website",
     images: [
@@ -39,9 +39,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "About Pravix | Vision, Leadership, and Advisory Team",
+    title: "Pravix Team | Vision, Leadership, and Advisory Team",
     description:
-      "Meet the Pravix leadership team and learn our vision for disciplined, goal-based wealth management for Indian families.",
+      "Meet the Pravix Team and learn our vision for disciplined, goal-based wealth management for Indian families.",
     images: ["/image/about-hero-family.webp"],
   },
 };
@@ -64,7 +64,7 @@ export default function AboutPage() {
             <div className="absolute inset-0 bg-[linear-gradient(105deg,rgba(10,25,48,0.82)_0%,rgba(10,25,48,0.55)_48%,rgba(10,25,48,0.28)_100%)]" />
             <div className="relative z-10 flex min-h-[360px] items-end p-7 md:min-h-[460px] md:p-10">
               <div className="max-w-3xl rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-[2px] md:p-6">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d6e6ff]">About Pravix</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d6e6ff]">Pravix Team</p>
                 <h1 className="mt-2 text-3xl font-semibold leading-tight text-white md:text-5xl">
                   Where family goals become shared financial decisions
                 </h1>
@@ -215,7 +215,7 @@ export default function AboutPage() {
           </section>
 
           <section className="mt-8 rounded-3xl border border-finance-border bg-finance-panel p-8 shadow-[0_18px_40px_rgba(10,25,48,0.08)] md:p-10">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-finance-muted">About Pravix</p>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-finance-muted">Pravix Team</p>
             <h2 className="mt-3 text-4xl font-semibold tracking-tight text-finance-text md:text-5xl">
               Building disciplined wealth outcomes for Indian households
             </h2>

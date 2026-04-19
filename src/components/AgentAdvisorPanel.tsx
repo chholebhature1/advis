@@ -16,6 +16,13 @@ type AgentStructuredAnswer = {
   nextAction: string;
 };
 
+export type AiInsightUserProfile = {
+  age: number | null;
+  goals: string[];
+  risk: string;
+  preferences: string[];
+};
+
 type AgentChatMessage = {
   role: "user" | "assistant";
   content: string;
@@ -23,23 +30,41 @@ type AgentChatMessage = {
   sentAt: string;
 };
 
-type AgentBootstrapResponse = {
-  greeting: string;
-  starterPrompts: string[];
-};
+type AgentConversationStep = "collecting_goal" | "collecting_profile";
 
-type AgentDashboardResponse = {
-  aiSummary: string;
-};
-
-type AgentChatResponse = {
-  reply: string;
-  structured?: unknown;
+type AiInsightResponse = {
+  insight?: unknown;
+  fallbackUsed?: boolean;
 };
 
 type AgentAdvisorPanelProps = {
   refreshKey: number;
+  userProfile: AiInsightUserProfile;
 };
+
+const FALLBACK_STRUCTURED: AgentStructuredAnswer = {
+  recommendation: "Unable to generate advice right now",
+  reason: "Temporary issue",
+  riskWarning: "Please consult a financial advisor",
+  nextAction: "Try again later",
+};
+
+const PERSONALIZATION_QUESTIONS = [
+  "What is your monthly take-home salary and your average monthly expenses?",
+  "How much do you already have saved or invested that can be used for this goal?",
+  "What are your current EMIs or debts, and how much can you realistically invest every month?",
+];
+
+function buildPersonalizationPrompt(goal: string): string {
+  return [
+    `Great goal: ${goal}`,
+    "",
+    "To give you a more personalized and useful plan, please share 3 quick details:",
+    ...PERSONALIZATION_QUESTIONS.map((question, index) => `${index + 1}. ${question}`),
+    "",
+    "Reply in one message using 1, 2, 3 format.",
+  ].join("\n");
+}
 
 function toStructuredField(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -55,11 +80,11 @@ function normalizeStructuredAnswer(value: unknown): AgentStructuredAnswer | null
     return null;
   }
 
-  const maybe = value as Partial<Record<keyof AgentStructuredAnswer, unknown>>;
+  const maybe = value as Record<string, unknown>;
   const recommendation = toStructuredField(maybe.recommendation);
   const reason = toStructuredField(maybe.reason);
-  const riskWarning = toStructuredField(maybe.riskWarning);
-  const nextAction = toStructuredField(maybe.nextAction);
+  const riskWarning = toStructuredField(maybe.risk_warning ?? maybe.riskWarning);
+  const nextAction = toStructuredField(maybe.next_action ?? maybe.nextAction);
 
   if (!recommendation || !reason || !riskWarning || !nextAction) {
     return null;
@@ -73,15 +98,25 @@ function normalizeStructuredAnswer(value: unknown): AgentStructuredAnswer | null
   };
 }
 
-export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps) {
-  const [isLoading, setIsLoading] = useState(true);
+export default function AgentAdvisorPanel({ refreshKey, userProfile }: AgentAdvisorPanelProps) {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [greeting, setGreeting] = useState<string>("Hi, I am your Pravix AI advisor.");
-  const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
-  const [dashboardSummary, setDashboardSummary] = useState<string | null>(null);
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [conversationStep, setConversationStep] = useState<AgentConversationStep>("collecting_goal");
+  const [pendingGoal, setPendingGoal] = useState<string | null>(null);
+
+  const starterPrompts = conversationStep === "collecting_profile"
+    ? [
+        "Salary: INR 1,20,000; Expenses: INR 65,000",
+        "Savings/assets for this goal: INR 4,50,000",
+        "EMIs: INR 18,000; Monthly investable: INR 25,000",
+      ]
+    : [
+        "I want to buy a 20 lakh car in 3 years. How should I plan?",
+        "I want to create a 1 crore retirement corpus. What should I do monthly?",
+        "I want a house down payment in 4 years. How should I invest?",
+      ];
 
   const getAccessToken = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -126,79 +161,93 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadAgent() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const [bootstrap, dashboard] = await Promise.all([
-          callAgentEndpoint<AgentBootstrapResponse>("/api/agent/bootstrap", { method: "GET" }),
-          callAgentEndpoint<AgentDashboardResponse>("/api/agent/dashboard", { method: "GET" }),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setGreeting(bootstrap.greeting);
-        setStarterPrompts(bootstrap.starterPrompts ?? []);
-        setDashboardSummary(dashboard.aiSummary ?? null);
-      } catch (loadError) {
-        if (cancelled) {
-          return;
-        }
-
-        setError(loadError instanceof Error ? loadError.message : "Could not load AI advisor context.");
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void loadAgent();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [callAgentEndpoint, refreshKey]);
+    setError(null);
+    setMessages([]);
+    setInput("");
+    setConversationStep("collecting_goal");
+    setPendingGoal(null);
+  }, [refreshKey]);
 
   async function sendMessage(rawMessage: string) {
     const message = rawMessage.trim();
-    if (!message) {
+    if (!message || isSending) {
       return;
     }
 
     const nowIso = new Date().toISOString();
     const nextUserMessage: AgentChatMessage = { role: "user", content: message, sentAt: nowIso };
-    const historyForRequest = [...messages, nextUserMessage].slice(-8);
 
     setMessages((previous) => [...previous, nextUserMessage]);
     setInput("");
-    setIsSending(true);
     setError(null);
 
-    try {
-      const payload = await callAgentEndpoint<AgentChatResponse>("/api/agent/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          message,
-          history: historyForRequest,
-        }),
-      });
-
-      const structured = normalizeStructuredAnswer(payload.structured);
+    if (conversationStep === "collecting_goal") {
+      setPendingGoal(message);
+      setConversationStep("collecting_profile");
       setMessages((previous) => [
         ...previous,
         {
           role: "assistant",
-          content: payload.reply,
+          content: buildPersonalizationPrompt(message),
+          sentAt: new Date().toISOString(),
+        },
+      ]);
+
+      return;
+    }
+
+    const goalContext = pendingGoal ?? "User wants practical financial planning guidance";
+    const normalizedProfileAnswer = message.replace(/\s+/g, " ").trim();
+    const enrichedQuestion = [
+      `Primary user goal: ${goalContext}`,
+      `Personal details shared by user: ${message}`,
+      "Use these details to give more personalized guidance.",
+    ].join("\n");
+
+    const enrichedProfile: AiInsightUserProfile = {
+      ...userProfile,
+      goals: [goalContext, ...userProfile.goals].slice(0, 8),
+      preferences: [
+        ...userProfile.preferences,
+        `User financial details: ${normalizedProfileAnswer.slice(0, 220)}`,
+      ].slice(0, 8),
+    };
+
+    setIsSending(true);
+
+    try {
+      const payload = await callAgentEndpoint<AiInsightResponse>("/api/ai/insight", {
+        method: "POST",
+        body: JSON.stringify({
+          question: enrichedQuestion,
+          userProfile: enrichedProfile,
+        }),
+      });
+
+      const structured = normalizeStructuredAnswer(payload.insight) ?? FALLBACK_STRUCTURED;
+      const summaryText = [
+        `Recommendation: ${structured.recommendation}`,
+        `Reason: ${structured.reason}`,
+        `Risk warning: ${structured.riskWarning}`,
+        `Next action: ${structured.nextAction}`,
+      ].join("\n\n");
+
+      if (payload.fallbackUsed) {
+        setError("Pravix AI is connected but currently in fallback mode. Please re-try shortly.");
+      }
+
+      setMessages((previous) => [
+        ...previous,
+        {
+          role: "assistant",
+          content: summaryText,
           structured,
           sentAt: new Date().toISOString(),
         },
       ]);
+
+      setConversationStep("collecting_goal");
+      setPendingGoal(null);
     } catch (chatError) {
       setError(chatError instanceof Error ? chatError.message : "Could not send message to AI advisor.");
     } finally {
@@ -215,24 +264,15 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
     <DashboardSectionCard
       eyebrow="AI Wealth Advisor"
       title="Pravix Copilot"
-      description={greeting}
+      description="Ask a goal-based question and get structured financial guidance."
     >
-
-      {isLoading && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-finance-muted sm:mt-5">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading personalized AI context...
+      {conversationStep === "collecting_profile" && (
+        <div className="mt-4 rounded-xl border border-finance-accent/20 bg-finance-accent/10 px-3 py-2 text-xs text-finance-text sm:mt-5">
+          Personalization step active: share salary, existing assets, and monthly investable capacity for a better answer.
         </div>
       )}
 
-      {!isLoading && dashboardSummary && (
-        <div className="mt-4 rounded-2xl border border-finance-accent/20 bg-finance-accent/10 p-4 sm:p-5">
-          <p className="text-xs uppercase tracking-[0.14em] text-finance-muted">AI Action Plan</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-finance-text leading-relaxed">{dashboardSummary}</p>
-        </div>
-      )}
-
-      {!isLoading && starterPrompts.length > 0 && (
+      {starterPrompts.length > 0 && (
         <div className="mt-4 sm:mt-5">
           <p className="mb-2 text-xs uppercase tracking-[0.14em] text-finance-muted">Quick prompts</p>
           <AIInsightChips items={starterPrompts} onClick={(prompt) => void sendMessage(prompt)} disabled={isSending} />
@@ -260,20 +300,20 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
                   {message.role === "assistant" ? "advisor" : "you"} · {formatTime(message.sentAt)}
                 </p>
                 {message.role === "assistant" && message.structured ? (
-                  <div className="space-y-3">
-                    <div>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-finance-border bg-finance-surface/60 p-2.5">
                       <p className="text-[10px] uppercase tracking-[0.12em] text-finance-muted">Recommendation</p>
                       <p className="mt-1 text-sm leading-relaxed text-finance-text">{message.structured.recommendation}</p>
                     </div>
-                    <div>
+                    <div className="rounded-lg border border-finance-border bg-finance-surface/60 p-2.5">
                       <p className="text-[10px] uppercase tracking-[0.12em] text-finance-muted">Reason</p>
                       <p className="mt-1 text-sm leading-relaxed text-finance-text">{message.structured.reason}</p>
                     </div>
-                    <div className="rounded-lg border border-finance-red/20 bg-finance-red/10 p-3">
+                    <div className="rounded-lg border border-finance-red/20 bg-finance-red/10 p-2.5">
                       <p className="text-[10px] uppercase tracking-[0.12em] text-finance-red">Risk Warning</p>
                       <p className="mt-1 text-sm leading-relaxed text-finance-red">{message.structured.riskWarning}</p>
                     </div>
-                    <div className="rounded-lg border border-finance-accent/20 bg-finance-accent/10 p-3">
+                    <div className="rounded-lg border border-finance-accent/20 bg-finance-accent/10 p-2.5">
                       <p className="text-[10px] uppercase tracking-[0.12em] text-finance-accent">Next Action</p>
                       <p className="mt-1 text-sm leading-relaxed text-finance-text">{message.structured.nextAction}</p>
                     </div>
@@ -292,7 +332,11 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
             value={input}
             onChange={(event) => setInput(event.target.value)}
             disabled={isSending}
-            placeholder="Ask: Where should I invest 15000 INR per month?"
+            placeholder={
+              conversationStep === "collecting_profile"
+                ? "Reply with salary, existing assets, and EMIs/monthly investable amount"
+                : "Ask: I want to buy 20 lakh car in 3 years. How should I plan?"
+            }
             className="h-11 flex-1 rounded-xl border border-transparent bg-white px-3.5 text-sm text-finance-text shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_8px_rgba(10,25,48,0.05)] transition-colors focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
           />
           <button

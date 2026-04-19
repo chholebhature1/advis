@@ -3,6 +3,11 @@
 :root {
   --background: #f7f9ff;
   --foreground: #142a4a;
+  /* Safe area for notched/island phones */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 @theme inline {
@@ -26,21 +31,151 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  /* Prevent elastic scroll bounce from exposing background on iOS */
+  background: var(--background);
+  /* Smooth scroll for hash navigation */
+  scroll-behavior: smooth;
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), sans-serif;
+  /* Stop momentum scroll thrash */
+  overscroll-behavior-y: none;
+  /* Better tap responsiveness */
+  -webkit-tap-highlight-color: transparent;
 }
 
-a {
+/* Remove tap flash on all interactive elements */
+a,
+button,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: color 180ms ease;
 }
 
+/* Ensure minimum 44×44px touch targets */
+button,
+[role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ── Typography scaling ── */
+/* Fluid clampped headings render fine on mobile automatically via clamp() */
+
+/* ── Shimmer animation ── */
 @keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── Navlink hover underline ── */
+.navlink-hover:hover {
+  color: #0a1930 !important;
+}
+.navlink-hover::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 16px;
+  height: 2px;
+  border-radius: 9999px;
+  background: #2b5cff;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.navlink-hover:hover::after {
+  transform: translateX(-50%) scaleX(1);
+}
+
+/* ── Market ticker marquee ── */
+.market-ticker-marquee {
+  position: relative;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
+}
+.market-ticker-track {
+  animation: marketTickerMarquee 18s linear infinite;
+  will-change: transform;
+}
+.market-ticker-marquee:hover .market-ticker-track {
+  animation-play-state: paused;
+}
+@keyframes marketTickerMarquee {
+  0% { transform: translateX(60%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* ── Mobile bottom sheet (menu) ── */
+.mobile-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(8, 20, 44, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeInOverlay 0.22s ease forwards;
+}
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.mobile-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  border-radius: 24px 24px 0 0;
+  background: #ffffff;
+  padding-bottom: calc(16px + var(--safe-bottom));
+  box-shadow: 0 -12px 48px rgba(20, 42, 74, 0.22);
+  animation: slideUpSheet 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* ── Horizontal snap scroll (market cards on mobile) ── */
+.snap-x-scroll {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.snap-x-scroll::-webkit-scrollbar {
+  display: none;
+}
+.snap-x-scroll > * {
+  scroll-snap-align: start;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .market-ticker-track,
+  .mobile-sheet,
+  .mobile-sheet-overlay {
+    animation: none;
   }
-  100% {
-    transform: translateX(100%);
+  html {
+    scroll-behavior: auto;
   }
+}
+
+/* ── Safe area padding utility ── */
+.pb-safe {
+  padding-bottom: max(16px, var(--safe-bottom));
+}
+.pt-safe {
+  padding-top: max(0px, var(--safe-top));
 }

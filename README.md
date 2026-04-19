@@ -63,8 +63,38 @@ Phase 1 introduces authenticated agent routes backed by Supabase context and NVI
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `OPENROUTER_API_KEY`
 - `NVIDIA_NIM_API_KEY`
 - `NVIDIA_NIM_MODEL` (optional, defaults to `meta/llama-3.1-8b-instruct`)
+
+### MVP AI Insight Route
+
+Dashboard chat now supports a lightweight OpenRouter-backed insight endpoint:
+
+- `POST /api/ai/insight`
+
+Request body:
+
+```json
+{
+	"question": "How should I plan my monthly investing?",
+	"userProfile": {
+		"age": 31,
+		"goals": ["Retirement in 25 years"],
+		"risk": "moderate",
+		"preferences": ["tax_regime:new", "contact:allowed"]
+	}
+}
+```
+
+The route returns structured output:
+
+- `recommendation`
+- `reason`
+- `risk_warning`
+- `next_action`
+
+When model output is malformed or blocked by guardrails, it returns a safe fallback response.
 
 Optional for cron-style multi-user daily automation:
 
