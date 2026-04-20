@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
@@ -37,6 +38,7 @@ export default function SiteHeader() {
   const isOnboarding = pathname.startsWith("/onboarding");
 
   const [scrolled, setScrolled] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [activeHash, setActiveHash] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
@@ -44,6 +46,7 @@ export default function SiteHeader() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [marketTicker, setMarketTicker] = useState<HeaderMarketIndicator[]>([]);
   const [isTickerLoading, setIsTickerLoading] = useState(true);
+  const marketTickerRefreshMs = 15000;
 
   const handleScroll = useCallback(() => {
     setScrolled(window.scrollY > 80);
@@ -53,6 +56,21 @@ export default function SiteHeader() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+
+    const syncViewport = () => {
+      setIsMobileViewport(mediaQuery.matches);
+    };
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
 
   useEffect(() => {
     const syncHash = () => {
@@ -83,8 +101,13 @@ export default function SiteHeader() {
 
   useEffect(() => {
     let mounted = true;
+    let refreshTimer: number | undefined;
 
     const fetchTicker = async () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
       try {
         const response = await fetch(`/api/market/indices?ts=${Date.now()}`, {
           method: "GET",
@@ -111,11 +134,22 @@ export default function SiteHeader() {
     };
 
     void fetchTicker();
-    const refreshTimer = window.setInterval(fetchTicker, 500);
+    refreshTimer = window.setInterval(fetchTicker, marketTickerRefreshMs);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchTicker();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       mounted = false;
-      window.clearInterval(refreshTimer);
+      if (refreshTimer) {
+        window.clearInterval(refreshTimer);
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -216,7 +250,7 @@ export default function SiteHeader() {
     { label: "Dashboard", href: "/dashboard" },
     { label: "Marketplace", href: "/#insights" },
     { label: "Blog", href: "/#blog" },
-    { label: "About Us", href: "/#about-us" },
+    { label: "Team Pravix", href: "/#about-us" },
     { label: "Contact", href: "/#book-discovery-call" },
   ];
   const navItems = baseNavItems;
@@ -300,22 +334,53 @@ export default function SiteHeader() {
     (item): item is HeaderMarketIndicator => Boolean(item)
   );
 
-  const mobilePanelTop = scrolled ? "98px" : "112px";
+  const mobilePanelTop = isMobileViewport ? "122px" : scrolled ? "98px" : "112px";
+
+  const navWidth = isMobileViewport ? "100%" : scrolled ? "min(880px, calc(100% - 32px))" : "100%";
+  const navMaxWidth = isMobileViewport ? "100%" : scrolled ? "880px" : "100%";
+  const navBorderRadius = isMobileViewport ? "0" : scrolled ? "9999px" : "0";
+  const navPadding = isMobileViewport ? "0 16px" : scrolled ? "0 8px" : "0 24px";
+  const navHeight = isMobileViewport ? "64px" : scrolled ? "52px" : "64px";
+  const navTopPadding = "0";
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 flex w-full flex-col items-center"
+      className="site-header-root fixed top-0 left-0 right-0 z-50 flex w-full flex-col items-center"
       style={{
-        padding: scrolled ? "10px 16px 0" : "0",
+        padding: navTopPadding,
         transition: "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
       }}
     >
       <div className="w-full border-b border-[#1f3157] bg-[#08142c]/80 backdrop-blur-md">
-        <div className="mx-auto h-9 w-full max-w-[1280px] overflow-hidden px-0 text-[12px] md:text-[13px]">
+        <div className="h-9 w-full overflow-hidden px-0 text-[12px] md:text-[13px]">
           {orderedTicker.length > 0 ? (
-            <div className="market-ticker-marquee flex h-full items-center justify-center">
-              <div className="market-ticker-track flex min-w-max items-center gap-6 px-4 md:gap-8 md:px-8 lg:px-10">
-                {orderedTicker.map((item, index) => {
+            <>
+              <div className="hidden h-full items-center justify-center md:flex">
+                <div className="flex min-w-max items-center gap-6 px-4 md:gap-8 md:px-8 lg:px-10">
+                  {orderedTicker.map((item, index) => {
+                    const isPositive = item.changePct > 0;
+                    const isNegative = item.changePct < 0;
+                    const changeColorClass = isPositive ? "text-[#26d790]" : isNegative ? "text-[#ff6b6b]" : "text-[#9db4df]";
+                    const signedChangeAbs = `${item.changeAbs >= 0 ? "+" : ""}${item.changeAbs.toFixed(2)}`;
+                    const signedChangePct = `${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(2)}%`;
+                    const label = item.id === "NIFTY50" ? "Nifty" : item.id === "SENSEX" ? "Sensex" : "Bank Nifty";
+
+                    return (
+                      <div key={`${item.id}-${index}`} className="flex min-w-[24rem] items-center justify-center gap-2 text-[#dbe6ff] leading-none">
+                        <span className="w-24 text-right font-semibold text-[#c9d9ff]">{label}</span>
+                        <span className="w-32 text-right font-semibold text-white tabular-nums">{marketFormat.format(item.value)}</span>
+                        <span className={`w-36 text-left font-semibold tabular-nums ${changeColorClass}`}>
+                          {signedChangeAbs} ({signedChangePct})
+                        </span>
+                        {index < orderedTicker.length - 1 ? <span className="pl-2 text-[#5f7396]">|</span> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid h-full grid-cols-3 items-center gap-1.5 px-2 md:hidden">
+                {orderedTicker.map((item) => {
                   const isPositive = item.changePct > 0;
                   const isNegative = item.changePct < 0;
                   const changeColorClass = isPositive ? "text-[#26d790]" : isNegative ? "text-[#ff6b6b]" : "text-[#9db4df]";
@@ -324,18 +389,17 @@ export default function SiteHeader() {
                   const label = item.id === "NIFTY50" ? "Nifty" : item.id === "SENSEX" ? "Sensex" : "Bank Nifty";
 
                   return (
-                    <div key={`${item.id}-${index}`} className="flex min-w-[24rem] items-center justify-center gap-2 text-[#dbe6ff] leading-none">
-                      <span className="w-24 text-right font-semibold text-[#c9d9ff]">{label}</span>
-                      <span className="w-32 text-right font-semibold text-white tabular-nums">{marketFormat.format(item.value)}</span>
-                      <span className={`w-36 text-left font-semibold tabular-nums ${changeColorClass}`}>
+                    <div key={`mobile-${item.id}`} className="flex h-7 flex-col items-center justify-center rounded-full border border-white/10 bg-white/5 px-1 text-center leading-none text-[#dbe6ff]">
+                      <span className="text-[8px] font-semibold uppercase tracking-[0.08em] text-[#c9d9ff]">{label}</span>
+                      <span className="mt-0.5 text-[9px] font-semibold text-white tabular-nums">{marketFormat.format(item.value)}</span>
+                      <span className={`text-[8px] font-semibold tabular-nums ${changeColorClass}`}>
                         {signedChangeAbs} ({signedChangePct})
                       </span>
-                      {index < orderedTicker.length - 1 ? <span className="pl-2 text-[#5f7396]">|</span> : null}
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </>
           ) : (
             <div className="flex h-full items-center px-4 md:px-8 lg:px-10">
               <span className="text-[#b7c9ee]">{isTickerLoading ? "Loading market data..." : "Market data unavailable right now."}</span>
@@ -345,11 +409,12 @@ export default function SiteHeader() {
       </div>
 
       <nav
+        className="site-header-nav"
         style={{
           /* Dimensions & shape */
-          width: scrolled ? "min(880px, calc(100% - 32px))" : "100%",
-          maxWidth: scrolled ? "880px" : "100%",
-          borderRadius: scrolled ? "9999px" : "0",
+          width: navWidth,
+          maxWidth: navMaxWidth,
+          borderRadius: navBorderRadius,
 
           /* Background & blur */
           background: scrolled
@@ -368,8 +433,8 @@ export default function SiteHeader() {
             : "0 1px 0 rgba(0, 0, 0, 0.04)",
 
           /* Layout */
-          padding: scrolled ? "0 8px" : "0 24px",
-          height: scrolled ? "52px" : "64px",
+          padding: navPadding,
+          height: navHeight,
           display: "flex",
           alignItems: "center",
 
@@ -391,20 +456,31 @@ export default function SiteHeader() {
           style={{
             maxWidth: scrolled ? "100%" : "1280px",
             margin: "0 auto",
-            padding: scrolled ? "0 12px" : "0 16px",
+            padding: isMobileViewport ? "0 16px" : scrolled ? "0 12px" : "0 16px",
             transition: "max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1), padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
           {/* Logo */}
           <Link
             href="/"
-            className="font-bold tracking-tight text-[#142a4a] hover:text-[#2b5cff] transition-colors duration-300"
+            className="group inline-flex items-center gap-2.5 font-bold tracking-tight text-[#142a4a] transition-colors duration-300 hover:text-[#2b5cff]"
             style={{
               fontSize: scrolled ? "18px" : "22px",
               transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s ease",
             }}
+            aria-label="Pravix home"
           >
-            Pravix
+            <span className="relative inline-flex h-9 w-9 flex-none items-center justify-center overflow-visible mr-7">
+              <Image
+                src="/image/pravix-visualmark.png"
+                alt="Pravix visual mark"
+                width={36}
+                height={36}
+                className="h-9 w-9 scale-[3] object-contain transition-transform duration-300 group-hover:-translate-y-0.5"
+                priority
+              />
+            </span>
+            <span className="leading-none">Pravix</span>
           </Link>
 
           {/* Center nav links */}
@@ -442,6 +518,13 @@ export default function SiteHeader() {
 
           {/* Right side: CTA */}
           <div className="flex items-center gap-2.5">
+            <Link
+              href="/onboarding"
+              className="inline-flex md:hidden h-9 items-center justify-center rounded-full bg-[#2b5cff] px-3.5 text-[11px] font-semibold text-white shadow-[0_6px_14px_rgba(43,92,255,0.28)]"
+            >
+              Goal Onboarding
+            </Link>
+
             <button
               type="button"
               aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
@@ -464,8 +547,8 @@ export default function SiteHeader() {
                   className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
                   style={{
                     background: "#2b5cff",
-                    padding: scrolled ? "7px 18px" : "9px 22px",
-                    fontSize: scrolled ? "12px" : "13px",
+                    padding: isMobileViewport ? "9px 22px" : scrolled ? "7px 18px" : "9px 22px",
+                    fontSize: isMobileViewport ? "13px" : scrolled ? "12px" : "13px",
                     boxShadow: "0 4px 14px rgba(43, 92, 255, 0.28)",
                     transition: [
                       "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -499,8 +582,8 @@ export default function SiteHeader() {
                   href="/login"
                   className="hidden sm:inline-flex items-center rounded-full border border-finance-border bg-white/80 text-finance-text font-semibold hover:bg-white"
                   style={{
-                    fontSize: scrolled ? "12px" : "13px",
-                    padding: scrolled ? "6px 12px" : "8px 14px",
+                    fontSize: isMobileViewport ? "13px" : scrolled ? "12px" : "13px",
+                    padding: isMobileViewport ? "8px 14px" : scrolled ? "6px 12px" : "8px 14px",
                     transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
                   }}
                 >
@@ -512,8 +595,8 @@ export default function SiteHeader() {
                   className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
                   style={{
                     background: "#2b5cff",
-                    padding: scrolled ? "7px 18px" : "9px 22px",
-                    fontSize: scrolled ? "12px" : "13px",
+                    padding: isMobileViewport ? "9px 22px" : scrolled ? "7px 18px" : "9px 22px",
+                    fontSize: isMobileViewport ? "13px" : scrolled ? "12px" : "13px",
                     boxShadow: "0 4px 14px rgba(43, 92, 255, 0.28)",
                     transition: [
                       "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -624,30 +707,21 @@ export default function SiteHeader() {
         .navlink-hover:hover::after {
           transform: translateX(-50%) scaleX(1);
         }
-        .market-ticker-marquee {
-          position: relative;
-          overflow: hidden;
-          mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
-          -webkit-mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
-        }
-        .market-ticker-track {
-          animation: marketTickerMarquee 14s linear infinite;
-          will-change: transform;
-        }
-        .market-ticker-marquee:hover .market-ticker-track {
-          animation-play-state: paused;
-        }
-        @keyframes marketTickerMarquee {
-          0% {
-            transform: translateX(100%);
+        @media (max-width: 640px) {
+          .site-header-root {
+            padding: 0 !important;
           }
-          100% {
-            transform: translateX(-100%);
+
+          .site-header-nav {
+            width: 100% !important;
+            max-width: 100% !important;
+            border-radius: 0 !important;
+            padding: 0 14px !important;
+            height: 64px !important;
           }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .market-ticker-track {
-            animation: none;
+
+          .site-header-nav > div {
+            padding: 0 14px !important;
           }
         }
       `}</style>

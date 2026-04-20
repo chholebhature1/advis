@@ -3,11 +3,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   AlertCircle,
+  BarChart3,
   CircleDot,
   CircleUserRound,
-  Download,
+  BellRing,
   LayoutGrid,
   ListFilter,
   Loader2,
@@ -16,7 +18,10 @@ import {
   Search,
   Share2,
   ShieldCheck,
+  ShieldAlert,
   Sparkles,
+  Target,
+  TrendingUp,
   WalletMinimal,
   X,
 } from "lucide-react";
@@ -166,7 +171,7 @@ type AgentDashboardPayload = {
   error?: string;
 };
 
-type DashboardHorizon = "6m" | "12m" | "24m" | "36m";
+type DashboardHorizon = "1y" | "2y" | "3y" | "custom";
 type DashboardLens = "goal" | "cashflow" | "risk";
 type KpiDeltaTone = "positive" | "negative" | "neutral";
 type DashboardKpiItem = {
@@ -180,6 +185,29 @@ type DashboardKpiItem = {
   source: string;
 };
 type TrendPoint = { label: string; value: number };
+type InsightTone = "neutral" | "positive" | "warning" | "critical";
+type ScenarioCard = {
+  label: string;
+  annualReturnPct: number;
+  projectedValue: number;
+  gainInr: number;
+  gainPct: number;
+  tone: InsightTone;
+};
+type ActionQueueItem = {
+  title: string;
+  detail: string;
+  badge: string;
+  tone: InsightTone;
+};
+type MarketPulseItem = {
+  label: string;
+  value: string;
+  detail: string;
+  tone: InsightTone;
+};
+
+const motionEase = [0.22, 1, 0.36, 1] as const;
 
 const SCENARIO_RETURN_PCT = {
   conservative: 8,
@@ -264,36 +292,41 @@ function parseNumberInput(value: string, fallback = 0): number {
   return parsed;
 }
 
-function toHorizonMonths(horizon: DashboardHorizon): number {
-  if (horizon === "6m") {
-    return 6;
-  }
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
 
-  if (horizon === "12m") {
+function toHorizonMonths(horizon: DashboardHorizon, customYears: number): number {
+  if (horizon === "1y") {
     return 12;
   }
 
-  if (horizon === "24m") {
+  if (horizon === "2y") {
     return 24;
   }
 
-  return 36;
+  if (horizon === "3y") {
+    return 36;
+  }
+
+  return Math.max(1, Math.round(customYears)) * 12;
 }
 
-function toHorizonLabel(horizon: DashboardHorizon): string {
-  if (horizon === "6m") {
-    return "6 months";
+function toHorizonLabel(horizon: DashboardHorizon, customYears: number): string {
+  if (horizon === "1y") {
+    return "1 year";
   }
 
-  if (horizon === "12m") {
-    return "12 months";
+  if (horizon === "2y") {
+    return "2 years";
   }
 
-  if (horizon === "24m") {
-    return "24 months";
+  if (horizon === "3y") {
+    return "3 years";
   }
 
-  return "36 months";
+  const normalizedYears = Math.max(1, Math.round(customYears));
+  return `${normalizedYears} year${normalizedYears === 1 ? "" : "s"} (custom)`;
 }
 
 function projectCorpusValue(
@@ -333,6 +366,22 @@ function toneToClassName(tone: KpiDeltaTone): string {
   return "text-finance-muted";
 }
 
+function insightToneToBadgeTone(tone: InsightTone): "neutral" | "success" | "warning" | "critical" | "info" {
+  if (tone === "positive") {
+    return "success";
+  }
+
+  if (tone === "warning") {
+    return "warning";
+  }
+
+  if (tone === "critical") {
+    return "critical";
+  }
+
+  return "neutral";
+}
+
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -356,7 +405,8 @@ export default function DashboardPage() {
   const [alertsSummary, setAlertsSummary] = useState<AlertsSummarySnapshot | null>(null);
   const [alertsSubscription, setAlertsSubscription] = useState<AlertsSubscriptionSnapshot | null>(null);
   const [advisorSummary, setAdvisorSummary] = useState<string | null>(null);
-  const [selectedHorizon, setSelectedHorizon] = useState<DashboardHorizon>("12m");
+  const [selectedHorizon, setSelectedHorizon] = useState<DashboardHorizon>("1y");
+  const [customHorizonYears, setCustomHorizonYears] = useState(5);
   const [selectedLens, setSelectedLens] = useState<DashboardLens>("goal");
   const [selectedKpiId, setSelectedKpiId] = useState<string | null>(null);
   const [marketTrend, setMarketTrend] = useState<MarketTrendPoint[]>([]);
@@ -366,6 +416,7 @@ export default function DashboardPage() {
   const [sipMonthlyAmount, setSipMonthlyAmount] = useState(10000);
   const [sipAnnualReturn, setSipAnnualReturn] = useState(12);
   const [sipDurationYears, setSipDurationYears] = useState(10);
+  const [isCompactMotion, setIsCompactMotion] = useState(false);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -435,8 +486,12 @@ export default function DashboardPage() {
     async function loadMarketTrend() {
       setIsMarketTrendLoading(true);
 
+      const horizonQuery = selectedHorizon === "custom"
+        ? `custom&years=${Math.max(1, Math.round(customHorizonYears))}`
+        : selectedHorizon;
+
       try {
-        const response = await fetch(`/api/market/indices/history?horizon=${selectedHorizon}`, {
+        const response = await fetch(`/api/market/indices/history?horizon=${horizonQuery}`, {
           method: "GET",
           cache: "no-store",
         });
@@ -469,7 +524,31 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshTick, selectedHorizon]);
+  }, [refreshTick, selectedHorizon, customHorizonYears]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+
+    const updateMotionDensity = () => {
+      setIsCompactMotion(mediaQuery.matches);
+    };
+
+    updateMotionDensity();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateMotionDensity);
+
+      return () => {
+        mediaQuery.removeEventListener("change", updateMotionDensity);
+      };
+    }
+
+    mediaQuery.addListener(updateMotionDensity);
+
+    return () => {
+      mediaQuery.removeListener(updateMotionDensity);
+    };
+  }, []);
 
   const getAccessToken = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -787,8 +866,14 @@ export default function DashboardPage() {
     return { label: "Fallback trend", tone: "warning" as const };
   }, [isMarketTrendLoading, marketTrendGeneratedAt, marketTrendSource]);
 
-  const selectedHorizonMonths = useMemo(() => toHorizonMonths(selectedHorizon), [selectedHorizon]);
-  const selectedHorizonLabel = useMemo(() => toHorizonLabel(selectedHorizon), [selectedHorizon]);
+  const selectedHorizonMonths = useMemo(
+    () => toHorizonMonths(selectedHorizon, customHorizonYears),
+    [selectedHorizon, customHorizonYears],
+  );
+  const selectedHorizonLabel = useMemo(
+    () => toHorizonLabel(selectedHorizon, customHorizonYears),
+    [selectedHorizon, customHorizonYears],
+  );
 
   const niftyTrendSummary = useMemo(() => {
     if (marketTrend.length < 2) {
@@ -858,8 +943,7 @@ export default function DashboardPage() {
     const goalReference = Math.max(profile.target_amount_inr, baseCorpus, 1);
     const monthlySurplus = Math.max(profile.monthly_investable_surplus_inr, 0);
     const horizonMonths = Math.max(profile.target_horizon_years * 12, 1);
-    const horizonPresetMonths = selectedHorizon === "6m" ? 6 : selectedHorizon === "12m" ? 12 : selectedHorizon === "24m" ? 24 : 36;
-    const projectionMonths = Math.min(horizonMonths, horizonPresetMonths);
+    const projectionMonths = Math.min(horizonMonths, selectedHorizonMonths);
     const checkpoints = Array.from({ length: 8 }, (_, index) => Math.round((projectionMonths * index) / 7));
 
     return checkpoints.map((monthsFromNow, index) => {
@@ -879,7 +963,7 @@ export default function DashboardPage() {
         checkpoint: index,
       };
     });
-  }, [holdingsAnalytics?.totalMarketValueInr, profile, selectedHorizon]);
+  }, [holdingsAnalytics?.totalMarketValueInr, profile, selectedHorizonMonths]);
 
   const allocationBarData = useMemo(() => {
     const palette = ["#f5cc73", "#7aaafc", "#f0b85f", "#69c8ad", "#5a6d8f"];
@@ -1436,6 +1520,202 @@ export default function DashboardPage() {
     return kpiTrendSeries[selectedKpi.id] ?? [];
   }, [kpiTrendSeries, selectedKpi]);
 
+  const intelligence = profileIntelligence as NonNullable<typeof profileIntelligence> | null;
+
+  const sectionReveal = useMemo(
+    () => ({
+      hidden: { opacity: 0, y: isCompactMotion ? 14 : 24 },
+      show: {
+        opacity: 1,
+        y: 0,
+        transition: {
+          duration: isCompactMotion ? 0.45 : 0.65,
+          ease: motionEase,
+        },
+      },
+    }),
+    [isCompactMotion],
+  );
+
+  const featureCardReveal = useMemo(
+    () => ({
+      hidden: { opacity: 0, y: isCompactMotion ? 10 : 18 },
+      show: (delayOrder: number) => ({
+        opacity: 1,
+        y: 0,
+        transition: {
+          duration: isCompactMotion ? 0.36 : 0.52,
+          delay: (isCompactMotion ? 0.04 : 0.06) * delayOrder,
+          ease: motionEase,
+        },
+      }),
+    }),
+    [isCompactMotion],
+  );
+
+  const denseSectionViewport = useMemo(
+    () => ({ once: true, amount: isCompactMotion ? 0.12 : 0.18 }),
+    [isCompactMotion],
+  );
+
+  const aiMarketLab = useMemo(() => {
+    if (!profile || !profileIntelligence) {
+      return null;
+    }
+
+    const currentCorpus = profileIntelligence.totalVisibleCorpus;
+    const monthlyContribution = profileIntelligence.investableSurplus;
+    const horizonMonths = Math.max(selectedHorizonMonths, 1);
+    const baseAnnualReturn = profile.risk_appetite === "aggressive" ? 11.8 : profile.risk_appetite === "conservative" ? 8.4 : 10.2;
+
+    const scenarioCards: ScenarioCard[] = [
+      {
+        label: "Stress case",
+        annualReturnPct: Math.max(baseAnnualReturn - 3.5, 4.5),
+        projectedValue: 0,
+        gainInr: 0,
+        gainPct: 0,
+        tone: "warning" as InsightTone,
+      },
+      {
+        label: "Plan case",
+        annualReturnPct: baseAnnualReturn,
+        projectedValue: 0,
+        gainInr: 0,
+        gainPct: 0,
+        tone: "neutral" as InsightTone,
+      },
+      {
+        label: "Upside case",
+        annualReturnPct: baseAnnualReturn + 3.5,
+        projectedValue: 0,
+        gainInr: 0,
+        gainPct: 0,
+        tone: "positive" as InsightTone,
+      },
+    ].map((scenario): ScenarioCard => {
+      const projectedValue = projectCorpusValue(currentCorpus, monthlyContribution, scenario.annualReturnPct, horizonMonths);
+      const gainInr = projectedValue - currentCorpus;
+      const gainPct = currentCorpus > 0 ? (gainInr / currentCorpus) * 100 : 0;
+
+      return {
+        ...scenario,
+        projectedValue,
+        gainInr,
+        gainPct,
+        tone: scenario.tone as InsightTone,
+      };
+    });
+
+    const fundingMomentum = profileIntelligence.requiredMonthlyToGoal > 0
+      ? (profileIntelligence.investableSurplus / profileIntelligence.requiredMonthlyToGoal) * 100
+      : 100;
+    const concentrationCount = holdingsAnalytics?.concentrationWarnings.length ?? 0;
+    const highestConcentration = (holdingsAnalytics?.concentrationWarnings ?? []).reduce(
+      (max, warning) => Math.max(max, warning.metricPct ?? 0),
+      0,
+    );
+
+    const goalProbability = clamp(
+      Math.round(
+        40 +
+        Math.min(profileIntelligence.goalCoveragePct * 0.18, 25) +
+        Math.min(fundingMomentum * 0.3, 30) +
+        Math.min(profileIntelligence.savingsRatePct * 0.15, 15) +
+        (profile.emergency_fund_months >= 6 ? 5 : -3) -
+        Math.min(concentrationCount * 5, 16) -
+        Math.min((alertsSummary?.blockedCount ?? 0) * 2, 10),
+      ),
+      8,
+      98,
+    );
+
+    const riskDriftScore = clamp(
+      Math.round(
+        highestConcentration +
+        (profile.loss_tolerance_pct === null ? 8 : Math.max(0, highestConcentration - profile.loss_tolerance_pct)) +
+        (profileIntelligence.expenseLoadPct >= 65 ? 8 : 0) +
+        Math.min((alertsSummary?.blockedCount ?? 0) * 2, 10),
+      ),
+      0,
+      100,
+    );
+
+    const marketPulseItems: MarketPulseItem[] = orderedMarketIndicators.slice(0, 3).map((indicator) => ({
+      label: indicator.displayName,
+      value: indicator.value.toLocaleString("en-IN", { maximumFractionDigits: 2 }),
+      detail: `${indicator.changeAbs >= 0 ? "+" : ""}${indicator.changeAbs.toFixed(2)} (${indicator.changePct >= 0 ? "+" : ""}${indicator.changePct.toFixed(2)}%)`,
+      tone: indicator.trend === "up" ? "positive" : indicator.trend === "down" ? "warning" : "neutral",
+    }));
+
+    const actionQueue: ActionQueueItem[] = [];
+
+    actionQueue.push({
+      title: taxSummary && taxSummary.section80cRemainingInr > 0 ? "Close the 80C gap" : "Validate tax regime",
+      detail: taxSummary
+        ? taxSummary.section80cRemainingInr > 0
+          ? `You still have INR ${taxSummary.section80cRemainingInr.toLocaleString("en-IN")} left. Target about INR ${Math.round(taxSummary.suggestedMonthly80cInr).toLocaleString("en-IN")} monthly to stay on pace.`
+          : "Your 80C room looks fully used. Lock in documentation and confirm the regime before payroll cutoff."
+        : "Tax profile is incomplete, so the tax assistant cannot calculate a reliable regime recommendation yet.",
+      badge: taxSummary ? `${taxSummary.daysToFinancialYearEnd} days left` : "Tax module",
+      tone: taxSummary && taxSummary.section80cRemainingInr > 0 ? "warning" : "positive",
+    });
+
+    actionQueue.push({
+      title: concentrationCount > 0 ? "Reduce concentration risk" : "Hold the current allocation",
+      detail: concentrationCount > 0
+        ? `Top warning sits near ${highestConcentration.toFixed(1)}% concentration. Rebalance the crowded position before new money goes in.`
+        : "No major concentration flags are active. Keep the allocation disciplined and review after the next holdings sync.",
+      badge: concentrationCount > 0 ? `${concentrationCount} warning${concentrationCount === 1 ? "" : "s"}` : "Stable",
+      tone: concentrationCount > 0 ? "critical" : "positive",
+    });
+
+    actionQueue.push({
+      title: profileIntelligence.goalFundingStress > 0 ? "Increase monthly SIP" : "Keep the current cadence",
+      detail: profileIntelligence.goalFundingStress > 0
+        ? `You need roughly INR ${Math.round(profileIntelligence.requiredMonthlyToGoal).toLocaleString("en-IN")} monthly for the goal. Close the gap by adding about INR ${Math.round(profileIntelligence.goalFundingStress).toLocaleString("en-IN")} more.`
+        : "Your current surplus can support the goal path. Preserve the plan and use extra cash for buffer or tax efficiency.",
+      badge: profileIntelligence.goalFundingStress > 0 ? "Funding gap" : "On track",
+      tone: profileIntelligence.goalFundingStress > 0 ? "warning" : "positive",
+    });
+
+    return {
+      scenarioCards,
+      goalProbability,
+      riskDriftScore,
+      riskLabel:
+        riskDriftScore >= 70
+          ? "High drift"
+          : riskDriftScore >= 45
+            ? "Watch closely"
+            : "Aligned",
+      riskMessage:
+        concentrationCount > 0
+          ? holdingsAnalytics?.concentrationWarnings[0]?.message ?? "Portfolio concentration deserves attention."
+          : "No material concentration drift is visible right now.",
+      marketPulseItems,
+      marketTrendMovement: niftyTrendSummary
+        ? `${niftyTrendSummary.change >= 0 ? "+" : ""}${formatIndexNumber(niftyTrendSummary.change)} · ${niftyTrendSummary.changePct >= 0 ? "+" : ""}${niftyTrendSummary.changePct.toFixed(2)}%`
+        : "Waiting for trend history",
+      marketTrendLabel: marketTrendStatus.label,
+      marketContextLabel: marketStatus.label,
+      advisorExcerpt: advisorSummary ? advisorSummary.split(".")[0].trim() : "Advisor summary is building from live module outputs.",
+      actionQueue,
+    };
+  }, [
+    advisorSummary,
+    alertsSummary?.blockedCount,
+    holdingsAnalytics?.concentrationWarnings,
+    marketStatus.label,
+    marketTrendStatus.label,
+    niftyTrendSummary,
+    orderedMarketIndicators,
+    profile,
+    profileIntelligence,
+    selectedHorizonMonths,
+    taxSummary,
+  ]);
+
   const getModuleContainerClassName = (moduleKey: DashboardModuleKey): string => {
     if (moduleKey === effectiveFocus) {
       return "rounded-2xl ring-2 ring-finance-accent/20 ring-offset-2 ring-offset-finance-bg shadow-[0_16px_34px_rgba(43,92,255,0.12)] transition-all duration-200";
@@ -1523,22 +1803,6 @@ export default function DashboardPage() {
     return <AgentAdvisorPanel refreshKey={refreshTick} />;
   };
 
-  const handleExportSnapshot = useCallback(() => {
-    const lines = [
-      "KPI,Value,Delta,Hint",
-      ...kpiStripItems.map((item) => `"${item.label}","${item.value}","${item.deltaLabel}","${item.hint}"`),
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `pravix-dashboard-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [kpiStripItems]);
-
   const handleShareSnapshot = useCallback(async () => {
     const shareText = `Pravix dashboard snapshot (${selectedLens}, ${selectedHorizon}) · ${kpiStripItems[0]?.label ?? "KPI"}: ${kpiStripItems[0]?.value ?? "N/A"}`;
     try {
@@ -1553,30 +1817,44 @@ export default function DashboardPage() {
   return (
     <>
       <SiteHeader />
-      <div className="min-h-screen bg-[linear-gradient(180deg,#0b1018_0%,#131d2f_26%,#eef3ff_100%)] pb-12 pt-20 sm:pb-16 sm:pt-24">
+      <div className="min-h-screen bg-[linear-gradient(180deg,#0a0f1e_0%,#101828_30%,#eef3ff_100%)] pb-16 pt-20 sm:pb-20 sm:pt-24">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-          <section className="rounded-2xl border border-[#39455a] bg-[#111a2a]/88 px-4 py-3 shadow-[0_16px_32px_rgba(2,8,19,0.45)] backdrop-blur-md sm:px-5 sm:py-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-medium text-[#edf2ff] sm:text-base">{greetingLabel}</p>
+          {/* ── Header Bar ── */}
+          <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#0f1f3d] via-[#132040] to-[#0c1830] px-5 py-4 shadow-[0_20px_40px_rgba(2,8,26,0.55)] backdrop-blur-lg sm:px-6 sm:py-4">
+            {/* Subtle shimmer stripe */}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(43,92,255,0.13),transparent_55%)]" />
+            <div className="relative flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b5cff] to-[#1e44cd] shadow-[0_0_18px_rgba(43,92,255,0.35)]">
+                  <WalletMinimal className="h-4.5 w-4.5 text-white" />
+                  <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5 items-center justify-center">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00e0ff] opacity-60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00e0ff]" />
+                  </span>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-white">{greetingLabel}</p>
+                  {signedInEmail ? <p className="text-[11px] text-[#7aa3d9]">{signedInEmail}</p> : null}
+                </div>
+              </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setRefreshTick((current) => current + 1)}
-                  className="inline-flex h-10 items-center gap-2 rounded-full border border-[#4d5d7c] bg-[#162338] px-4 text-sm font-semibold text-[#e6ecff] transition-all duration-150 hover:bg-[#1e2f4c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#79a1ff]/35 active:scale-[0.98]"
+                  className="inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 text-sm font-semibold text-[#c8d8f8] backdrop-blur-sm transition-all duration-150 hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#79a1ff]/40 active:scale-[0.97]"
                 >
-                  <RefreshCcw className="h-4 w-4" />
+                  <RefreshCcw className="h-3.5 w-3.5" />
                   Refresh
                 </button>
-
                 {signedInEmail ? (
                   <button
                     type="button"
                     onClick={handleSignOut}
                     disabled={isSigningOut}
-                    className="inline-flex h-10 items-center gap-2 rounded-full border border-[#4d5d7c] bg-[#162338] px-4 text-sm font-semibold text-[#e6ecff] transition-all duration-150 hover:bg-[#1e2f4c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#79a1ff]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex h-9 items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 text-sm font-semibold text-[#c8d8f8] backdrop-blur-sm transition-all duration-150 hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#79a1ff]/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isSigningOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                    {isSigningOut ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
                     Sign Out
                   </button>
                 ) : null}
@@ -1694,51 +1972,64 @@ export default function DashboardPage() {
           )}
 
           {!isLoading && !error && signedInEmail && profile && (
-            <div className="mt-5 space-y-5 sm:mt-6 sm:space-y-6">
-              <section className="mx-auto w-full max-w-4xl rounded-2xl border border-finance-border bg-white/95 p-3.5 shadow-[0_10px_24px_rgba(10,25,48,0.08)] backdrop-blur-md sm:p-4">
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="min-w-[150px]">
-                    <label htmlFor="horizon-filter" className="text-[10px] font-semibold uppercase tracking-[0.12em] text-finance-muted">
+            <div className="mt-6 space-y-5 sm:mt-7 sm:space-y-6">
+
+              {/* ── Control Bar ── */}
+              <section className="rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_8px_24px_rgba(10,25,48,0.07)] backdrop-blur-sm sm:p-5">
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="min-w-[140px]">
+                    <label htmlFor="horizon-filter" className="text-[10px] font-bold uppercase tracking-[0.16em] text-finance-muted">
                       Horizon
                     </label>
                     <select
                       id="horizon-filter"
                       value={selectedHorizon}
                       onChange={(event) => setSelectedHorizon(event.target.value as DashboardHorizon)}
-                      className="mt-1 h-9 w-full rounded-lg border border-finance-border bg-finance-panel px-2.5 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                      className="mt-1.5 h-9 w-full rounded-lg border border-finance-border bg-white px-3 text-sm font-medium text-finance-text shadow-[inset_0_1px_3px_rgba(10,25,48,0.06)] focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
                     >
-                      <option value="6m">6 months</option>
-                      <option value="12m">12 months</option>
-                      <option value="24m">24 months</option>
-                      <option value="36m">36 months</option>
+                      <option value="1y">1 year</option>
+                      <option value="2y">2 years</option>
+                      <option value="3y">3 years</option>
+                      <option value="custom">Custom</option>
                     </select>
+                    {selectedHorizon === "custom" ? (
+                      <div className="mt-2">
+                        <label htmlFor="custom-horizon-years" className="text-[10px] font-bold uppercase tracking-[0.16em] text-finance-muted">
+                          Custom years
+                        </label>
+                        <input
+                          id="custom-horizon-years"
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={customHorizonYears}
+                          onChange={(event) => setCustomHorizonYears(Math.max(1, Math.min(10, Number(event.target.value) || 1)))}
+                          className="mt-1.5 h-9 w-full rounded-lg border border-finance-border bg-white px-3 text-sm font-medium text-finance-text shadow-[inset_0_1px_3px_rgba(10,25,48,0.06)] focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                        />
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="min-w-[170px]">
-                    <label htmlFor="lens-filter" className="text-[10px] font-semibold uppercase tracking-[0.12em] text-finance-muted">
+                  <div className="min-w-[160px]">
+                    <label htmlFor="lens-filter" className="text-[10px] font-bold uppercase tracking-[0.16em] text-finance-muted">
                       Dashboard Lens
                     </label>
                     <select
                       id="lens-filter"
                       value={selectedLens}
                       onChange={(event) => setSelectedLens(event.target.value as DashboardLens)}
-                      className="mt-1 h-9 w-full rounded-lg border border-finance-border bg-finance-panel px-2.5 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                      className="mt-1.5 h-9 w-full rounded-lg border border-finance-border bg-white px-3 text-sm font-medium text-finance-text shadow-[inset_0_1px_3px_rgba(10,25,48,0.06)] focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
                     >
-                      <option value="goal">Goal performance</option>
-                      <option value="cashflow">Cashflow quality</option>
-                      <option value="risk">Risk posture</option>
+                      <option value="goal">🎯 Goal performance</option>
+                      <option value="cashflow">💸 Cashflow quality</option>
+                      <option value="risk">🛡 Risk posture</option>
                     </select>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                    <StatusBadge label={`Mode ${selectedLens}`} tone="info" />
-                    <StatusBadge label={`Window ${selectedHorizon}`} tone="neutral" />
                     <StatusBadge label={marketStatus.label} tone={marketStatus.tone === "success" ? "success" : marketStatus.tone === "neutral" ? "neutral" : "warning"} />
-                    <button type="button" onClick={handleExportSnapshot} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-finance-border bg-white px-3 text-xs font-semibold text-finance-text hover:bg-finance-surface">
-                      <Download className="h-3.5 w-3.5" />
-                      Export
-                    </button>
-                    <button type="button" onClick={() => void handleShareSnapshot()} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-finance-border bg-white px-3 text-xs font-semibold text-finance-text hover:bg-finance-surface">
+                    <StatusBadge label={`${selectedLens} lens`} tone="info" />
+                    <button type="button" onClick={() => void handleShareSnapshot()} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-finance-border bg-white px-3.5 text-xs font-semibold text-finance-text shadow-sm transition-all hover:bg-finance-surface hover:shadow-md">
                       <Share2 className="h-3.5 w-3.5" />
                       Share
                     </button>
@@ -1746,99 +2037,465 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-finance-border bg-white px-4 py-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.05)] sm:px-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Priority Snapshot</p>
-                <p className="mt-1 text-sm text-finance-muted">Core metrics first, then drill down into focused analysis.</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+              {/* ── Priority Snapshot KPI Strip ── */}
+              <section className="rounded-2xl border border-finance-border bg-white px-5 py-4 shadow-[0_8px_24px_rgba(10,25,48,0.06)] sm:px-6 sm:py-5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2b5cff]">Priority Snapshot</p>
+                    <p className="mt-0.5 text-sm text-finance-muted">Click any metric to drill into its trend.</p>
+                  </div>
+                  {selectedKpiId ? (
+                    <button type="button" onClick={() => setSelectedKpiId(null)} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-3 text-[11px] font-semibold text-finance-muted hover:text-finance-text">
+                      <X className="h-3 w-3" />
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                   {kpiStripItems.map((item) => (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setSelectedKpiId(item.id)}
-                      className={`rounded-xl border bg-white px-3 py-3.5 text-left shadow-[0_8px_18px_rgba(10,25,48,0.05)] transition-all hover:-translate-y-0.5 ${
-                        selectedKpiId === item.id ? "border-finance-accent ring-2 ring-finance-accent/20" : "border-finance-border"
+                      onClick={() => setSelectedKpiId(selectedKpiId === item.id ? null : item.id)}
+                      className={`group relative overflow-hidden rounded-xl border px-3.5 py-4 text-left shadow-[0_4px_14px_rgba(10,25,48,0.06)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(10,25,48,0.12)] ${
+                        selectedKpiId === item.id
+                          ? "border-finance-accent bg-[linear-gradient(135deg,#f0f4ff,#e8efff)] ring-2 ring-finance-accent/25"
+                          : "border-finance-border bg-white hover:border-finance-accent/30"
                       }`}
                     >
-                      <p className="text-[10px] uppercase tracking-[0.11em] text-finance-muted">{item.label}</p>
-                      <p className="mt-1 text-base font-semibold text-finance-text">{item.value}</p>
-                      <p className={`mt-1 text-[11px] ${toneToClassName(item.deltaTone)}`}>{item.deltaLabel}</p>
-                      <p className="mt-1 text-[11px] text-finance-muted">{item.hint}</p>
+                      {selectedKpiId === item.id && (
+                        <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-gradient-to-r from-finance-accent to-[#7aaafc]" />
+                      )}
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-finance-muted">{item.label}</p>
+                      <p className={`mt-1.5 text-lg font-bold ${ selectedKpiId === item.id ? "text-finance-accent" : "text-finance-text"}`}>{item.value}</p>
+                      <p className={`mt-1 text-[11px] font-medium ${toneToClassName(item.deltaTone)}`}>{item.deltaLabel}</p>
+                      <p className="mt-0.5 text-[10px] text-finance-muted">{item.hint}</p>
                     </button>
                   ))}
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-finance-border bg-white px-4 py-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.05)] sm:px-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Action Tools</p>
-                <p className="mt-1 text-sm text-finance-muted">Market context and SIP planning in one place.</p>
-              </section>
+              {/* ── Section label: Decision Intelligence ── */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-finance-border" />
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-muted">Decision Intelligence Layer</p>
+                <div className="h-px flex-1 bg-finance-border" />
+              </div>
 
-              <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                <article className="rounded-2xl border border-finance-border bg-white p-4 shadow-[0_10px_24px_rgba(10,25,48,0.07)] sm:p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">NIFTY 50 Live Graph</p>
-                      <p className="mt-1 text-[11px] text-finance-muted">How to read: line up means index rising. Window: {selectedHorizonLabel}.</p>
-                      {niftyTrendSummary ? (
-                        <p className="mt-1 text-[11px] text-finance-muted">
-                          Latest close {formatIndexNumber(niftyTrendSummary.latest)} • Period change {formatSignedNumber(niftyTrendSummary.change)} ({formatSignedPercent(niftyTrendSummary.changePct)})
+              {aiMarketLab ? (
+                <motion.section
+                  className="relative overflow-hidden rounded-[2rem] border border-[#d7e4fb] bg-white shadow-[0_18px_44px_rgba(10,25,48,0.08)]"
+                  variants={sectionReveal}
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={denseSectionViewport}
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(43,92,255,0.08),transparent_28%),radial-gradient(circle_at_88%_14%,rgba(0,216,255,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(245,249,255,0.96))]" />
+                  <div className="relative px-5 py-6 sm:px-6 sm:py-7 md:px-8 md:py-8">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                      <div className="max-w-3xl">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-[#edf4ff] px-3 py-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-[#2b5cff]" />
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#2b5cff]">AI + Market Lab</p>
+                        </div>
+                        <h3 className="mt-4 text-[clamp(1.65rem,3.8vw,2.75rem)] font-bold leading-[1.05] tracking-tight text-[#0a1930]">
+                          Five handcrafted intelligence panels for clearer financial decisions
+                        </h3>
+                        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#50607d] md:text-base">
+                          Scenario planning, goal confidence, risk drift, market context, and next actions are all computed from your profile,
+                          holdings, tax, and live feed data.
                         </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge label={selectedHorizonLabel} tone="info" />
+                        <StatusBadge label={aiMarketLab.marketContextLabel} tone={marketStatus.tone} />
+                        <StatusBadge label={aiMarketLab.marketTrendLabel} tone={marketTrendStatus.tone} />
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-4 lg:grid-cols-12">
+                      <motion.article
+                        className="relative overflow-hidden rounded-[1.75rem] border border-[#d8e7ff] bg-[linear-gradient(160deg,#f8fbff_0%,#eef4ff_100%)] p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-7"
+                        variants={featureCardReveal}
+                        custom={0}
+                      >
+                        <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-[#2b5cff]/10 blur-[90px]" />
+                        <div className="relative flex items-start justify-between gap-4">
+                          <div>
+                            <div className="inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-white px-3 py-1.5">
+                              <BarChart3 className="h-3.5 w-3.5 text-[#2b5cff]" />
+                              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#2b5cff]">AI Scenario Simulator</p>
+                            </div>
+                            <p className="mt-3 text-sm font-semibold text-[#0a1930]">{selectedHorizonLabel} plan range</p>
+                            <p className="mt-1 text-xs text-[#5f7396]">Uses your current corpus, investable surplus, and a risk-weighted return band.</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/60 bg-white px-4 py-3 text-right shadow-[0_8px_18px_rgba(43,92,255,0.06)]">
+                            <p className="text-[10px] uppercase tracking-[0.14em] text-[#5f7396]">Current visible corpus</p>
+                            <p className="mt-1 text-lg font-bold text-[#0a1930]">{formatCompactCurrency(intelligence?.totalVisibleCorpus ?? 0)}</p>
+                          </div>
+                        </div>
+
+                        <div className="relative mt-5 space-y-3">
+                          {aiMarketLab.scenarioCards.map((scenario, index) => {
+                            const maxProjected = Math.max(...aiMarketLab.scenarioCards.map((item) => item.projectedValue), 1);
+                            const fillWidth = clamp((scenario.projectedValue / maxProjected) * 100, 8, 100);
+                            const gradientClass =
+                              scenario.tone === "warning"
+                                ? "from-amber-400 via-orange-400 to-[#2b5cff]"
+                                : scenario.tone === "positive"
+                                  ? "from-emerald-400 via-[#00d8ff] to-[#2b5cff]"
+                                  : "from-[#2b5cff] via-[#4d7dff] to-[#00d8ff]";
+
+                            return (
+                              <motion.div
+                                key={scenario.label}
+                                className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-[0_8px_18px_rgba(10,25,48,0.04)] backdrop-blur-sm"
+                                initial={{ opacity: 0, y: 12 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0.35 }}
+                                transition={{ duration: 0.4, delay: index * 0.05, ease: motionEase }}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <Sparkles className="h-4 w-4 text-[#2b5cff]" />
+                                      <p className="text-sm font-semibold text-[#0a1930]">{scenario.label}</p>
+                                    </div>
+                                    <p className="mt-1 text-xs text-[#5f7396]">{scenario.annualReturnPct.toFixed(1)}% return assumption</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-[#0a1930]">{formatCompactCurrency(scenario.projectedValue)}</p>
+                                    <p className={`text-xs font-semibold ${scenario.gainInr >= 0 ? "text-finance-green" : "text-finance-red"}`}>
+                                      {scenario.gainInr >= 0 ? "+" : "-"}
+                                      {formatCompactCurrency(Math.abs(scenario.gainInr))} gain
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#edf4ff]">
+                                  <motion.div
+                                    className={`h-full rounded-full bg-gradient-to-r ${gradientClass}`}
+                                    initial={{ width: 0 }}
+                                    whileInView={{ width: `${fillWidth}%` }}
+                                    viewport={{ once: true }}
+                                    transition={{ duration: 0.7, ease: motionEase }}
+                                  />
+                                </div>
+
+                                <div className="mt-2 flex items-center justify-between text-[11px] text-[#5f7396]">
+                                  <span>{scenario.gainPct.toFixed(1)}% gain vs current corpus</span>
+                                  <span className="font-medium uppercase tracking-[0.12em]">{selectedHorizonLabel}</span>
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </motion.article>
+
+                      <motion.article
+                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-5"
+                        variants={featureCardReveal}
+                        custom={1}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4.5 w-4.5 text-[#2b5cff]" />
+                          <p className="text-sm font-semibold text-[#0a1930]">Goal Probability Meter</p>
+                        </div>
+                        <p className="mt-1 text-xs text-[#5f7396]">Probability that current cashflow and holdings can reach your target on time.</p>
+
+                        <div className="mt-5 flex items-center gap-4">
+                          <div className="relative flex h-32 w-32 items-center justify-center">
+                            <div
+                              className="absolute inset-0 rounded-full shadow-[inset_0_0_0_1px_rgba(43,92,255,0.08)]"
+                              style={{
+                                background: `conic-gradient(#2b5cff 0 ${aiMarketLab.goalProbability}%, rgba(43,92,255,0.12) ${aiMarketLab.goalProbability}% 100%)`,
+                              }}
+                            />
+                            <div className="absolute inset-[10px] rounded-full border border-white bg-white shadow-[inset_0_1px_4px_rgba(10,25,48,0.06)]" />
+                            <div className="relative text-center">
+                              <p className="text-3xl font-bold text-[#0a1930]">{aiMarketLab.goalProbability}%</p>
+                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#5f7396]">probability</p>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 space-y-3">
+                            <div className="rounded-2xl border border-[#edf4ff] bg-[#f8fbff] p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs uppercase tracking-[0.14em] text-[#5f7396]">Confidence</p>
+                                <StatusBadge
+                                  label={
+                                    aiMarketLab.goalProbability >= 70
+                                      ? "High confidence"
+                                      : aiMarketLab.goalProbability >= 50
+                                        ? "Moderate confidence"
+                                        : "Needs support"
+                                  }
+                                  tone={aiMarketLab.goalProbability >= 70 ? "success" : aiMarketLab.goalProbability >= 50 ? "info" : "warning"}
+                                />
+                              </div>
+                              <p className="mt-1 text-sm font-semibold text-[#0a1930]">{intelligence?.goalCoveragePct.toFixed(1)}% goal coverage</p>
+                              <p className="mt-1 text-xs leading-relaxed text-[#5f7396]">
+                                Monthly funding momentum and emergency runway are the biggest drivers of this meter.
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl border border-[#edf4ff] bg-white p-3">
+                              <p className="text-xs uppercase tracking-[0.14em] text-[#5f7396]">What moves it</p>
+                              <p className="mt-1 text-xs leading-relaxed text-[#50607d]">
+                                Improve this score by widening the surplus gap, reducing concentration risk, and keeping the goal horizon realistic.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.article>
+
+                      <motion.article
+                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-[linear-gradient(160deg,#ffffff_0%,#f7f9ff_100%)] p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-4"
+                        variants={featureCardReveal}
+                        custom={2}
+                      >
+                        <div className="flex items-center gap-2">
+                          <ShieldAlert className="h-4.5 w-4.5 text-[#2b5cff]" />
+                          <p className="text-sm font-semibold text-[#0a1930]">Risk Drift Alert</p>
+                        </div>
+                        <p className="mt-1 text-xs text-[#5f7396]">Live concentration and tolerance check versus your declared risk profile.</p>
+
+                        <div className="mt-5 flex items-center gap-4">
+                          <div className="relative flex h-28 w-28 items-center justify-center">
+                            <div
+                              className="absolute inset-0 rounded-full"
+                              style={{
+                                background: `conic-gradient(${aiMarketLab.riskDriftScore >= 70 ? "#e74c3c" : aiMarketLab.riskDriftScore >= 45 ? "#f59e0b" : "#10b981"} 0 ${aiMarketLab.riskDriftScore}%, rgba(10,25,48,0.08) ${aiMarketLab.riskDriftScore}% 100%)`,
+                              }}
+                            />
+                            <div className="absolute inset-[10px] rounded-full border border-white bg-white shadow-[inset_0_1px_4px_rgba(10,25,48,0.06)]" />
+                            <div className="relative text-center">
+                              <p className="text-3xl font-bold text-[#0a1930]">{aiMarketLab.riskDriftScore}</p>
+                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#5f7396]">/100</p>
+                            </div>
+                          </div>
+
+                          <div className="flex-1">
+                            <StatusBadge
+                              label={aiMarketLab.riskLabel}
+                              tone={aiMarketLab.riskDriftScore >= 70 ? "critical" : aiMarketLab.riskDriftScore >= 45 ? "warning" : "success"}
+                            />
+                            <p className="mt-2 text-xs leading-relaxed text-[#50607d]">{aiMarketLab.riskMessage}</p>
+                            <div className="mt-3 space-y-2">
+                              {(holdingsAnalytics?.concentrationWarnings ?? []).slice(0, 2).map((warning) => (
+                                <div key={warning.id} className="rounded-2xl border border-[#edf4ff] bg-[#f8fbff] px-3 py-2">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5f7396]">{warning.title}</p>
+                                  <p className="mt-1 text-xs leading-relaxed text-[#0a1930]">{warning.message}</p>
+                                </div>
+                              ))}
+                              {(holdingsAnalytics?.concentrationWarnings ?? []).length === 0 ? (
+                                <p className="rounded-2xl border border-[#edf4ff] bg-[#f8fbff] px-3 py-2 text-xs leading-relaxed text-[#5f7396]">
+                                  Portfolio concentration is currently calm. The risk meter stays green until a new drift signal appears.
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      </motion.article>
+
+                      <motion.article
+                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-4"
+                        variants={featureCardReveal}
+                        custom={3}
+                      >
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4.5 w-4.5 text-[#2b5cff]" />
+                          <p className="text-sm font-semibold text-[#0a1930]">Market Context Summary</p>
+                        </div>
+                        <p className="mt-1 text-xs text-[#5f7396]">Live market context blended with the horizon you selected above.</p>
+
+                        <div className="mt-4 h-36 rounded-2xl border border-[#edf4ff] bg-[#f8fbff] p-3">
+                          {marketTrend.length > 1 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={marketTrend} margin={{ top: 6, right: 6, left: -12, bottom: 0 }}>
+                                <defs>
+                                  <linearGradient id="dashboard-market-lab-gradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.45} />
+                                    <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.03} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="4 6" stroke="rgba(91,115,150,0.12)" vertical={false} />
+                                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10 }} />
+                                <YAxis hide />
+                                <Tooltip
+                                  formatter={(value) => formatCompactCurrency(Number(value ?? 0))}
+                                  contentStyle={{ backgroundColor: "#ffffff", borderColor: "#d8e7ff", borderRadius: "12px" }}
+                                />
+                                <Area type="monotone" dataKey="close" stroke="#2b5cff" strokeWidth={2.2} fill="url(#dashboard-market-lab-gradient)" dot={false} />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-[#5f7396]">Trend history loading...</div>
+                          )}
+                        </div>
+
+                        <div className="mt-4 space-y-2.5">
+                          {aiMarketLab.marketPulseItems.map((item) => (
+                            <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-[#edf4ff] bg-[#f8fbff] px-3 py-2.5">
+                              <div>
+                                <p className="text-sm font-semibold text-[#0a1930]">{item.label}</p>
+                                <p className="text-xs text-[#5f7396]">{item.detail}</p>
+                              </div>
+                              <StatusBadge label={item.value} tone={insightToneToBadgeTone(item.tone)} />
+                            </div>
+                          ))}
+                        </div>
+
+                        <p className="mt-3 text-xs text-[#5f7396]">NIFTY trend: {aiMarketLab.marketTrendMovement}</p>
+                      </motion.article>
+
+                      <motion.article
+                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-[linear-gradient(160deg,#f9fbff_0%,#eef4ff_100%)] p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-4"
+                        variants={featureCardReveal}
+                        custom={4}
+                      >
+                        <div className="flex items-center gap-2">
+                          <RefreshCcw className="h-4.5 w-4.5 text-[#2b5cff]" />
+                          <p className="text-sm font-semibold text-[#0a1930]">AI Action Queue</p>
+                        </div>
+                        <p className="mt-1 text-xs text-[#5f7396]">The next three actions the dashboard wants you to see first.</p>
+
+                        <div className="mt-4 rounded-2xl border border-white/70 bg-white/90 p-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.04)]">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-[#5f7396]">AI summary</p>
+                          <p className="mt-1 text-sm leading-relaxed text-[#0a1930]">{aiMarketLab.advisorExcerpt}</p>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                          {aiMarketLab.actionQueue.map((item, index) => {
+                            const stepTone = insightToneToBadgeTone(item.tone);
+                            const stepColor =
+                              item.tone === "critical"
+                                ? "from-finance-red/90 to-[#ff8a7b]"
+                                : item.tone === "warning"
+                                  ? "from-amber-500 to-orange-400"
+                                  : "from-[#2b5cff] to-[#00d8ff]";
+
+                            return (
+                              <div key={item.title} className="flex items-start gap-3 rounded-2xl border border-[#edf4ff] bg-white px-3 py-3">
+                                <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${stepColor} text-sm font-bold text-white shadow-[0_8px_16px_rgba(43,92,255,0.16)]`}>
+                                  {index + 1}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-semibold text-[#0a1930]">{item.title}</p>
+                                    <StatusBadge label={item.badge} tone={stepTone} />
+                                  </div>
+                                  <p className="mt-1 text-xs leading-relaxed text-[#5f7396]">{item.detail}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </motion.article>
+                    </div>
+                  </div>
+                </motion.section>
+              ) : null}
+
+              {/* ── Section label: Market + Tools ── */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-finance-border" />
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-muted">Market Data &amp; Planning Tools</p>
+                <div className="h-px flex-1 bg-finance-border" />
+              </div>
+
+              <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+                {/* Left: NIFTY Chart + Market Indicator Cards */}
+                <article className="rounded-2xl border border-finance-border bg-white p-5 shadow-[0_12px_30px_rgba(10,25,48,0.07)] sm:p-6">
+                  {/* Chart header */}
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-finance-accent opacity-60" />
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-finance-accent" />
+                        </span>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-finance-text">NIFTY 50 — Live Chart</p>
+                      </div>
+                      <p className="mt-1 text-[11px] text-finance-muted">Window: {selectedHorizonLabel}</p>
+                      {niftyTrendSummary ? (
+                        <div className="mt-1 flex items-center gap-2">
+                          <p className="text-base font-bold text-finance-text">{formatIndexNumber(niftyTrendSummary.latest)}</p>
+                          <span className={`text-xs font-semibold ${ niftyTrendSummary.changePct >= 0 ? "text-finance-green" : "text-finance-red"}`}>
+                            {formatSignedPercent(niftyTrendSummary.changePct)}
+                          </span>
+                        </div>
                       ) : null}
                     </div>
                     <StatusBadge label={marketTrendStatus.label} tone={marketTrendStatus.tone} />
                   </div>
 
-                  <div className="mt-4 h-[250px]">
+                  <div className="mt-4 h-[240px]">
                     {isMarketTrendLoading ? (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-finance-surface text-xs text-finance-muted">
-                        Loading NIFTY trend...
+                      <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-finance-border bg-[#f8faff] text-xs text-finance-muted">
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="h-5 w-5 animate-spin text-finance-accent/40" />
+                          <span>Loading NIFTY trend…</span>
+                        </div>
                       </div>
                     ) : marketTrend.length === 0 ? (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-finance-surface text-xs text-finance-muted">
+                      <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-finance-border bg-[#f8faff] text-xs text-finance-muted">
                         NIFTY trend data unavailable.
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={marketTrend} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+                        <AreaChart data={marketTrend} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                           <defs>
                             <linearGradient id="niftyTrendFill" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.24} />
-                              <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.03} />
+                              <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.28} />
+                              <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid stroke="rgba(130,147,177,0.16)" strokeDasharray="4 6" vertical={false} />
-                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} />
-                          <YAxis tick={{ fill: "#3f5680", fontSize: 10 }} tickFormatter={(value: number) => formatIndexNumber(value)} width={72} />
+                          <CartesianGrid stroke="rgba(130,147,177,0.12)" strokeDasharray="4 8" vertical={false} />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#5a7099", fontSize: 10, fontWeight: 500 }} />
+                          <YAxis tick={{ fill: "#5a7099", fontSize: 10 }} tickFormatter={(value: number) => formatIndexNumber(value)} width={68} />
                           <Tooltip
+                            contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f4", boxShadow: "0 8px 20px rgba(10,25,48,0.10)" }}
                             formatter={(value) => [formatIndexNumber(Number(value ?? 0)), "NIFTY close"]}
                             labelFormatter={(label) => `Date: ${String(label ?? "")}`}
                           />
-                          <Area type="monotone" dataKey="close" stroke="#2b5cff" strokeWidth={2.2} fill="url(#niftyTrendFill)" />
+                          <Area type="monotone" dataKey="close" stroke="#2b5cff" strokeWidth={2.5} fill="url(#niftyTrendFill)" />
                         </AreaChart>
                       </ResponsiveContainer>
                     )}
                   </div>
 
-                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  {/* Market Indicator Tiles */}
+                  <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
                     {orderedMarketIndicators.length === 0 ? (
-                      <div className="sm:col-span-3 rounded-lg border border-dashed border-finance-border bg-finance-surface px-3 py-2 text-xs text-finance-muted">
-                        Market indicators unavailable.
+                      <div className="sm:col-span-3 flex items-center justify-center rounded-xl border border-dashed border-finance-border bg-[#f8faff] px-3 py-4 text-xs text-finance-muted">
+                        {isMarketLoading ? "Fetching live data…" : "Market indicators unavailable."}
                       </div>
                     ) : (
                       orderedMarketIndicators.map((indicator) => (
-                        <div key={indicator.id} className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
-                          <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">{indicator.displayName}</p>
-                          <p className="mt-1 text-sm font-semibold text-finance-text">{formatIndexNumber(indicator.value)}</p>
-                          <p
-                            className={`mt-1 text-[11px] ${
-                              indicator.trend === "up"
-                                ? "text-finance-green"
-                                : indicator.trend === "down"
-                                  ? "text-finance-red"
-                                  : "text-finance-muted"
-                            }`}
-                          >
-                            Day change: {formatSignedNumber(indicator.changeAbs)} ({formatSignedPercent(indicator.changePct)})
+                        <div
+                          key={indicator.id}
+                          className={`relative overflow-hidden rounded-xl border px-4 py-3.5 transition-all duration-200 hover:-translate-y-0.5 ${
+                            indicator.trend === "up"
+                              ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white"
+                              : indicator.trend === "down"
+                                ? "border-red-200 bg-gradient-to-br from-red-50 to-white"
+                                : "border-finance-border bg-white"
+                          }`}
+                        >
+                          <div className={`absolute right-3 top-3 text-lg font-bold leading-none opacity-20 ${
+                            indicator.trend === "up" ? "text-emerald-500" : indicator.trend === "down" ? "text-red-500" : "text-finance-muted"
+                          }`}>
+                            {indicator.trend === "up" ? "▲" : indicator.trend === "down" ? "▼" : "—"}
+                          </div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-finance-muted">{indicator.displayName}</p>
+                          <p className="mt-1.5 text-xl font-bold tabular-nums text-finance-text">{formatIndexNumber(indicator.value)}</p>
+                          <p className={`mt-1 text-xs font-semibold tabular-nums ${
+                            indicator.trend === "up" ? "text-emerald-600" : indicator.trend === "down" ? "text-red-500" : "text-finance-muted"
+                          }`}>
+                            {indicator.trend === "up" ? "▲" : indicator.trend === "down" ? "▼" : ""}{" "}
+                            {formatSignedNumber(indicator.changeAbs)} ({formatSignedPercent(indicator.changePct)})
                           </p>
                         </div>
                       ))
@@ -1846,83 +2503,96 @@ export default function DashboardPage() {
                   </div>
                 </article>
 
-                <article className="rounded-2xl border border-finance-border bg-white p-4 shadow-[0_10px_24px_rgba(10,25,48,0.07)] sm:p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">SIP Calculator</p>
-                    <span className="text-[11px] text-finance-muted">Projection only</span>
+                {/* Right: SIP Calculator */}
+                <article className="rounded-2xl border border-finance-border bg-white p-5 shadow-[0_12px_30px_rgba(10,25,48,0.07)] sm:p-6">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-finance-text">SIP Calculator</p>
+                      <p className="mt-0.5 text-[11px] text-finance-muted">Projection — not financial advice</p>
+                    </div>
+                    <span className="inline-flex h-7 items-center rounded-full bg-[#eef3ff] px-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2b5cff]">Calculator</span>
                   </div>
 
-                  <div className="mt-4 grid gap-3">
-                    <label className="text-[10px] font-semibold uppercase tracking-[0.11em] text-finance-muted">
-                      Monthly SIP (INR)
+                  <div className="mt-5 space-y-4">
+                    <div>
+                      <label htmlFor="sip-amount" className="text-[10px] font-bold uppercase tracking-[0.14em] text-finance-muted">Monthly SIP (INR)</label>
                       <input
+                        id="sip-amount"
                         type="number"
                         min={0}
                         step={500}
                         value={sipMonthlyAmount}
                         onChange={(event) => setSipMonthlyAmount(Math.max(parseNumberInput(event.target.value), 0))}
-                        className="mt-1.5 h-10 w-full rounded-lg border border-finance-border bg-finance-panel px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                        className="mt-2 h-10 w-full rounded-xl border border-finance-border bg-[#f8faff] px-3.5 text-sm font-medium text-finance-text transition focus:border-finance-accent/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
                       />
-                    </label>
+                    </div>
 
-                    <label className="text-[10px] font-semibold uppercase tracking-[0.11em] text-finance-muted">
-                      Expected Annual Return (%)
+                    <div>
+                      <label htmlFor="sip-return" className="text-[10px] font-bold uppercase tracking-[0.14em] text-finance-muted">Expected Annual Return (%)</label>
                       <input
+                        id="sip-return"
                         type="number"
                         min={0}
                         max={40}
                         step={0.1}
                         value={sipAnnualReturn}
                         onChange={(event) => setSipAnnualReturn(Math.min(Math.max(parseNumberInput(event.target.value), 0), 40))}
-                        className="mt-1.5 h-10 w-full rounded-lg border border-finance-border bg-finance-panel px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                        className="mt-2 h-10 w-full rounded-xl border border-finance-border bg-[#f8faff] px-3.5 text-sm font-medium text-finance-text transition focus:border-finance-accent/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
                       />
-                    </label>
+                    </div>
 
-                    <label className="text-[10px] font-semibold uppercase tracking-[0.11em] text-finance-muted">
-                      Duration (Years)
+                    <div>
+                      <label htmlFor="sip-duration" className="text-[10px] font-bold uppercase tracking-[0.14em] text-finance-muted">Duration (Years)</label>
                       <input
+                        id="sip-duration"
                         type="number"
                         min={0.5}
                         max={40}
                         step={0.5}
                         value={sipDurationYears}
                         onChange={(event) => setSipDurationYears(Math.min(Math.max(parseNumberInput(event.target.value), 0.5), 40))}
-                        className="mt-1.5 h-10 w-full rounded-lg border border-finance-border bg-finance-panel px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
+                        className="mt-2 h-10 w-full rounded-xl border border-finance-border bg-[#f8faff] px-3.5 text-sm font-medium text-finance-text transition focus:border-finance-accent/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
                       />
-                    </label>
-                  </div>
-
-                  <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-                    <div className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">Invested Amount</p>
-                      <p className="mt-1 text-sm font-semibold text-finance-text">{formatCurrency(sipProjection.invested)}</p>
-                    </div>
-                    <div className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">Estimated Returns</p>
-                      <p className="mt-1 text-sm font-semibold text-finance-green">{formatCurrency(sipProjection.estimatedReturns)}</p>
-                    </div>
-                    <div className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">Projected Value</p>
-                      <p className="mt-1 text-sm font-semibold text-finance-text">{formatCurrency(sipProjection.projectedValue)}</p>
                     </div>
                   </div>
 
-                  <p className="mt-3 text-[11px] text-finance-muted">
-                    SIP duration: {sipProjection.months} months. Assumes constant monthly contribution and stable annual return.
+                  {/* Projection results */}
+                  <div className="mt-5 rounded-xl border border-[#dce8ff] bg-gradient-to-br from-[#f0f5ff] to-[#f8faff] p-4">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-finance-muted">Total Invested</span>
+                        <span className="text-sm font-bold text-finance-text">{formatCurrency(sipProjection.invested)}</span>
+                      </div>
+                      <div className="h-px bg-[#dce8ff]" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-finance-muted">Est. Returns</span>
+                        <span className="text-sm font-bold text-emerald-600">+{formatCurrency(sipProjection.estimatedReturns)}</span>
+                      </div>
+                      <div className="h-px bg-[#dce8ff]" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-finance-text">Projected Value</span>
+                        <span className="text-base font-extrabold text-finance-accent">{formatCurrency(sipProjection.projectedValue)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-[10px] leading-relaxed text-finance-muted">
+                    Over {sipProjection.months} months at {sipAnnualReturn}% p.a. Assumes constant contribution.
+                    {sipSuggestedAmount !== null ? ` Your profile surplus: ${formatCurrency(Math.round(sipSuggestedAmount))}/mo.` : ""}
                   </p>
-
-                  {sipSuggestedAmount !== null ? (
-                    <p className="mt-1.5 text-[11px] text-finance-muted">
-                      Your profile indicates an investable monthly surplus of {formatCurrency(Math.round(sipSuggestedAmount))}.
-                    </p>
-                  ) : null}
                 </article>
               </section>
 
-              <section className="rounded-2xl border border-finance-border bg-white px-4 py-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.05)] sm:px-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">{focusedInsightsTitle}</p>
-                <p className="mt-1 text-sm text-finance-muted">{focusedInsightsHint}</p>
-              </section>
+              {/* ── Focused Analysis label ── */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-finance-border" />
+                <div className="flex items-center gap-2 rounded-full border border-finance-border bg-white px-4 py-1.5 shadow-sm">
+                  <CircleDot className="h-3 w-3 text-finance-accent" />
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-finance-text">{focusedInsightsTitle}</p>
+                </div>
+                <div className="h-px flex-1 bg-finance-border" />
+              </div>
+              <p className="-mt-2 text-center text-xs text-finance-muted">{focusedInsightsHint}</p>
 
               <section className={`grid gap-4 ${selectedLens === "cashflow" ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
                 {showCashflowBridge ? (
@@ -2129,11 +2799,16 @@ export default function DashboardPage() {
               </section>
               ) : null}
 
-              <details className="rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-5">
-                <summary className="cursor-pointer list-none text-sm font-semibold text-finance-text">
-                  Advanced Insights and Profile Diagnostics
-                </summary>
-                <p className="mt-1 text-xs text-finance-muted">Open for deeper intelligence context, data quality checks, and model-backed focus ranking.</p>
+              {/* ── Divider before advanced section ── */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-finance-border" />
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-muted">Advanced Intelligence</p>
+                <div className="h-px flex-1 bg-finance-border" />
+              </div>
+
+              <section className="rounded-2xl border border-finance-border bg-white/95 p-5 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-6">
+                <p className="text-sm font-bold text-finance-text">Profile Diagnostics &amp; Intelligence Layer</p>
+                <p className="mt-1 text-xs text-finance-muted">Deeper intelligence context, data quality checks, and model-backed focus ranking.</p>
 
                 <section className="mt-4 rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2170,36 +2845,36 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                  {profileIntelligence
+                  {intelligence
                     ? [
                         {
                           label: "Monthly income",
-                          value: formatCurrency(profileIntelligence.monthlyIncome),
+                          value: formatCurrency(intelligence.monthlyIncome),
                           hint: `${formatRisk(profile.risk_appetite)} risk profile`,
                         },
                         {
                           label: "Living + EMI outflow",
-                          value: formatCurrency(profileIntelligence.monthlyOutflow),
-                          hint: `${profileIntelligence.expenseLoadPct.toFixed(1)}% of income`,
+                          value: formatCurrency(intelligence.monthlyOutflow),
+                          hint: `${intelligence.expenseLoadPct.toFixed(1)}% of income`,
                         },
                         {
                           label: "Investable surplus",
-                          value: formatCurrency(profileIntelligence.investableSurplus),
-                          hint: `${profileIntelligence.savingsRatePct.toFixed(1)}% savings rate`,
+                          value: formatCurrency(intelligence.investableSurplus),
+                          hint: `${intelligence.savingsRatePct.toFixed(1)}% savings rate`,
                         },
                         {
                           label: "Emergency runway",
-                          value: `${profileIntelligence.emergencyRunwayMonths.toFixed(1)} months`,
+                          value: `${intelligence.emergencyRunwayMonths.toFixed(1)} months`,
                           hint: `Declared ${profile.emergency_fund_months.toFixed(1)} months`,
                         },
                         {
                           label: "Goal coverage",
-                          value: `${profileIntelligence.goalCoveragePct.toFixed(1)}%`,
+                          value: `${intelligence.goalCoveragePct.toFixed(1)}%`,
                           hint: `Gap ${formatCompactCurrency(targetGap)}`,
                         },
                         {
                           label: "Visible corpus",
-                          value: formatCompactCurrency(profileIntelligence.totalVisibleCorpus),
+                          value: formatCompactCurrency(intelligence.totalVisibleCorpus),
                           hint: "Savings + holdings value",
                         },
                       ].map((item) => (
@@ -2219,22 +2894,22 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-between gap-3 rounded-lg border border-finance-border bg-white px-3 py-2.5">
                         <span className="text-finance-text">Monthly target requirement</span>
                         <span className="font-semibold text-finance-text">
-                          {profileIntelligence ? formatCurrency(profileIntelligence.requiredMonthlyToGoal) : "N/A"}
+                          {intelligence ? formatCurrency(intelligence.requiredMonthlyToGoal) : "N/A"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3 rounded-lg border border-finance-border bg-white px-3 py-2.5">
                         <span className="text-finance-text">Funding pace status</span>
                         <span
                           className={`font-semibold ${
-                            profileIntelligence && profileIntelligence.goalFundingStress <= 0
+                            intelligence && intelligence.goalFundingStress <= 0
                               ? "text-finance-green"
                               : "text-amber-700"
                           }`}
                         >
-                          {profileIntelligence
-                            ? profileIntelligence.goalFundingStress <= 0
+                          {intelligence
+                            ? intelligence.goalFundingStress <= 0
                               ? "On track"
-                              : `Need +${formatCompactCurrency(profileIntelligence.goalFundingStress)}/mo`
+                              : `Need +${formatCompactCurrency(intelligence.goalFundingStress)}/mo`
                             : "N/A"}
                         </span>
                       </div>
@@ -2277,7 +2952,7 @@ export default function DashboardPage() {
                     onRecommendedFocusChange={setRecommendedFocus}
                   />
                 </div>
-              </details>
+              </section>
 
               {orderedModuleKeys.map((moduleKey) => (
                 <div key={moduleKey} className={getModuleContainerClassName(moduleKey)}>

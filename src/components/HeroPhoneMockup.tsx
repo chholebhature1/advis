@@ -225,8 +225,8 @@ export default function HeroPhoneMockup() {
       />
 
       <div
+        className="hero-floor-glow"
         style={{
-          position: "absolute",
           bottom: "48px",
           width: "238px",
           height: "18px",
@@ -252,7 +252,7 @@ export default function HeroPhoneMockup() {
         }}
       />
 
-      <div className="relative flex h-[660px] w-[350px] items-center justify-center origin-center scale-[0.52] sm:scale-[0.7] md:scale-[0.78] lg:scale-[0.75] xl:scale-[0.86] 2xl:scale-[0.94]">
+      <div className="relative flex h-[660px] w-[350px] items-center justify-center origin-center scale-[0.92] sm:scale-[0.7] md:scale-[0.78] lg:scale-[0.75] xl:scale-[0.86] 2xl:scale-[0.94]">
         <div
           className="hero-phone-float"
           style={{

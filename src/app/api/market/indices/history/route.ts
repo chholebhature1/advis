@@ -6,14 +6,15 @@ const CACHE_WINDOW_MS = 60 * 1000;
 const CACHE_CONTROL_VALUE = "public, s-maxage=60, stale-while-revalidate=30";
 const NIFTY_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI";
 
-type DashboardHorizon = "6m" | "12m" | "24m" | "36m";
+type DashboardHorizon = "1y" | "2y" | "3y";
+type TrendHorizon = DashboardHorizon | "custom";
 type MarketTrendPoint = { label: string; close: number };
 type MarketTrendResponse = {
   ok: true;
   generatedAt: string;
   source: "live" | "fallback";
   symbol: "NIFTY50";
-  horizon: DashboardHorizon;
+  horizon: TrendHorizon;
   points: MarketTrendPoint[];
 };
 
@@ -35,25 +36,59 @@ type CachedTrend = {
   expiresAt: number;
 };
 
-const horizonToRange: Record<DashboardHorizon, string> = {
-  "6m": "6mo",
-  "12m": "1y",
-  "24m": "2y",
-  "36m": "3y",
+const horizonToYears: Record<DashboardHorizon, number> = {
+  "1y": 1,
+  "2y": 2,
+  "3y": 3,
 };
-
-const horizonToInterval: Record<DashboardHorizon, string> = {
-  "6m": "1d",
-  "12m": "1d",
-  "24m": "1wk",
-  "36m": "1wk",
-};
-
-const cacheByHorizon = new Map<DashboardHorizon, CachedTrend>();
-const inFlightByHorizon = new Map<DashboardHorizon, Promise<MarketTrendResponse>>();
 
 function isHorizon(value: string | null): value is DashboardHorizon {
-  return value === "6m" || value === "12m" || value === "24m" || value === "36m";
+  return value === "1y" || value === "2y" || value === "3y";
+}
+
+function isTrendHorizon(value: string | null): value is TrendHorizon {
+  return isHorizon(value) || value === "custom";
+}
+
+function toCustomYears(value: string | null): number {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return 1;
+  }
+
+  return Math.max(1, Math.min(10, Math.round(parsed)));
+}
+
+function getHorizonYears(horizon: TrendHorizon, customYears: number): number {
+  if (horizon === "custom") {
+    return customYears;
+  }
+
+  return horizonToYears[horizon];
+}
+
+function horizonCacheKey(horizon: TrendHorizon, years: number): string {
+  return `${horizon}:${years}`;
+}
+
+const cacheByHorizon = new Map<string, CachedTrend>();
+const inFlightByHorizon = new Map<string, Promise<MarketTrendResponse>>();
+
+function toDateLabel(date: Date, years: number): string {
+  if (years > 1) {
+    return new Intl.DateTimeFormat("en-IN", {
+      month: "short",
+      year: "2-digit",
+      timeZone: "UTC",
+    }).format(date);
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -76,26 +111,10 @@ function round(value: number, digits = 2): number {
   return Math.round(value * factor) / factor;
 }
 
-function toDateLabel(date: Date, horizon: DashboardHorizon): string {
-  if (horizon === "24m" || horizon === "36m") {
-    return new Intl.DateTimeFormat("en-IN", {
-      month: "short",
-      year: "2-digit",
-      timeZone: "UTC",
-    }).format(date);
-  }
-
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    timeZone: "UTC",
-  }).format(date);
-}
-
-function buildFallbackPoints(horizon: DashboardHorizon): MarketTrendPoint[] {
+function buildFallbackPoints(years: number): MarketTrendPoint[] {
   const now = new Date();
-  const pointsCount = horizon === "6m" ? 28 : horizon === "12m" ? 40 : 52;
-  const dayStep = horizon === "6m" ? 6 : horizon === "12m" ? 8 : 14;
+  const pointsCount = years <= 1 ? 28 : years === 2 ? 52 : Math.max(64, years * 24);
+  const dayStep = Math.max(2, Math.round((years * 365) / Math.max(pointsCount - 1, 1)));
   const baseline = 22300;
 
   return Array.from({ length: pointsCount }, (_, index) => {
@@ -108,7 +127,7 @@ function buildFallbackPoints(horizon: DashboardHorizon): MarketTrendPoint[] {
     const close = round(baseline + trend + seasonalWave, 2);
 
     return {
-      label: toDateLabel(date, horizon),
+      label: toDateLabel(date, years),
       close,
     };
   });
@@ -134,9 +153,9 @@ function samplePoints(points: MarketTrendPoint[], maxPoints: number): MarketTren
   return sampled;
 }
 
-async function fetchLivePoints(horizon: DashboardHorizon): Promise<MarketTrendPoint[] | null> {
-  const range = horizonToRange[horizon];
-  const interval = horizonToInterval[horizon];
+async function fetchLivePoints(horizon: TrendHorizon, years: number): Promise<MarketTrendPoint[] | null> {
+  const range = `${years}y`;
+  const interval = years <= 1 ? "1d" : "1wk";
   const response = await fetch(`${NIFTY_CHART_BASE_URL}?range=${range}&interval=${interval}`, {
     method: "GET",
     cache: "no-store",
@@ -166,7 +185,7 @@ async function fetchLivePoints(horizon: DashboardHorizon): Promise<MarketTrendPo
     }
 
     points.push({
-      label: toDateLabel(new Date(timestamp * 1000), horizon),
+      label: toDateLabel(new Date(timestamp * 1000), years),
       close: round(close, 2),
     });
   }
@@ -175,16 +194,16 @@ async function fetchLivePoints(horizon: DashboardHorizon): Promise<MarketTrendPo
     return null;
   }
 
-  const maxPoints = horizon === "6m" ? 90 : horizon === "12m" ? 120 : 150;
+  const maxPoints = years <= 1 ? 90 : years === 2 ? 120 : 150;
   return samplePoints(points, maxPoints);
 }
 
-async function buildMarketTrendResponse(horizon: DashboardHorizon): Promise<MarketTrendResponse> {
+async function buildMarketTrendResponse(horizon: TrendHorizon, years: number): Promise<MarketTrendResponse> {
   let source: "live" | "fallback" = "fallback";
-  let points = buildFallbackPoints(horizon);
+  let points = buildFallbackPoints(years);
 
   try {
-    const livePoints = await fetchLivePoints(horizon);
+    const livePoints = await fetchLivePoints(horizon, years);
     if (livePoints && livePoints.length > 0) {
       points = livePoints;
       source = "live";
@@ -205,10 +224,13 @@ async function buildMarketTrendResponse(horizon: DashboardHorizon): Promise<Mark
 
 export async function GET(request: NextRequest) {
   const horizonParam = request.nextUrl.searchParams.get("horizon");
-  const horizon: DashboardHorizon = isHorizon(horizonParam) ? horizonParam : "12m";
+  const customYears = toCustomYears(request.nextUrl.searchParams.get("years"));
+  const horizon: TrendHorizon = isTrendHorizon(horizonParam) ? horizonParam : "1y";
+  const years = getHorizonYears(horizon, customYears);
   const now = Date.now();
+  const cacheKey = horizonCacheKey(horizon, years);
 
-  const cached = cacheByHorizon.get(horizon);
+  const cached = cacheByHorizon.get(cacheKey);
   if (cached && cached.expiresAt > now) {
     return NextResponse.json(cached.payload, {
       status: 200,
@@ -218,18 +240,18 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  if (!inFlightByHorizon.has(horizon)) {
+  if (!inFlightByHorizon.has(cacheKey)) {
     inFlightByHorizon.set(
-      horizon,
-      buildMarketTrendResponse(horizon).finally(() => {
-        inFlightByHorizon.delete(horizon);
+      cacheKey,
+      buildMarketTrendResponse(horizon, years).finally(() => {
+        inFlightByHorizon.delete(cacheKey);
       }),
     );
   }
 
-  const payload = await inFlightByHorizon.get(horizon)!;
+  const payload = await inFlightByHorizon.get(cacheKey)!;
 
-  cacheByHorizon.set(horizon, {
+  cacheByHorizon.set(cacheKey, {
     payload,
     expiresAt: Date.now() + CACHE_WINDOW_MS,
   });

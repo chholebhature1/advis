@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
   Target,
@@ -37,10 +38,41 @@ import {
   YAxis,
 } from "recharts";
 import SiteHeader from "@/components/SiteHeader";
-import HeroPhoneMockup from "../components/HeroPhoneMockup";
-import AllModulesVideoSection from "@/components/AllModulesVideoSection";
-import CalendlyBookingSection from "@/components/CalendlyBookingSection";
 import { blogPosts } from "@/app/learn/blog-data";
+
+const HeroPhoneMockup = dynamic(() => import("@/components/HeroPhoneMockup"), {
+  ssr: false,
+  loading: () => (
+    <div className="relative flex w-full min-h-[330px] items-center justify-center sm:min-h-[500px] lg:min-h-[560px] xl:min-h-[620px]">
+      <div className="relative flex h-[660px] w-[350px] items-center justify-center rounded-[2.5rem] border border-white/15 bg-[linear-gradient(180deg,rgba(18,31,61,0.9),rgba(14,22,45,0.96))] shadow-[0_24px_64px_rgba(0,0,0,0.26)]" />
+    </div>
+  ),
+});
+
+const AllModulesVideoSection = dynamic(() => import("@/components/AllModulesVideoSection"), {
+  ssr: false,
+  loading: () => (
+    <section className="relative overflow-hidden py-28 md:py-36">
+      <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+        <div className="h-[520px] animate-pulse rounded-[2rem] border border-[#d8e7ff] bg-white/80" />
+      </div>
+    </section>
+  ),
+});
+
+const CalendlyBookingSection = dynamic(() => import("@/components/CalendlyBookingSection"), {
+  ssr: false,
+  loading: () => (
+    <section id="book-discovery-call" className="relative overflow-hidden py-28 md:py-36">
+      <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="h-[420px] animate-pulse rounded-[1.75rem] border border-[#d8e7ff] bg-white/80" />
+          <div className="h-[420px] animate-pulse rounded-[1.75rem] border border-[#d8e7ff] bg-white/70" />
+        </div>
+      </div>
+    </section>
+  ),
+});
 
 type LiveChartPoint = {
   label: string;
@@ -127,7 +159,152 @@ const allocationMixData = [
 ];
 
 const allocationColors = ["#2b5cff", "#00d8ff", "#86a9a3", "#6fa39a", "#dce8ff"];
+const trustedPartners = [
+  {
+    name: "HDFC Mutual Fund",
+    subtitle: "Mutual Fund",
+    logo: (
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-[#d7e1f0] bg-white shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex flex-1 items-center justify-center bg-[#e31e24] px-2">
+          <span className="text-[clamp(1rem,2.4vw,1.55rem)] font-extrabold tracking-[0.06em] text-white">HDFC</span>
+        </div>
+        <div className="border-t border-[#cddbf0] bg-[#1f5fa8] px-2 py-1 text-center text-[10px] font-bold tracking-[0.34em] text-white sm:text-[11px]">
+          MUTUAL FUND
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "ICICI Prudential Mutual Fund",
+    subtitle: "Mutual Fund",
+    logo: (
+      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-white px-3 py-2 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex items-end justify-center gap-1 text-center leading-none">
+          <span className="text-[clamp(1rem,2vw,1.45rem)] font-black italic tracking-tight text-[#da1f2f]">ICICI</span>
+          <span className="pb-0.5 text-[clamp(0.72rem,1.6vw,1rem)] font-semibold italic tracking-tight text-[#143e7a]">PRUDENTIAL</span>
+        </div>
+        <div className="mt-1 border-t border-[#edf2f7] pt-1 text-center text-[10px] font-bold tracking-[0.28em] text-[#da1f2f] sm:text-[11px]">
+          MUTUAL FUND
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "Kotak Mutual Fund",
+    subtitle: "Mutual Fund",
+    logo: (
+      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#27428f] text-white shadow-[inset_0_0_0_3px_rgba(255,255,255,0.08)]">
+          <span className="absolute left-2 top-2 h-4 w-4 rounded-full border-2 border-[#ef3d30]" />
+          <span className="absolute bottom-2 right-2 h-4 w-4 rounded-full border-2 border-[#ef3d30]" />
+          <span className="text-lg font-black leading-none tracking-tight">k</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[clamp(1rem,2vw,1.45rem)] font-black leading-none text-[#ef4836]">kotak</p>
+          <p className="mt-1 text-[clamp(0.74rem,1.6vw,1rem)] leading-none text-[#6f8aa9]">Mutual Fund</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "L&T Mutual Fund",
+    subtitle: "Mutual Fund",
+    logo: (
+      <div className="flex h-full w-full items-center justify-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black text-black">
+          <span className="text-base font-bold tracking-tight">LT</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[clamp(1rem,2vw,1.35rem)] font-semibold italic leading-none text-black">L&amp;T Mutual Fund</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "SBI Mutual Fund",
+    subtitle: "A partner for life",
+    logo: (
+      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#1d8fd5] text-white shadow-[inset_0_0_0_2px_rgba(255,255,255,0.18)]">
+          <span className="absolute left-[10px] top-[10px] h-2.5 w-2.5 rounded-full bg-white" />
+          <span className="absolute right-[10px] top-[10px] h-2.5 w-2.5 rounded-full bg-white" />
+          <span className="absolute bottom-[10px] left-[10px] h-2.5 w-2.5 rounded-full bg-white" />
+          <span className="absolute bottom-[10px] right-[10px] h-2.5 w-2.5 rounded-full bg-white" />
+          <span className="relative text-[0.7rem] font-bold uppercase tracking-[0.16em]">sbi</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[clamp(1rem,2vw,1.4rem)] font-black leading-none text-black">SBI Mutual Fund</p>
+          <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#6f8aa9]">A partner for life</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "DSP Mutual Fund",
+    subtitle: "Mutual Fund",
+    logo: (
+      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex items-end justify-between gap-2">
+          <span className="text-[clamp(1.35rem,2.6vw,1.9rem)] font-serif font-bold leading-none text-black">DSP</span>
+          <div className="h-1.5 flex-1 rounded-full bg-[#0ec5bf]" />
+        </div>
+        <p className="mt-1 text-[clamp(0.75rem,1.5vw,1rem)] font-semibold tracking-[0.16em] text-black">MUTUAL FUND</p>
+      </div>
+    ),
+  },
+  {
+    name: "Edelweiss Mutual Fund",
+    subtitle: "Mutual Fund",
+    logo: (
+      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-[#1f4f99] px-3 py-3 text-white shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <p className="text-[clamp(0.95rem,2vw,1.5rem)] font-medium tracking-[0.04em]">Edelweiss</p>
+        <p className="mt-1 text-[clamp(0.7rem,1.5vw,0.95rem)] font-medium tracking-[0.18em] text-[#cfe0ff]">Mutual Fund</p>
+      </div>
+    ),
+  },
+  {
+    name: "Franklin Templeton Mutual Fund",
+    subtitle: "Mutual Fund",
+    logo: (
+      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#d5dce8] bg-[#f7fafc] text-[#1f355c] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
+          <span className="text-[0.65rem] font-bold uppercase leading-tight tracking-[0.12em] text-center">FT</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[clamp(0.9rem,1.9vw,1.28rem)] font-medium leading-tight text-[#1f355c]">Franklin Templeton</p>
+          <p className="mt-1 text-[clamp(0.72rem,1.5vw,0.95rem)] font-semibold uppercase tracking-[0.18em] text-[#6f8aa9]">Mutual Fund</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "Nippon India Mutual Fund",
+    subtitle: "Wealth sets you free",
+    logo: (
+      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#e22d2d] shadow-[inset_0_0_0_1px_rgba(226,45,45,0.15)]">
+          <div className="grid grid-cols-2 gap-1.5 rotate-45">
+            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
+            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
+            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
+            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[clamp(1rem,2vw,1.35rem)] font-semibold leading-none text-black">Nippon <span className="text-[#e22d2d]">India</span></p>
+          <p className="mt-1 text-[clamp(0.72rem,1.5vw,0.95rem)] font-semibold uppercase tracking-[0.18em] text-[#6f8aa9]">Mutual Fund</p>
+          <p className="mt-1 text-[0.7rem] text-[#8aa2ca]">Wealth sets you free</p>
+        </div>
+      </div>
+    ),
+  },
+];
 const MARKET_POLL_INTERVAL_MS = 30_000; // 30s — indices don't need sub-second refresh on a marketing homepage
+const poweredByRotator = [
+  "Smart AI Insights",
+  "Book Expert Call",
+  "Smart Dashboard",
+];
 
 const motionEase = [0.22, 1, 0.36, 1] as const;
 
@@ -177,6 +354,7 @@ function createFeatureCardReveal(isCompactMotion: boolean) {
 
 export default function Home() {
   const [isHeroReady, setIsHeroReady] = useState(false);
+  const [poweredByIndex, setPoweredByIndex] = useState(0);
   const [liveMarket, setLiveMarket] = useState<HomepageMarketPayload | null>(null);
   const [isLiveMarketLoading, setIsLiveMarketLoading] = useState(true);
   const [marketIndices, setMarketIndices] = useState<MarketIndicatorsResponse | null>(null);
@@ -218,6 +396,16 @@ export default function Home() {
       mediaQuery.removeListener(updateMotionDensity);
     };
   }, []);
+
+  useEffect(() => {
+    const rotatorTimer = window.setTimeout(() => {
+      setPoweredByIndex((currentIndex) => (currentIndex + 1) % poweredByRotator.length);
+    }, 2200);
+
+    return () => {
+      window.clearTimeout(rotatorTimer);
+    };
+  }, [poweredByIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -427,7 +615,7 @@ export default function Home() {
       <SiteHeader />
       <div className={`flex min-h-screen flex-col bg-[linear-gradient(180deg,#f8fbff_0%,#f1f6ff_42%,#e8f0ff_100%)] transition-opacity duration-700 ${isHeroReady ? "opacity-100" : "opacity-0"}`}>
         {/* HERO SECTION */}
-        <section className="relative overflow-hidden pt-20 pb-10 sm:pt-24 md:pb-12 md:pt-28 lg:min-h-screen">
+        <section className="relative overflow-hidden pt-32 pb-10 sm:pt-24 md:pb-12 md:pt-28 lg:min-h-screen">
           <div className="absolute inset-0">
             <div
               aria-hidden="true"
@@ -480,13 +668,26 @@ export default function Home() {
               </div>
 
               <div className="flex w-full flex-col items-center text-center lg:items-center lg:text-center">
-                <h2 className="mb-3 text-[1.45rem] font-bold leading-[1.15] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] sm:text-2xl md:text-[1.9rem]">
-                  Powered by{" "}
-                  <span className="group relative inline-flex items-center gap-1.5 overflow-hidden rounded-full border border-[#00e0ff]/30 bg-[linear-gradient(120deg,rgba(0,224,255,0.12),rgba(43,92,255,0.15),rgba(0,224,255,0.08))] px-3 py-0.5 text-[0.85em] shadow-[0_0_16px_rgba(0,224,255,0.18),0_6px_18px_rgba(0,216,255,0.12)] backdrop-blur-md transition-all duration-500 hover:border-[#00e0ff]/50 hover:shadow-[0_0_24px_rgba(0,224,255,0.3),0_8px_24px_rgba(0,216,255,0.18)]">
-                    <span className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)]" />
-                    <Sparkles className="relative h-3.5 w-3.5 text-[#00e0ff] drop-shadow-[0_0_6px_rgba(0,224,255,0.5)]" />
-                    <span className="relative bg-[linear-gradient(120deg,#c5f6ff,#ffffff,#a0ecff)] bg-clip-text font-bold tracking-wide text-transparent">
-                      Smart AI Insights
+                <h2 className="mb-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[1.45rem] font-bold leading-none tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] sm:text-2xl md:text-[1.9rem]">
+                  <span className="whitespace-nowrap">Powered by</span>
+                  <span className="group relative inline-flex min-h-[2.7rem] min-w-[18rem] items-center gap-1.5 self-center overflow-visible rounded-full border border-[#00e0ff]/30 bg-[linear-gradient(120deg,rgba(0,224,255,0.12),rgba(43,92,255,0.15),rgba(0,224,255,0.08))] px-3 py-1.5 text-[0.76em] shadow-[0_0_16px_rgba(0,224,255,0.18),0_6px_18px_rgba(0,216,255,0.12)] backdrop-blur-md transition-all duration-500 hover:border-[#00e0ff]/50 hover:shadow-[0_0_24px_rgba(0,224,255,0.3),0_8px_24px_rgba(0,216,255,0.18)] sm:text-[0.82em]">
+                    <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
+                      <span className="absolute inset-0 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite] bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)]" />
+                    </span>
+                    <Sparkles className="relative h-3.5 w-3.5 shrink-0 text-[#00e0ff] drop-shadow-[0_0_6px_rgba(0,224,255,0.5)]" />
+                    <span className="relative flex h-[1.15em] flex-1 items-center overflow-hidden leading-none tracking-wide text-transparent">
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.span
+                          key={poweredByRotator[poweredByIndex]}
+                          initial={{ y: 18, opacity: 0, filter: "blur(3px)" }}
+                          animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+                          exit={{ y: -18, opacity: 0, filter: "blur(3px)" }}
+                          transition={{ type: "spring", stiffness: 140, damping: 18 }}
+                          className="absolute inset-x-0 bg-[linear-gradient(120deg,#c5f6ff,#ffffff,#a0ecff)] bg-clip-text text-center font-bold text-transparent"
+                        >
+                          {poweredByRotator[poweredByIndex]}
+                        </motion.span>
+                      </AnimatePresence>
                     </span>
                   </span>
                 </h2>
@@ -1247,55 +1448,144 @@ export default function Home() {
               </div>
             </motion.article>
 
+          </div>
+        </motion.section>
+
+        <motion.section
+          id="trusted-partners"
+          className="relative overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#f7f9fc_100%)] py-24 md:py-28"
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={sectionViewport}
+        >
+          <div className="pointer-events-none absolute -left-32 top-10 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.04),transparent_65%)]" />
+          <div className="pointer-events-none absolute -right-36 bottom-0 h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,rgba(0,216,255,0.04),transparent_65%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            <motion.div className="max-w-3xl" variants={chartCardReveal} custom={0}>
+              <div className="mb-4 inline-flex items-center gap-2.5 rounded-full border border-[#2b5cff]/12 bg-[#edf4ff] px-4 py-1.5 shadow-[0_4px_16px_rgba(43,92,255,0.08)] backdrop-blur-sm">
+                <Sparkles className="h-3.5 w-3.5 text-[#2b5cff]" />
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Partner Network</span>
+              </div>
+              <h2 className="text-[clamp(1.9rem,4.6vw,3.35rem)] font-bold leading-[1.08] tracking-tight text-[#0a1930]">
+                Our Trusted Partners
+              </h2>
+              <p className="mt-4 max-w-3xl text-base leading-relaxed text-[#50607d] md:text-lg">
+                Pravix surfaces respected fund houses in a clean, scannable format so clients can compare trusted names while staying inside a calm, modern wealth-planning experience.
+              </p>
+            </motion.div>
+
+            <motion.div
+              className="mt-10 overflow-hidden rounded-[2rem] border border-[#dbe7ff] bg-white p-5 shadow-[0_16px_40px_rgba(10,25,48,0.08)] md:p-6"
+              variants={chartCardReveal}
+              custom={1}
+            >
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#0a1930]">Fund Houses</p>
+                  <p className="mt-1 text-xs text-[#5f7396]">Official brand names shown in a premium tile layout.</p>
+                </div>
+                <span className="inline-flex items-center rounded-full border border-[#cfe0ff] bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#2b5cff]">
+                  10 partner tiles
+                </span>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                {trustedPartners.map((partner, index) => (
+                  <motion.article
+                    key={`${partner.name}-${index}`}
+                    className="group rounded-[1.4rem] border border-[#e1ebfb] bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-3.5 shadow-[0_8px_22px_rgba(43,92,255,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_30px_rgba(43,92,255,0.12)]"
+                    variants={featureCardReveal}
+                    custom={index}
+                  >
+                    <div className="flex h-24 items-center justify-center sm:h-28">
+                      <div className="w-full max-w-[170px]">{partner.logo}</div>
+                    </div>
+                    <div className="mt-3 border-t border-[#edf2fb] pt-3 text-center">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5f7396]">{partner.subtitle}</p>
+                      <p className="mt-1 text-sm font-semibold text-[#0a1930]">{partner.name}</p>
+                    </div>
+                  </motion.article>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </motion.section>
+
+        <motion.section
+          id="market-signals"
+          className="relative overflow-hidden bg-white py-24 md:py-28"
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={denseSectionViewport}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(43,92,255,0.03),transparent_50%),radial-gradient(circle_at_80%_80%,rgba(0,216,255,0.03),transparent_50%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            <motion.div className="mx-auto max-w-3xl text-center" variants={chartCardReveal} custom={0}>
+              <div className="mx-auto mb-5 inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-[#edf4ff] px-4 py-1.5">
+                <LineChartIcon className="h-3.5 w-3.5 text-[#2b5cff]" />
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Market Signals</span>
+              </div>
+              <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                Breadth, allocation, and currency context in one place
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
+                This view separates the broader live signals from the planning layer above so the section stays scannable.
+              </p>
+            </motion.div>
+
             <motion.div className="mt-10 grid gap-5 lg:grid-cols-3" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
               <motion.article
-                className="rounded-3xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm lg:col-span-2"
+                className="rounded-3xl border border-[#e2ebff] bg-[#f8fbff] p-5 shadow-[0_10px_28px_rgba(43,92,255,0.06)] lg:col-span-2"
                 variants={chartCardReveal}
                 custom={0}
               >
                 <div className="flex items-center gap-2">
-                  <LineChartIcon className="h-4.5 w-4.5 text-[#00d8ff]" />
-                  <p className="text-sm font-semibold text-white">Fear &amp; Greed Trend</p>
+                  <LineChartIcon className="h-4.5 w-4.5 text-[#2b5cff]" />
+                  <p className="text-sm font-semibold text-[#0a1930]">Fear &amp; Greed Trend</p>
                 </div>
-                <p className="mt-1 text-xs text-[#d9e6ff]">
+                <p className="mt-1 text-xs text-[#50607d]">
                   {isLiveMarketLoading ? "Loading live sentiment feed..." : sentimentSourceLabel}
                 </p>
                 <div className="mt-4 h-64">
                   {isHeroReady ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={sentimentChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="4 4" stroke="rgba(219,234,254,0.18)" />
-                        <XAxis dataKey="label" stroke="#c4d7fb" fontSize={12} />
-                        <YAxis stroke="#c4d7fb" fontSize={12} domain={[0, 100]} />
+                        <CartesianGrid strokeDasharray="4 4" stroke="rgba(43,92,255,0.12)" />
+                        <XAxis dataKey="label" stroke="#5f7396" fontSize={12} />
+                        <YAxis stroke="#5f7396" fontSize={12} domain={[0, 100]} />
                         <Tooltip
                           formatter={(value, name) => [
                             `${Number(value ?? 0).toFixed(1)}`,
                             name === "value" ? "Index" : "3D Avg",
                           ]}
-                          contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
-                          labelStyle={{ color: "#dce8ff" }}
-                          itemStyle={{ color: "#f2f7ff" }}
+                          contentStyle={{ backgroundColor: "#ffffff", borderColor: "#d8e7ff", borderRadius: "10px" }}
+                          labelStyle={{ color: "#0a1930" }}
+                          itemStyle={{ color: "#142a4a" }}
                         />
-                        <Line type="monotone" dataKey="value" stroke="#00d8ff" strokeWidth={2.8} dot={false} />
+                        <Line type="monotone" dataKey="value" stroke="#2b5cff" strokeWidth={2.8} dot={false} />
                         <Line type="monotone" dataKey="avg" stroke="#86a9a3" strokeWidth={2} dot={false} strokeDasharray="6 3" />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full w-full animate-pulse rounded-2xl border border-white/20 bg-white/10" />
+                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#e2ebff] bg-[#f8fbff]" />
                   )}
                 </div>
               </motion.article>
 
               <motion.article
-                className="rounded-3xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm"
+                className="rounded-3xl border border-[#e2ebff] bg-[#f8fbff] p-5 shadow-[0_10px_28px_rgba(43,92,255,0.06)]"
                 variants={chartCardReveal}
                 custom={1}
               >
                 <div className="flex items-center gap-2">
-                  <Wallet className="h-4.5 w-4.5 text-[#00d8ff]" />
-                  <p className="text-sm font-semibold text-white">Allocation Mix</p>
+                  <Wallet className="h-4.5 w-4.5 text-[#2b5cff]" />
+                  <p className="text-sm font-semibold text-[#0a1930]">Allocation Mix</p>
                 </div>
-                <p className="mt-1 text-xs text-[#d9e6ff]">A balanced goal-first structure with diversification controls</p>
+                <p className="mt-1 text-xs text-[#50607d]">A balanced goal-first structure with diversification controls</p>
                 <div className="mt-4 h-56">
                   {isHeroReady ? (
                     <ResponsiveContainer width="100%" height="100%">
@@ -1316,39 +1606,39 @@ export default function Home() {
                         </Pie>
                         <Tooltip
                           formatter={(value) => [`${Number(value ?? 0).toFixed(1)}%`, "Weight"]}
-                          contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
-                          labelStyle={{ color: "#dce8ff" }}
-                          itemStyle={{ color: "#f2f7ff" }}
+                          contentStyle={{ backgroundColor: "#ffffff", borderColor: "#d8e7ff", borderRadius: "10px" }}
+                          labelStyle={{ color: "#0a1930" }}
+                          itemStyle={{ color: "#142a4a" }}
                         />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full w-full animate-pulse rounded-2xl border border-white/20 bg-white/10" />
+                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#e2ebff] bg-[#f8fbff]" />
                   )}
                 </div>
                 <div className="mt-2 grid grid-cols-1 gap-1.5">
                   {allocationMixData.map((item, index) => (
-                    <div key={item.name} className="flex items-center justify-between text-xs text-[#d9e6ff]">
+                    <div key={item.name} className="flex items-center justify-between text-xs text-[#50607d]">
                       <span className="inline-flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: allocationColors[index % allocationColors.length] }} />
                         {item.name}
                       </span>
-                      <span className="font-semibold text-white">{item.value}%</span>
+                      <span className="font-semibold text-[#0a1930]">{item.value}%</span>
                     </div>
                   ))}
                 </div>
               </motion.article>
 
               <motion.article
-                className="rounded-3xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm lg:col-span-3"
+                className="rounded-3xl border border-[#e2ebff] bg-[#f8fbff] p-5 shadow-[0_10px_28px_rgba(43,92,255,0.06)] lg:col-span-3"
                 variants={chartCardReveal}
                 custom={2}
               >
                 <div className="flex items-center gap-2">
-                  <Globe2 className="h-4.5 w-4.5 text-[#00d8ff]" />
-                  <p className="text-sm font-semibold text-white">USD/INR Drift (Live)</p>
+                  <Globe2 className="h-4.5 w-4.5 text-[#2b5cff]" />
+                  <p className="text-sm font-semibold text-[#0a1930]">USD/INR Drift (Live)</p>
                 </div>
-                <p className="mt-1 text-xs text-[#d9e6ff]">
+                <p className="mt-1 text-xs text-[#50607d]">
                   {isLiveMarketLoading ? "Loading live FX feed..." : fxSourceLabel}
                 </p>
                 <div className="mt-4 h-56">
@@ -1361,24 +1651,24 @@ export default function Home() {
                             <stop offset="95%" stopColor="#00d8ff" stopOpacity={0.06} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="4 4" stroke="rgba(219,234,254,0.18)" />
-                        <XAxis dataKey="label" stroke="#c4d7fb" fontSize={12} />
-                        <YAxis stroke="#c4d7fb" fontSize={12} tickFormatter={(value) => `${Number(value).toFixed(2)}`} />
+                        <CartesianGrid strokeDasharray="4 4" stroke="rgba(43,92,255,0.12)" />
+                        <XAxis dataKey="label" stroke="#5f7396" fontSize={12} />
+                        <YAxis stroke="#5f7396" fontSize={12} tickFormatter={(value) => `${Number(value).toFixed(2)}`} />
                         <Tooltip
                           formatter={(value, name) => [
                             `${Number(value ?? 0).toFixed(3)}`,
                             name === "rate" ? "USD/INR" : "3D Avg",
                           ]}
-                          contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
-                          labelStyle={{ color: "#dce8ff" }}
-                          itemStyle={{ color: "#f2f7ff" }}
+                          contentStyle={{ backgroundColor: "#ffffff", borderColor: "#d8e7ff", borderRadius: "10px" }}
+                          labelStyle={{ color: "#0a1930" }}
+                          itemStyle={{ color: "#142a4a" }}
                         />
                         <Area type="monotone" dataKey="rolling" stroke="#86a9a3" fill="transparent" strokeDasharray="7 4" />
-                        <Area type="monotone" dataKey="rate" stroke="#00d8ff" fill="url(#sipGradient)" strokeWidth={2.5} />
+                        <Area type="monotone" dataKey="rate" stroke="#2b5cff" fill="url(#sipGradient)" strokeWidth={2.5} />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full w-full animate-pulse rounded-2xl border border-white/20 bg-white/10" />
+                    <div className="h-full w-full animate-pulse rounded-2xl border border-[#e2ebff] bg-[#f8fbff]" />
                   )}
                 </div>
               </motion.article>
@@ -1389,8 +1679,8 @@ export default function Home() {
         <AllModulesVideoSection isCompactMotion={isCompactMotion} isHeroReady={isHeroReady} />
 
         {/* ═══════════════════════════════════════════════════════════════════
-            SECTION: ABOUT US — Premium Redesign
-            ═══════════════════════════════════════════════════════════════════ */}
+          SECTION: TEAM PRAVIX — Premium Redesign
+          ═══════════════════════════════════════════════════════════════════ */}
         <motion.section
           id="about-us"
           className="relative overflow-hidden bg-white py-28 md:py-36"
@@ -1520,10 +1810,10 @@ export default function Home() {
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0)_25%,rgba(10,25,48,0.62)_100%)]" />
                     <div className="absolute inset-x-0 bottom-0 p-4 text-white">
                       <p className="text-xl font-semibold">Aditya Saini</p>
-                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Advocate & Tax Consultant · B.Sc, LLB</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Advocate & Tax Consultant ·</p>
                     </div>
                   </div>
-                  <div className="border-t border-[#d8e7ff] px-4 py-3 text-xs text-[#50607d]">Contact: adv.aaditya00@gmail.com</div>
+                  {/* <div className="border-t border-[#d8e7ff] px-4 py-3 text-xs text-[#50607d]">Contact: adv.aaditya00@gmail.com</div> */}
                 </motion.article>
               </div>
             </div>
@@ -1720,16 +2010,6 @@ export default function Home() {
             </div>
           </div>
         </motion.section>
-
-        <div className="fixed inset-x-0 bottom-3 z-40 px-4 sm:hidden">
-          <Link
-            href="/onboarding"
-            className="mx-auto flex h-12 w-full max-w-sm items-center justify-center gap-2 rounded-full bg-finance-accent text-sm font-semibold text-white shadow-[0_14px_30px_rgba(43,92,255,0.34)]"
-          >
-            Start your plan
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
 
       </div>
     </>

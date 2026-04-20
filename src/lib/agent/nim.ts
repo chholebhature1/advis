@@ -57,6 +57,18 @@ class DeepSeekApiError extends Error {
   }
 }
 
+class OpenRouterApiError extends Error {
+  status: number;
+  retryAfterMs: number | null;
+
+  constructor(status: number, bodyPreview: string, retryAfterMs: number | null) {
+    super(`OpenRouter API error (${status}): ${bodyPreview}`);
+    this.name = "OpenRouterApiError";
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
 class ProviderQualityError extends Error {
   provider: "NIM" | "DeepSeek";
 
@@ -102,7 +114,7 @@ const CIRCUIT_RATE_LIMIT_THRESHOLD = 0.3;
 const CIRCUIT_CONSECUTIVE_FAILURES = 5;
 const CIRCUIT_HALF_OPEN_PROBE_TARGET = 2;
 
-type ProviderName = "nim" | "deepseek";
+type ProviderName = "nim" | "deepseek" | "openrouter";
 type CircuitMode = "closed" | "open" | "half-open";
 
 type ProviderCircuit = {
@@ -138,6 +150,7 @@ function createProviderCircuit(): ProviderCircuit {
 const providerCircuits: Record<ProviderName, ProviderCircuit> = {
   nim: createProviderCircuit(),
   deepseek: createProviderCircuit(),
+  openrouter: createProviderCircuit(),
 };
 
 function getNimApiKey() {
@@ -164,6 +177,19 @@ function getDeepSeekApiKey() {
 
 function getDeepSeekModel() {
   return process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
+}
+
+function getOpenRouterApiKey() {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) {
+    throw new Error("Missing OPENROUTER_API_KEY environment variable.");
+  }
+
+  return key;
+}
+
+function getOpenRouterModel() {
+  return process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini";
 }
 
 function getNimTimeoutMs() {
@@ -934,7 +960,7 @@ function isRetryableStatus(status: number): boolean {
 }
 
 function isRetryableProviderError(error: unknown): boolean {
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError) {
+  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
     return isRetryableStatus(error.status);
   }
 
@@ -953,7 +979,7 @@ function isRetryableProviderError(error: unknown): boolean {
 }
 
 function getRetryAfterFromError(error: unknown): number | null {
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError) {
+  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
     return error.retryAfterMs;
   }
 
@@ -1023,7 +1049,7 @@ function openCircuit(circuit: ProviderCircuit, now: number) {
 }
 
 function getProviderErrorStatus(error: unknown): number | null {
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError) {
+  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
     return error.status;
   }
 
@@ -1123,7 +1149,7 @@ function isNimCapacityError(error: unknown): boolean {
     return true;
   }
 
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError) {
+  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
     return isRetryableStatus(error.status) || error.status === 401;
   }
 
@@ -1148,6 +1174,7 @@ function isNimCapacityError(error: unknown): boolean {
     message.includes("missing nvidia_nim_api_key") ||
     message.includes("missing nim_api_key") ||
     message.includes("missing deepseek_api_key") ||
+    message.includes("missing openrouter_api_key") ||
     message.includes("quality gate failed")
   );
 }
@@ -1695,6 +1722,73 @@ async function callDeepSeek(
   return text;
 }
 
+async function callOpenRouter(
+  messages: NimMessage[],
+  generationConfig: { temperature: number; maxOutputTokens: number },
+  timeoutMs: number,
+): Promise<string> {
+  const apiKey = getOpenRouterApiKey();
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+
+  let response: Response;
+
+  try {
+    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: getOpenRouterModel(),
+        messages,
+        temperature: generationConfig.temperature,
+        max_tokens: generationConfig.maxOutputTokens,
+        top_p: 0.9,
+      }),
+      signal: abortController.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`OpenRouter API timeout after ${timeoutMs}ms.`);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const rawBody = await response.text();
+
+  if (!response.ok) {
+    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+    throw new OpenRouterApiError(response.status, summarizeNimErrorBody(rawBody), retryAfterMs);
+  }
+
+  let data: NimChatCompletionsResponse;
+
+  try {
+    data = JSON.parse(rawBody) as NimChatCompletionsResponse;
+  } catch {
+    throw new Error("OpenRouter returned a malformed JSON payload.");
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  const text =
+    typeof content === "string"
+      ? content.trim()
+      : Array.isArray(content)
+        ? content.map((part) => part.text ?? "").join("\n").trim()
+        : "";
+
+  if (!text) {
+    throw new Error("OpenRouter returned an empty response.");
+  }
+
+  return text;
+}
+
 async function callProviderWithRetry(input: {
   provider: ProviderName;
   attempt: (timeoutMs: number) => Promise<string>;
@@ -1765,13 +1859,11 @@ export async function generateAdvisorChatReply(input: {
   ];
 
   const deadlineAt = Date.now() + CHAT_REQUEST_DEADLINE_MS;
-  let primaryError: unknown = null;
-
   try {
     const raw = await callProviderWithRetry({
-      provider: "nim",
+      provider: "openrouter",
       attempt: (timeoutMs) =>
-        callNim(
+        callOpenRouter(
           messages,
           {
             temperature: 0.35,
@@ -1799,43 +1891,8 @@ export async function generateAdvisorChatReply(input: {
       structured,
     };
   } catch (error) {
-    primaryError = error;
-  }
-
-  try {
-    const raw = await callProviderWithRetry({
-      provider: "deepseek",
-      attempt: (timeoutMs) =>
-        callDeepSeek(
-          messages,
-          {
-            temperature: 0.3,
-            maxOutputTokens: 420,
-          },
-          timeoutMs,
-        ),
-      preferredTimeoutMs: CHAT_SECONDARY_TIMEOUT_MS,
-      maxRetries: CHAT_SECONDARY_MAX_RETRIES,
-      deadlineAt,
-    });
-
-    const strictStructured = parseStructuredAdviceStrict(raw);
-    if (!strictStructured) {
-      throw new ProviderQualityError("DeepSeek", "Response missing required structured fields.");
-    }
-
-    const structured = enforceAdviceGuardrails({
-      advice: ensurePersonalizedAdvice(strictStructured, input.context),
-      context: input.context,
-      userMessage: input.message,
-    });
-    return {
-      reply: formatStructuredAdvice(structured),
-      structured,
-    };
-  } catch (secondaryError) {
-    if (isNimCapacityError(primaryError) || isNimCapacityError(secondaryError)) {
-      const reason = `${normalizeErrorMessage(primaryError)} | ${normalizeErrorMessage(secondaryError)}`;
+    if (isNimCapacityError(error)) {
+      const reason = normalizeErrorMessage(error);
       const structured = enforceAdviceGuardrails({
         advice: ensurePersonalizedAdvice(
           buildFallbackChatStructuredAdvice({
@@ -1855,7 +1912,7 @@ export async function generateAdvisorChatReply(input: {
       };
     }
 
-    throw secondaryError;
+    throw error;
   }
 }
 
@@ -1873,13 +1930,11 @@ export async function generateDashboardActionPlan(context: AgentContext): Promis
   ];
 
   const deadlineAt = Date.now() + DASHBOARD_REQUEST_DEADLINE_MS;
-  let primaryError: unknown = null;
-
   try {
     return await callProviderWithRetry({
-      provider: "nim",
+      provider: "openrouter",
       attempt: (timeoutMs) =>
-        callNim(
+        callOpenRouter(
           messages,
           {
             temperature: 0.2,
@@ -1892,31 +1947,11 @@ export async function generateDashboardActionPlan(context: AgentContext): Promis
       deadlineAt,
     });
   } catch (error) {
-    primaryError = error;
-  }
-
-  try {
-    return await callProviderWithRetry({
-      provider: "deepseek",
-      attempt: (timeoutMs) =>
-        callDeepSeek(
-          messages,
-          {
-            temperature: 0.2,
-            maxOutputTokens: 280,
-          },
-          timeoutMs,
-        ),
-      preferredTimeoutMs: DASHBOARD_SECONDARY_TIMEOUT_MS,
-      maxRetries: DASHBOARD_SECONDARY_MAX_RETRIES,
-      deadlineAt,
-    });
-  } catch (secondaryError) {
-    if (isNimCapacityError(primaryError) || isNimCapacityError(secondaryError)) {
-      const reason = `${normalizeErrorMessage(primaryError)} | ${normalizeErrorMessage(secondaryError)}`;
+    if (isNimCapacityError(error)) {
+      const reason = normalizeErrorMessage(error);
       return buildFallbackDashboardActionPlan(context, reason);
     }
 
-    throw secondaryError;
+    throw error;
   }
 }
