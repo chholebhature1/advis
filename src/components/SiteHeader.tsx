@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { ArrowRight, ChevronRight, Menu, X } from "lucide-react";
+import { ArrowRight, Menu, UserRound, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type HeaderMarketIndicatorId = "NIFTY50" | "BANKNIFTY" | "SENSEX";
@@ -22,25 +22,15 @@ type HeaderMarketIndicatorsResponse = {
 };
 
 const TICKER_ORDER: HeaderMarketIndicatorId[] = ["NIFTY50", "SENSEX", "BANKNIFTY"];
-const TICKER_POLL_MS = 30_000; // 30s — no need for sub-second ticker on marketing header
 
 const HOME_SCROLL_SECTIONS = [
   { id: "how-it-works", hash: "#how-it-works" },
   { id: "insights", hash: "#insights" },
-  { id: "pravix-team", hash: "#pravix-team" },
+  { id: "about-us", hash: "#about-us" },
   { id: "blog", hash: "#blog" },
   { id: "contact", hash: "#book-discovery-call" },
   { id: "book-discovery-call", hash: "#book-discovery-call" },
 ] as const;
-
-const NAV_ITEMS = [
-  { label: "How It Works", href: "/#how-it-works", emoji: "✦" },
-  { label: "Dashboard", href: "/dashboard", emoji: "◈" },
-  { label: "Marketplace", href: "/#insights", emoji: "◐" },
-  { label: "Blog", href: "/#blog", emoji: "◉" },
-  { label: "Pravix Team", href: "/#pravix-team", emoji: "◈" },
-  { label: "Contact", href: "/#book-discovery-call", emoji: "◎" },
-];
 
 export default function SiteHeader() {
   const pathname = usePathname();
@@ -50,6 +40,7 @@ export default function SiteHeader() {
   const [activeHash, setActiveHash] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [marketTicker, setMarketTicker] = useState<HeaderMarketIndicator[]>([]);
   const [isTickerLoading, setIsTickerLoading] = useState(true);
@@ -64,7 +55,10 @@ export default function SiteHeader() {
   }, [handleScroll]);
 
   useEffect(() => {
-    const syncHash = () => setActiveHash(window.location.hash || "");
+    const syncHash = () => {
+      setActiveHash(window.location.hash || "");
+    };
+
     syncHash();
     window.addEventListener("hashchange", syncHash);
     return () => window.removeEventListener("hashchange", syncHash);
@@ -74,93 +68,203 @@ export default function SiteHeader() {
     setIsMobileMenuOpen(false);
   }, [pathname, activeHash]);
 
-  /* Lock body scroll when sheet is open */
   useEffect(() => {
-    if (!isMobileMenuOpen) return;
-    const prev = document.body.style.overflow;
+    if (!isMobileMenuOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [isMobileMenuOpen]);
 
-  /* Market ticker — 30s refresh */
   useEffect(() => {
     let mounted = true;
+
     const fetchTicker = async () => {
       try {
         const response = await fetch(`/api/market/indices?ts=${Date.now()}`, {
           method: "GET",
           cache: "no-store",
         });
-        if (!response.ok) throw new Error(`Ticker error: ${response.status}`);
+
+        if (!response.ok) {
+          throw new Error(`Market ticker failed: ${response.status}`);
+        }
+
         const payload = (await response.json()) as HeaderMarketIndicatorsResponse;
         const indices = Array.isArray(payload.indices) ? payload.indices : [];
-        if (mounted && indices.length > 0) setMarketTicker(indices);
+
+        if (mounted && indices.length > 0) {
+          setMarketTicker(indices);
+        }
       } catch {
         // Keep current values on transient failures.
       } finally {
-        if (mounted) setIsTickerLoading(false);
+        if (mounted) {
+          setIsTickerLoading(false);
+        }
       }
     };
 
     void fetchTicker();
-    const refreshTimer = window.setInterval(fetchTicker, TICKER_POLL_MS);
+    const refreshTimer = window.setInterval(fetchTicker, 500);
+
     return () => {
       mounted = false;
       window.clearInterval(refreshTimer);
     };
   }, []);
 
-  /* Auth state */
   useEffect(() => {
     let mounted = true;
-    const supabase = (() => { try { return getSupabaseBrowserClient(); } catch { return null; } })();
+
+    const supabase = (() => {
+      try {
+        return getSupabaseBrowserClient();
+      } catch {
+        return null;
+      }
+    })();
+
     if (!supabase) {
-      if (mounted) { setIsAuthenticated(false); setIsAuthResolved(true); }
+      if (mounted) {
+        setIsAuthenticated(false);
+        setSignedInEmail(null);
+        setIsAuthResolved(true);
+      }
       return;
     }
+
     const supabaseClient = supabase;
+
     async function syncCurrentUser() {
       try {
-        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-        if (sessionError) throw sessionError;
-        if (mounted) { setIsAuthenticated(Boolean(session?.user)); }
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabaseClient.auth.getSession();
+
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        const user = session?.user ?? null;
+
+        if (mounted) {
+          setIsAuthenticated(Boolean(user));
+          setSignedInEmail(user?.email ?? null);
+        }
       } catch {
-        if (mounted) setIsAuthenticated(false);
+        // Avoid surfacing transient Supabase auth lock contention as a runtime crash.
+        if (mounted) {
+          setIsAuthenticated(false);
+          setSignedInEmail(null);
+        }
       } finally {
-        if (mounted) setIsAuthResolved(true);
+        if (mounted) {
+          setIsAuthResolved(true);
+        }
       }
     }
+
     void syncCurrentUser();
-    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
+
+    const {
+      data: { subscription },
+    } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) {
+        return;
+      }
+
       setIsAuthenticated(Boolean(session?.user));
+      setSignedInEmail(session?.user?.email ?? null);
       setIsAuthResolved(true);
     });
-    return () => { mounted = false; subscription.unsubscribe(); };
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  /* Active section tracking on scroll */
+  /* ─── Onboarding Header ─── */
+  if (isOnboarding) {
+    return (
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-finance-border/40 bg-finance-bg/95 backdrop-blur-sm">
+        <div className="mx-auto h-16 max-w-6xl px-6 flex items-center justify-between">
+          <Link href="/" className="text-finance-text font-semibold tracking-tight">Pravix</Link>
+          <div className="hidden md:flex items-center gap-4 text-[11px] uppercase tracking-[0.2em] text-finance-muted">
+            <span>Application Progress</span>
+            <div className="flex gap-2">
+              <span className="h-[2px] w-12 rounded-full bg-finance-accent" />
+              <span className="h-[2px] w-12 rounded-full bg-finance-border" />
+            </div>
+          </div>
+          <Link href="/" className="text-xs text-finance-muted hover:text-finance-text">Save &amp; Exit</Link>
+        </div>
+      </header>
+    );
+  }
+
+  /* ─── Nav Items ─── */
+  const baseNavItems = [
+    { label: "How It Works", href: "/#how-it-works" },
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Marketplace", href: "/#insights" },
+    { label: "Blog", href: "/#blog" },
+    { label: "About Us", href: "/#about-us" },
+    { label: "Contact", href: "/#book-discovery-call" },
+  ];
+  const navItems = baseNavItems;
+
   useEffect(() => {
-    if (pathname !== "/") return;
+    if (pathname !== "/") {
+      return;
+    }
+
     const syncActiveSection = () => {
       const markerY = window.scrollY + 140;
       const sections: Array<{ hash: string; offsetTop: number }> = [];
+
       for (const section of HOME_SCROLL_SECTIONS) {
         const element = document.getElementById(section.id);
-        if (!element) continue;
-        sections.push({ hash: section.hash, offsetTop: element.offsetTop });
+
+        if (!element) {
+          continue;
+        }
+
+        sections.push({
+          hash: section.hash,
+          offsetTop: element.offsetTop,
+        });
       }
-      if (sections.length === 0) return;
+
+      if (sections.length === 0) {
+        return;
+      }
+
       let nextHash = "";
+
       for (const section of sections) {
-        if (markerY >= section.offsetTop) { nextHash = section.hash; continue; }
+        if (markerY >= section.offsetTop) {
+          nextHash = section.hash;
+          continue;
+        }
+
         break;
       }
+
       setActiveHash((currentHash) => (currentHash === nextHash ? currentHash : nextHash));
     };
+
     syncActiveSection();
     window.addEventListener("scroll", syncActiveSection, { passive: true });
     window.addEventListener("resize", syncActiveSection);
+
     return () => {
       window.removeEventListener("scroll", syncActiveSection);
       window.removeEventListener("resize", syncActiveSection);
@@ -168,279 +272,385 @@ export default function SiteHeader() {
   }, [pathname]);
 
   function isNavItemActive(href: string): boolean {
-    if (!href.startsWith("/")) return false;
+    if (!href.startsWith("/")) {
+      return false;
+    }
+
     const [rawPath, rawHash] = href.split("#");
     const itemPath = rawPath || "/";
-    if (!rawHash) return pathname === itemPath;
-    if (itemPath === "/") return pathname === "/" && activeHash === `#${rawHash}`;
+
+    if (!rawHash) {
+      return pathname === itemPath;
+    }
+
+    if (itemPath === "/") {
+      return pathname === "/" && activeHash === `#${rawHash}`;
+    }
+
     return pathname === itemPath;
   }
 
-  /* ─── Onboarding Header ─── */
-  if (isOnboarding) {
-    return (
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-finance-border/40 bg-finance-bg/95 backdrop-blur-sm">
-        <div className="mx-auto h-14 max-w-6xl px-4 flex items-center justify-between">
-          <Link href="/" className="text-finance-text font-bold tracking-tight text-lg">Pravix</Link>
-          <Link href="/" className="text-xs font-medium text-finance-muted hover:text-finance-text px-3 py-2">
-            Save & Exit
-          </Link>
-        </div>
-      </header>
-    );
-  }
-
-  /* ─── Ticker data ─── */
+  /* ─── Main header ─── */
   const marketFormat = new Intl.NumberFormat("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const orderedTicker = TICKER_ORDER.map((id) =>
-    marketTicker.find((item) => item.id === id)
-  ).filter((item): item is HeaderMarketIndicator => Boolean(item));
 
-  /* ─── Main header ─── */
+  const orderedTicker = TICKER_ORDER.map((id) => marketTicker.find((item) => item.id === id)).filter(
+    (item): item is HeaderMarketIndicator => Boolean(item)
+  );
+
+  const mobilePanelTop = scrolled ? "98px" : "112px";
+
   return (
-    <>
-      <header
-        className="fixed top-0 left-0 right-0 z-50 flex w-full flex-col items-center"
+    <header
+      className="fixed top-0 left-0 right-0 z-50 flex w-full flex-col items-center"
+      style={{
+        padding: scrolled ? "10px 16px 0" : "0",
+        transition: "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      <div className="w-full border-b border-[#1f3157] bg-[#08142c]/80 backdrop-blur-md">
+        <div className="mx-auto h-9 w-full max-w-[1280px] overflow-hidden px-0 text-[12px] md:text-[13px]">
+          {orderedTicker.length > 0 ? (
+            <div className="market-ticker-marquee flex h-full items-center justify-center">
+              <div className="market-ticker-track flex min-w-max items-center gap-6 px-4 md:gap-8 md:px-8 lg:px-10">
+                {orderedTicker.map((item, index) => {
+                  const isPositive = item.changePct > 0;
+                  const isNegative = item.changePct < 0;
+                  const changeColorClass = isPositive ? "text-[#26d790]" : isNegative ? "text-[#ff6b6b]" : "text-[#9db4df]";
+                  const signedChangeAbs = `${item.changeAbs >= 0 ? "+" : ""}${item.changeAbs.toFixed(2)}`;
+                  const signedChangePct = `${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(2)}%`;
+                  const label = item.id === "NIFTY50" ? "Nifty" : item.id === "SENSEX" ? "Sensex" : "Bank Nifty";
+
+                  return (
+                    <div key={`${item.id}-${index}`} className="flex min-w-[24rem] items-center justify-center gap-2 text-[#dbe6ff] leading-none">
+                      <span className="w-24 text-right font-semibold text-[#c9d9ff]">{label}</span>
+                      <span className="w-32 text-right font-semibold text-white tabular-nums">{marketFormat.format(item.value)}</span>
+                      <span className={`w-36 text-left font-semibold tabular-nums ${changeColorClass}`}>
+                        {signedChangeAbs} ({signedChangePct})
+                      </span>
+                      {index < orderedTicker.length - 1 ? <span className="pl-2 text-[#5f7396]">|</span> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-full items-center px-4 md:px-8 lg:px-10">
+              <span className="text-[#b7c9ee]">{isTickerLoading ? "Loading market data..." : "Market data unavailable right now."}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <nav
         style={{
-          padding: scrolled ? "10px 16px 0" : "0",
-          transition: "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+          /* Dimensions & shape */
+          width: scrolled ? "min(880px, calc(100% - 32px))" : "100%",
+          maxWidth: scrolled ? "880px" : "100%",
+          borderRadius: scrolled ? "9999px" : "0",
+
+          /* Background & blur */
+          background: scrolled
+            ? "rgba(255, 255, 255, 0.72)"
+            : "rgba(255, 255, 255, 0.90)",
+          backdropFilter: "blur(20px) saturate(1.6)",
+          WebkitBackdropFilter: "blur(20px) saturate(1.6)",
+
+          /* Border & shadow */
+          border: scrolled
+            ? "1px solid rgba(43, 92, 255, 0.14)"
+            : "1px solid rgba(0, 0, 0, 0.04)",
+          borderTop: scrolled ? undefined : "none",
+          boxShadow: scrolled
+            ? "0 8px 28px rgba(43, 92, 255, 0.12), 0 1px 3px rgba(0,0,0,0.04)"
+            : "0 1px 0 rgba(0, 0, 0, 0.04)",
+
+          /* Layout */
+          padding: scrolled ? "0 8px" : "0 24px",
+          height: scrolled ? "52px" : "64px",
+          display: "flex",
+          alignItems: "center",
+
+          /* Animation */
+          transition: [
+            "width 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+            "max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+            "border-radius 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+            "background 0.35s ease",
+            "border 0.35s ease",
+            "box-shadow 0.35s ease",
+            "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+            "height 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+          ].join(", "),
         }}
       >
-        {/* Market ticker bar */}
-        <div className="w-full border-b border-[#1f3157] bg-[#08142c]/85 backdrop-blur-md">
-          <div className="mx-auto h-8 w-full max-w-[1280px] overflow-hidden">
-            {orderedTicker.length > 0 ? (
-              <div className="market-ticker-marquee flex h-full items-center">
-                <div className="market-ticker-track flex min-w-max items-center gap-4 px-4 md:gap-7 md:px-8">
-                  {/* Duplicate for seamless loop */}
-                  {[...orderedTicker, ...orderedTicker].map((item, index) => {
-                    const isPositive = item.changePct > 0;
-                    const isNegative = item.changePct < 0;
-                    const color = isPositive ? "text-[#26d790]" : isNegative ? "text-[#ff6b6b]" : "text-[#9db4df]";
-                    const signedAbs = `${item.changeAbs >= 0 ? "+" : ""}${item.changeAbs.toFixed(2)}`;
-                    const signedPct = `${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(2)}%`;
-                    const label = item.id === "NIFTY50" ? "Nifty" : item.id === "SENSEX" ? "Sensex" : "Bank Nifty";
-                    return (
-                      <div key={`${item.id}-${index}`} className="flex items-center gap-1.5 text-[11px] md:text-[12px] text-[#dbe6ff] leading-none whitespace-nowrap">
-                        <span className="font-semibold text-[#c9d9ff]">{label}</span>
-                        <span className="font-bold text-white tabular-nums">{marketFormat.format(item.value)}</span>
-                        <span className={`font-semibold tabular-nums ${color}`}>{signedAbs} ({signedPct})</span>
-                        <span className="text-[#3d5480] mx-1">|</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="flex h-full items-center px-4">
-                <span className="text-[11px] text-[#b7c9ee]">
-                  {isTickerLoading ? "Fetching market data…" : "Market data unavailable."}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Main nav pill */}
-        <nav
+        <div
+          className="w-full flex items-center justify-between"
           style={{
-            width: scrolled ? "min(860px, calc(100% - 28px))" : "100%",
-            maxWidth: scrolled ? "860px" : "100%",
-            borderRadius: scrolled ? "9999px" : "0",
-            background: scrolled ? "rgba(255,255,255,0.78)" : "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(20px) saturate(1.6)",
-            WebkitBackdropFilter: "blur(20px) saturate(1.6)",
-            border: scrolled ? "1px solid rgba(43,92,255,0.14)" : "1px solid rgba(0,0,0,0.04)",
-            borderTop: scrolled ? undefined : "none",
-            boxShadow: scrolled ? "0 8px 28px rgba(43,92,255,0.12), 0 1px 3px rgba(0,0,0,0.04)" : "0 1px 0 rgba(0,0,0,0.04)",
-            padding: scrolled ? "0 6px" : "0 16px",
-            height: scrolled ? "50px" : "58px",
-            display: "flex",
-            alignItems: "center",
-            transition: [
-              "width 0.45s cubic-bezier(0.22,1,0.36,1)",
-              "max-width 0.45s cubic-bezier(0.22,1,0.36,1)",
-              "border-radius 0.45s cubic-bezier(0.22,1,0.36,1)",
-              "background 0.35s ease",
-              "border 0.35s ease",
-              "box-shadow 0.35s ease",
-              "padding 0.45s cubic-bezier(0.22,1,0.36,1)",
-              "height 0.45s cubic-bezier(0.22,1,0.36,1)",
-            ].join(", "),
+            maxWidth: scrolled ? "100%" : "1280px",
+            margin: "0 auto",
+            padding: scrolled ? "0 12px" : "0 16px",
+            transition: "max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1), padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
-          <div
-            className="w-full flex items-center justify-between"
+          {/* Logo */}
+          <Link
+            href="/"
+            className="font-bold tracking-tight text-[#142a4a] hover:text-[#2b5cff] transition-colors duration-300"
             style={{
-              maxWidth: scrolled ? "100%" : "1280px",
-              margin: "0 auto",
-              padding: scrolled ? "0 10px" : "0 4px",
-              transition: "padding 0.45s cubic-bezier(0.22,1,0.36,1)",
+              fontSize: scrolled ? "18px" : "22px",
+              transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s ease",
             }}
           >
-            {/* Logo */}
-            <Link
-              href="/"
-              className="font-bold tracking-tight text-[#142a4a] hover:text-[#2b5cff] transition-colors duration-300 flex items-center gap-1.5"
-              style={{
-                fontSize: scrolled ? "16px" : "19px",
-                transition: "font-size 0.45s cubic-bezier(0.22,1,0.36,1)",
-              }}
-            >
-              Pravix
-            </Link>
+            Pravix
+          </Link>
 
-            {/* Desktop center nav */}
-            <div
-              className="hidden md:flex items-center"
-              style={{ gap: scrolled ? "18px" : "26px", transition: "gap 0.45s cubic-bezier(0.22,1,0.36,1)" }}
-            >
-              {NAV_ITEMS.map((item) => {
-                const isActive = isNavItemActive(item.href);
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className="navlink-hover relative"
-                    style={{
-                      fontSize: scrolled ? "13px" : "13.5px",
-                      fontWeight: 500,
-                      color: isActive ? "#2b5cff" : "#5f7396",
-                      letterSpacing: "0.01em",
-                      transition: "font-size 0.45s cubic-bezier(0.22,1,0.36,1), color 0.25s ease",
-                    }}
-                  >
-                    {item.label}
-                    {isActive && (
-                      <span
-                        className="absolute left-1/2 -translate-x-1/2 rounded-full bg-[#2b5cff]"
-                        style={{ bottom: "-6px", height: "2px", width: "16px" }}
-                      />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Right side actions */}
-            <div className="flex items-center gap-2">
-              {/* Mobile hamburger — 44×44 hit target */}
-              <button
-                type="button"
-                aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-                aria-expanded={isMobileMenuOpen}
-                onClick={() => setIsMobileMenuOpen((v) => !v)}
-                className="md:hidden flex items-center justify-center rounded-full border border-[#cbdaf5] bg-white/90 text-[#4d6389]"
-                style={{ width: 38, height: 38 }}
-              >
-                {isMobileMenuOpen ? <X size={17} strokeWidth={2.2} /> : <Menu size={17} strokeWidth={2.2} />}
-              </button>
-
-              {/* Desktop CTA */}
-              {isAuthResolved && (
-                <Link
-                  href="/onboarding"
-                  className="hidden sm:flex items-center gap-1.5 text-white font-semibold rounded-full overflow-hidden relative group"
-                  style={{
-                    background: "#2b5cff",
-                    padding: scrolled ? "6px 16px" : "8px 20px",
-                    fontSize: scrolled ? "12px" : "13px",
-                    boxShadow: "0 4px 14px rgba(43,92,255,0.28)",
-                    transition: "padding 0.45s cubic-bezier(0.22,1,0.36,1), font-size 0.45s cubic-bezier(0.22,1,0.36,1)",
-                  }}
-                >
-                  <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <span className="relative z-10 flex items-center gap-1">
-                    {isAuthenticated ? "Get Guidance" : "Get Started"}
-                    <ArrowRight className="transition-transform duration-300 group-hover:translate-x-0.5" size={scrolled ? 13 : 14} />
-                  </span>
-                </Link>
-              )}
-            </div>
-          </div>
-        </nav>
-      </header>
-
-      {/* Mobile bottom-sheet overlay */}
-      {isMobileMenuOpen && (
-        <div
-          className="mobile-sheet-overlay md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Mobile bottom-sheet */}
-      <div
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isMobileMenuOpen ? "translate-y-0 opacity-100 pointer-events-auto" : "translate-y-full opacity-0 pointer-events-none"
-        }`}
-        style={{
-          borderRadius: "24px 24px 0 0",
-          background: "#ffffff",
-          boxShadow: "0 -12px 48px rgba(20,42,74,0.22)",
-          paddingBottom: `max(20px, env(safe-area-inset-bottom, 20px))`,
-        }}
-        aria-label="Navigation menu"
-      >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="h-1 w-10 rounded-full bg-[#d1ddf5]" />
-        </div>
-
-        {/* Nav links */}
-        <div className="px-4 pt-2 pb-2">
-          <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8196b8]">Navigate</p>
-          <div className="space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+          {/* Center nav links */}
+          <div className="hidden md:flex items-center" style={{ gap: scrolled ? "20px" : "28px", transition: "gap 0.45s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+            {navItems.map((item) => {
               const isActive = isNavItemActive(item.href);
               return (
                 <Link
-                  key={`mobile-${item.label}`}
+                  key={item.label}
                   href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center justify-between rounded-2xl px-4 py-3.5 text-[15px] font-semibold transition-colors ${
-                    isActive
-                      ? "bg-[#edf4ff] text-[#2b5cff]"
-                      : "text-[#2d4470] hover:bg-[#f5f8ff]"
-                  }`}
+                  className="navlink-hover relative"
+                  style={{
+                    fontSize: scrolled ? "13px" : "14px",
+                    fontWeight: 500,
+                    color: isActive ? "#2b5cff" : "#5f7396",
+                    letterSpacing: "0.01em",
+                    transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s ease",
+                  }}
                 >
-                  <span>{item.label}</span>
-                  <ChevronRight size={16} className={isActive ? "text-[#2b5cff]" : "text-[#8196b8]"} />
+                  {item.label}
+                  {isActive && (
+                    <span
+                      className="absolute left-1/2 -translate-x-1/2 rounded-full bg-[#2b5cff]"
+                      style={{
+                        bottom: "-6px",
+                        height: "2px",
+                        width: "16px",
+                      }}
+                    />
+                  )}
                 </Link>
               );
             })}
           </div>
-        </div>
 
-        {/* CTA buttons */}
-        <div className="px-4 pt-3 border-t border-[#eaf0fb] space-y-2.5">
-          {isAuthResolved && !isAuthenticated && (
-            <Link
-              href="/login"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="flex items-center justify-center rounded-2xl border border-[#cbdaf5] bg-white py-3.5 text-[15px] font-semibold text-[#142a4a]"
+          {/* Right side: CTA */}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-nav-panel"
+              className="inline-flex md:hidden h-9 w-9 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
+              onClick={() => setIsMobileMenuOpen((current) => !current)}
             >
-              Login
-            </Link>
-          )}
-          <Link
-            href="/onboarding"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-[#2b5cff] py-3.5 text-[15px] font-bold text-white shadow-[0_8px_24px_rgba(43,92,255,0.38)]"
-          >
-            {isAuthenticated ? "Get Guidance" : "Start for Free"}
-            <ArrowRight size={16} />
-          </Link>
-          {/* Trust signal */}
-          <p className="text-center text-[11px] text-[#8196b8] py-1">
-            🔒 Bank-grade security · No spam · Cancel anytime
-          </p>
+              {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </button>
+
+            {!isAuthResolved ? (
+              <span className="hidden md:inline-flex h-8 w-8 animate-pulse items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted">
+                <UserRound className="h-3.5 w-3.5" />
+              </span>
+            ) : isAuthenticated ? (
+              <>
+                <Link
+                  href="/onboarding"
+                  className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
+                  style={{
+                    background: "#2b5cff",
+                    padding: scrolled ? "7px 18px" : "9px 22px",
+                    fontSize: scrolled ? "12px" : "13px",
+                    boxShadow: "0 4px 14px rgba(43, 92, 255, 0.28)",
+                    transition: [
+                      "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+                      "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+                      "box-shadow 0.3s ease",
+                      "transform 0.25s ease",
+                    ].join(", "),
+                  }}
+                >
+                  <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    Get Guidance
+                    <ArrowRight
+                      className="transition-transform duration-300 group-hover:translate-x-0.5"
+                      style={{ width: scrolled ? "14px" : "16px", height: scrolled ? "14px" : "16px" }}
+                    />
+                  </span>
+                </Link>
+                <Link
+                  href="/profile"
+                  aria-label={signedInEmail ? `Open profile for ${signedInEmail}` : "Open profile"}
+                  title={signedInEmail ?? "Profile"}
+                  className="hidden md:inline-flex h-8 w-8 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
+                >
+                  <UserRound className="h-3.5 w-3.5" />
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="hidden sm:inline-flex items-center rounded-full border border-finance-border bg-white/80 text-finance-text font-semibold hover:bg-white"
+                  style={{
+                    fontSize: scrolled ? "12px" : "13px",
+                    padding: scrolled ? "6px 12px" : "8px 14px",
+                    transition: "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1), padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+                  }}
+                >
+                  Login
+                </Link>
+
+                <Link
+                  href="/onboarding"
+                  className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
+                  style={{
+                    background: "#2b5cff",
+                    padding: scrolled ? "7px 18px" : "9px 22px",
+                    fontSize: scrolled ? "12px" : "13px",
+                    boxShadow: "0 4px 14px rgba(43, 92, 255, 0.28)",
+                    transition: [
+                      "padding 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+                      "font-size 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
+                      "box-shadow 0.3s ease",
+                      "transform 0.25s ease",
+                    ].join(", "),
+                  }}
+                >
+                  <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    Get Guidance
+                    <ArrowRight
+                      className="transition-transform duration-300 group-hover:translate-x-0.5"
+                      style={{ width: scrolled ? "14px" : "16px", height: scrolled ? "14px" : "16px" }}
+                    />
+                  </span>
+                </Link>
+
+                <Link
+                  href="/login"
+                  aria-label="Open login"
+                  className="hidden sm:hidden h-8 w-8 items-center justify-center rounded-full border border-finance-border bg-finance-surface text-finance-muted hover:text-finance-text"
+                >
+                  <UserRound className="h-3.5 w-3.5" />
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <div
+        id="mobile-nav-panel"
+        className={`md:hidden fixed left-4 right-4 overflow-hidden rounded-2xl border border-[#cbdaf5]/90 bg-white/95 shadow-[0_16px_36px_rgba(20,42,74,0.18)] backdrop-blur-xl transition-all duration-300 ${isMobileMenuOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"}`}
+        style={{ top: mobilePanelTop }}
+      >
+        <div className="p-2.5">
+          {navItems.map((item) => {
+            const isActive = isNavItemActive(item.href);
+
+            return (
+              <Link
+                key={`mobile-${item.label}`}
+                href={item.href}
+                className={`block rounded-xl px-3.5 py-3 text-sm font-semibold transition-colors ${isActive ? "bg-[#edf4ff] text-[#2b5cff]" : "text-[#4d6389] hover:bg-[#f5f8ff] hover:text-[#1d3561]"}`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+
+          <div className="mt-2 grid gap-2 p-1">
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="inline-flex items-center justify-center rounded-full border border-[#d6e3fa] bg-white px-4 py-2.5 text-sm font-semibold text-[#274a86]"
+                >
+                  Profile
+                </Link>
+                <Link
+                  href="/onboarding"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2b5cff] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(43,92,255,0.35)]"
+                >
+                  Get Guidance
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center rounded-full border border-[#d6e3fa] bg-white px-4 py-2.5 text-sm font-semibold text-[#274a86]"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/onboarding"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2b5cff] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(43,92,255,0.35)]"
+                >
+                  Get Guidance
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </>
+
+      {/* inject nav link hover styles */}
+      <style jsx global>{`
+        .navlink-hover:hover {
+          color: #0a1930 !important;
+        }
+        .navlink-hover::after {
+          content: '';
+          position: absolute;
+          bottom: -4px;
+          left: 50%;
+          transform: translateX(-50%) scaleX(0);
+          width: 16px;
+          height: 2px;
+          border-radius: 9999px;
+          background: #2b5cff;
+          transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .navlink-hover:hover::after {
+          transform: translateX(-50%) scaleX(1);
+        }
+        .market-ticker-marquee {
+          position: relative;
+          overflow: hidden;
+          mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
+          -webkit-mask-image: linear-gradient(to right, transparent 0, black 3%, black 97%, transparent 100%);
+        }
+        .market-ticker-track {
+          animation: marketTickerMarquee 14s linear infinite;
+          will-change: transform;
+        }
+        .market-ticker-marquee:hover .market-ticker-track {
+          animation-play-state: paused;
+        }
+        @keyframes marketTickerMarquee {
+          0% {
+            transform: translateX(100%);
+          }
+          100% {
+            transform: translateX(-100%);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .market-ticker-track {
+            animation: none;
+          }
+        }
+      `}</style>
+    </header>
   );
 }
