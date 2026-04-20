@@ -127,7 +127,7 @@ const allocationMixData = [
 ];
 
 const allocationColors = ["#2b5cff", "#00d8ff", "#86a9a3", "#6fa39a", "#dce8ff"];
-const MARKET_POLL_INTERVAL_MS = 500;
+const MARKET_POLL_INTERVAL_MS = 30_000; // 30s — indices don't need sub-second refresh on a marketing homepage
 
 const motionEase = [0.22, 1, 0.36, 1] as const;
 
