@@ -298,6 +298,78 @@ const trustedPartners = [
       </div>
     ),
   },
+  {
+    name: "HDFC Life",
+    subtitle: "Life Insurance",
+    logo: (
+      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-sm border border-[#f1c8c8] bg-[#f80c0c]">
+          <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fb]" />
+          <span className="absolute left-0 top-0 h-0 w-0 border-l-[24px] border-t-[24px] border-l-[#c70000] border-t-[#c70000] border-r-[24px] border-r-transparent border-b-[24px] border-b-transparent opacity-65" />
+          <span className="absolute bottom-0 right-0 h-0 w-0 border-b-[24px] border-r-[24px] border-b-[#c70000] border-r-[#c70000] border-l-[24px] border-l-transparent border-t-[24px] border-t-transparent opacity-65" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[clamp(0.98rem,2vw,1.35rem)] font-extrabold leading-none tracking-[0.04em] text-[#f80c0c]">HDFC</p>
+          <p className="mt-1 text-[clamp(0.95rem,2vw,1.28rem)] font-black leading-none text-[#1f4094]">Life</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "TATA AIA Life Insurance",
+    subtitle: "Life Insurance",
+    logo: (
+      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex items-end justify-center gap-2 leading-none">
+          <span className="text-[clamp(1rem,2vw,1.42rem)] font-black tracking-[0.04em] text-[#1277bb]">TATA</span>
+          <span className="text-[clamp(1rem,2vw,1.42rem)] font-black tracking-[0.06em] text-[#c71e61]">AIA</span>
+        </div>
+        <div className="mt-2 flex items-center justify-center gap-1.5">
+          <span className="h-1 w-5 rounded-full bg-[#1277bb]" />
+          <span className="h-1 w-4 rounded-full bg-[#c71e61]" />
+          <span className="text-[0.86rem] font-bold leading-none text-[#3e4654]">LIFE INSURANCE</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    name: "IndiaFirst Life Insurance",
+    subtitle: "Promoted by Bank of Baroda",
+    logo: (
+      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="mx-auto mb-1 flex w-[88%] items-end justify-start gap-1.5">
+          <span className="h-2.5 w-8 -skew-x-[24deg] bg-[#ea1b2c]" />
+          <span className="h-3 w-9 -skew-x-[24deg] bg-[#1ea1df]" />
+          <span className="h-3.5 w-10 -skew-x-[24deg] bg-[#f36f21]" />
+        </div>
+        <p className="text-center text-[clamp(0.88rem,1.95vw,1.24rem)] font-extrabold leading-none text-[#174b90]">
+          IndiaFirst<span className="text-[#f36f21]">Life</span>
+        </p>
+        <p className="mt-1 text-center text-[0.63rem] font-semibold uppercase tracking-[0.14em] text-[#6a7d9f]">
+          Promoted by
+        </p>
+        <p className="text-center text-[0.82rem] font-bold leading-none text-[#f07e23]">Bank of Baroda</p>
+      </div>
+    ),
+  },
+  {
+    name: "Wealthy",
+    subtitle: "Digital Wealth Platform",
+    logo: (
+      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+        <div className="flex h-12 w-12 items-end justify-center gap-1 rounded-xl bg-white/70 px-1.5 py-1.5">
+          <span className="h-2 w-1.5 rounded-full bg-[#5a2de1]" />
+          <span className="h-4 w-1.5 rounded-full bg-[#5a2de1]" />
+          <span className="h-6 w-1.5 rounded-full bg-[#5a2de1]" />
+          <span className="h-8 w-1.5 rounded-full bg-[#5a2de1]" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[clamp(1rem,2.1vw,1.5rem)] font-bold leading-none tracking-tight text-[#5a2de1]">wealthy</p>
+          <p className="mt-1 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[#7e89a4]">Digital Platform</p>
+        </div>
+      </div>
+    ),
+  },
 ];
 const MARKET_POLL_INTERVAL_MS = 30_000; // 30s — indices don't need sub-second refresh on a marketing homepage
 const poweredByRotator = [
@@ -1487,7 +1559,7 @@ export default function Home() {
                   <p className="mt-1 text-xs text-[#5f7396]">Official brand names shown in a premium tile layout.</p>
                 </div>
                 <span className="inline-flex items-center rounded-full border border-[#cfe0ff] bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#2b5cff]">
-                  10 partner tiles
+                  {trustedPartners.length} partner tiles
                 </span>
               </div>
 
