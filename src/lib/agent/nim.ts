@@ -70,9 +70,9 @@ class OpenRouterApiError extends Error {
 }
 
 class ProviderQualityError extends Error {
-  provider: "NIM" | "DeepSeek";
+  provider: "NIM" | "DeepSeek" | "OpenRouter";
 
-  constructor(provider: "NIM" | "DeepSeek", reason: string) {
+  constructor(provider: "NIM" | "DeepSeek" | "OpenRouter", reason: string) {
     super(`${provider} quality gate failed: ${reason}`);
     this.name = "ProviderQualityError";
     this.provider = provider;
@@ -303,6 +303,80 @@ function normalizeAdviceField(value: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function normalizeAdviceList(value: unknown, maxItems: number, maxLength = 180): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => normalizeAdviceField(entry))
+    .filter((entry): entry is string => entry !== null)
+    .slice(0, maxItems)
+    .map((entry) => entry.slice(0, maxLength));
+}
+
+function parsePortfolioBuckets(value: unknown): NonNullable<AgentStructuredAdvice["portfolioBuckets"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const heading = normalizeAdviceField(record.heading ?? record.name ?? record.bucket);
+      const expectedReturn = normalizeAdviceField(record.expectedReturn ?? record.expected_return ?? record.returnRange);
+      const allocationHint = normalizeAdviceField(record.allocationHint ?? record.allocation_hint ?? record.allocation);
+      const instruments = normalizeAdviceList(record.instruments, 5, 90);
+
+      if (!heading || !expectedReturn || !allocationHint || instruments.length === 0) {
+        return null;
+      }
+
+      return {
+        heading,
+        expectedReturn,
+        instruments,
+        allocationHint,
+      };
+    })
+    .filter((bucket): bucket is NonNullable<AgentStructuredAdvice["portfolioBuckets"]>[number] => bucket !== null)
+    .slice(0, 5);
+}
+
+function parseActionPlanRows(value: unknown): NonNullable<AgentStructuredAdvice["actionPlanRows"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const category = normalizeAdviceField(record.category);
+      const amount = normalizeAdviceField(record.amount ?? record.amountInr ?? record.amount_inr);
+      const whereToInvest = normalizeAdviceField(record.whereToInvest ?? record.where_to_invest ?? record.instrument);
+
+      if (!category || !amount || !whereToInvest) {
+        return null;
+      }
+
+      return {
+        category,
+        amount,
+        whereToInvest,
+      };
+    })
+    .filter((row): row is NonNullable<AgentStructuredAdvice["actionPlanRows"]>[number] => row !== null)
+    .slice(0, 6);
+}
+
 function parseStructuredAdviceRecord(value: unknown): AgentStructuredAdvice | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
@@ -313,6 +387,16 @@ function parseStructuredAdviceRecord(value: unknown): AgentStructuredAdvice | nu
   const reason = normalizeAdviceField(record.reason ?? record.rationale);
   const riskWarning = normalizeAdviceField(record.riskWarning ?? record.risk_warning ?? record.risk);
   const nextAction = normalizeAdviceField(record.nextAction ?? record.next_action ?? record.action);
+  const intro = normalizeAdviceField(record.intro);
+  const step1Title = normalizeAdviceField(record.step1Title ?? record.step_1_title);
+  const assumptionBullets = normalizeAdviceList(record.assumptionBullets ?? record.assumptions, 4, 160);
+  const bestAssumption = normalizeAdviceField(record.bestAssumption ?? record.best_assumption);
+  const monthlySipRange = normalizeAdviceField(record.monthlySipRange ?? record.monthly_sip_range);
+  const monthlySipBreakdown = normalizeAdviceList(record.monthlySipBreakdown ?? record.monthly_sip_breakdown, 4, 180);
+  const step2Title = normalizeAdviceField(record.step2Title ?? record.step_2_title);
+  const portfolioBuckets = parsePortfolioBuckets(record.portfolioBuckets ?? record.portfolio_buckets);
+  const step3Title = normalizeAdviceField(record.step3Title ?? record.step_3_title);
+  const actionPlanRows = parseActionPlanRows(record.actionPlanRows ?? record.action_plan_rows);
 
   if (!recommendation || !reason || !riskWarning || !nextAction) {
     return null;
@@ -323,6 +407,16 @@ function parseStructuredAdviceRecord(value: unknown): AgentStructuredAdvice | nu
     reason,
     riskWarning,
     nextAction,
+    ...(intro ? { intro } : {}),
+    ...(step1Title ? { step1Title } : {}),
+    ...(assumptionBullets.length > 0 ? { assumptionBullets } : {}),
+    ...(bestAssumption ? { bestAssumption } : {}),
+    ...(monthlySipRange ? { monthlySipRange } : {}),
+    ...(monthlySipBreakdown.length > 0 ? { monthlySipBreakdown } : {}),
+    ...(step2Title ? { step2Title } : {}),
+    ...(portfolioBuckets.length > 0 ? { portfolioBuckets } : {}),
+    ...(step3Title ? { step3Title } : {}),
+    ...(actionPlanRows.length > 0 ? { actionPlanRows } : {}),
   };
 }
 
@@ -681,12 +775,66 @@ function normalizeNextAction(value: string): string {
 }
 
 function normalizeAdviceShape(advice: AgentStructuredAdvice): AgentStructuredAdvice {
+  const portfolioBuckets = (advice.portfolioBuckets ?? [])
+    .map((bucket) => ({
+      heading: dedupeSentences(bucket.heading),
+      expectedReturn: dedupeSentences(bucket.expectedReturn),
+      instruments: bucket.instruments.map((item) => dedupeSentences(item)).slice(0, 5),
+      allocationHint: dedupeSentences(bucket.allocationHint),
+    }))
+    .filter((bucket) => bucket.heading && bucket.expectedReturn && bucket.instruments.length > 0 && bucket.allocationHint)
+    .slice(0, 5);
+
+  const actionPlanRows = (advice.actionPlanRows ?? [])
+    .map((row) => ({
+      category: dedupeSentences(row.category),
+      amount: dedupeSentences(row.amount),
+      whereToInvest: dedupeSentences(row.whereToInvest),
+    }))
+    .filter((row) => row.category && row.amount && row.whereToInvest)
+    .slice(0, 6);
+
   return {
     recommendation: dedupeSentences(advice.recommendation),
     reason: dedupeSentences(advice.reason),
     riskWarning: dedupeSentences(advice.riskWarning),
     nextAction: dedupeSentences(normalizeNextAction(advice.nextAction)),
+    ...(advice.intro ? { intro: dedupeSentences(advice.intro) } : {}),
+    ...(advice.step1Title ? { step1Title: dedupeSentences(advice.step1Title) } : {}),
+    ...(advice.assumptionBullets && advice.assumptionBullets.length > 0
+      ? { assumptionBullets: advice.assumptionBullets.map((item) => dedupeSentences(item)).slice(0, 4) }
+      : {}),
+    ...(advice.bestAssumption ? { bestAssumption: dedupeSentences(advice.bestAssumption) } : {}),
+    ...(advice.monthlySipRange ? { monthlySipRange: dedupeSentences(advice.monthlySipRange) } : {}),
+    ...(advice.monthlySipBreakdown && advice.monthlySipBreakdown.length > 0
+      ? { monthlySipBreakdown: advice.monthlySipBreakdown.map((item) => dedupeSentences(item)).slice(0, 4) }
+      : {}),
+    ...(advice.step2Title ? { step2Title: dedupeSentences(advice.step2Title) } : {}),
+    ...(portfolioBuckets.length > 0 ? { portfolioBuckets } : {}),
+    ...(advice.step3Title ? { step3Title: dedupeSentences(advice.step3Title) } : {}),
+    ...(actionPlanRows.length > 0 ? { actionPlanRows } : {}),
   };
+}
+
+function flattenAdviceText(advice: AgentStructuredAdvice): string {
+  return [
+    advice.recommendation,
+    advice.reason,
+    advice.riskWarning,
+    advice.nextAction,
+    advice.intro,
+    advice.step1Title,
+    ...(advice.assumptionBullets ?? []),
+    advice.bestAssumption,
+    advice.monthlySipRange,
+    ...(advice.monthlySipBreakdown ?? []),
+    advice.step2Title,
+    ...(advice.portfolioBuckets ?? []).flatMap((bucket) => [bucket.heading, bucket.expectedReturn, ...bucket.instruments, bucket.allocationHint]),
+    advice.step3Title,
+    ...(advice.actionPlanRows ?? []).flatMap((row) => [row.category, row.amount, row.whereToInvest]),
+  ]
+    .filter((item): item is string => typeof item === "string" && item.length > 0)
+    .join(" ");
 }
 
 function extractCurrencyValues(text: string): number[] {
@@ -756,9 +904,7 @@ function collectKnownCurrencyValues(context: AgentContext, feasibility: GoalFeas
 }
 
 function hasSuspiciousCurrencyClaims(advice: AgentStructuredAdvice, context: AgentContext, feasibility: GoalFeasibilitySnapshot | null): boolean {
-  const claims = extractCurrencyValues(
-    [advice.recommendation, advice.reason, advice.riskWarning, advice.nextAction].join(" "),
-  );
+  const claims = extractCurrencyValues(flattenAdviceText(advice));
 
   if (claims.length === 0) {
     return false;
@@ -774,7 +920,7 @@ function hasSuspiciousCurrencyClaims(advice: AgentStructuredAdvice, context: Age
 }
 
 function hasSuspiciousProfileClaims(advice: AgentStructuredAdvice, context: AgentContext): boolean {
-  const text = [advice.recommendation, advice.reason, advice.riskWarning, advice.nextAction].join(" ");
+  const text = flattenAdviceText(advice);
 
   const riskClaim = text.match(/risk\s*score\s*[:(]?\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (riskClaim?.[1]) {
@@ -833,6 +979,13 @@ function enforceAdviceGuardrails(input: {
     feasibility.monthlySurplusInr !== null &&
     feasibility.requiredSipInr > feasibility.monthlySurplusInr * 1.05;
 
+  const incomeStrategyMode =
+    feasibility !== null &&
+    goalIntent &&
+    feasibility.requiredSipInr > 0 &&
+    feasibility.monthlySurplusInr !== null &&
+    feasibility.requiredSipInr > feasibility.monthlySurplusInr * 3;
+
   const targetFundingRatio =
     feasibility !== null && feasibility.targetAmountInr > 0
       ? feasibility.projectedCorpusAtSurplusInr / feasibility.targetAmountInr
@@ -874,6 +1027,71 @@ function enforceAdviceGuardrails(input: {
       ? ` At current surplus (${surplusLabel}), expected timeline is closer to about ${yearsNeededAtSurplus} years.`
       : "";
 
+    if (incomeStrategyMode) {
+      const surplus = feasibility.monthlySurplusInr ?? 0;
+      const required = feasibility.requiredSipInr;
+      const gap = Math.max(required - surplus, 0);
+      const gapPerWeek = Math.max(Math.round(gap / 4.33), 0);
+      const sideIncomeTarget = Math.max(Math.round(gap * 0.4), 3000);
+
+      const incomeModeMessage = `This goal requires income growth first: ${feasibility.goalTitle} needs about ${formatInr(required)} per month, which is more than 3x your current monthly capacity of ${formatInr(surplus)}.`;
+
+      return {
+        recommendation: `${incomeModeMessage} Focus first on closing the cashflow gap before optimizing portfolio splits.${timelineHint}`,
+        reason: `Current monthly gap is about ${formatInr(gap)} (around ${formatInr(gapPerWeek)} per week). Allocation tweaks alone cannot bridge this gap fast enough.`,
+        riskWarning:
+          "Do not chase very high-risk products to force unrealistic returns. Prioritize steady income growth, expense control, and realistic timeline resets.",
+        nextAction:
+          "Pick one lever today: increase monthly investable surplus, extend timeline, or lower target amount. Recompute SIP only after updating one lever.",
+        intro: incomeModeMessage,
+        step1Title: "🎯 Step 1: Reality check on goal math",
+        assumptionBullets: [
+          `Required SIP: about ${formatInr(required)} per month at ${feasibility.annualReturnPct}% expected return.`,
+          `Current monthly capacity: about ${formatInr(surplus)} per month.`,
+          `Monthly gap to close: about ${formatInr(gap)}.`,
+        ],
+        bestAssumption: "Allocation optimization is secondary until the monthly cashflow gap narrows.",
+        monthlySipRange: `${formatInr(Math.max(Math.round(required * 0.9), 1000))} to ${formatInr(Math.round(required * 1.1))}`,
+        monthlySipBreakdown: [
+          `Gap per week: about ${formatInr(gapPerWeek)}`,
+          `Projected corpus at current capacity: ${projectedLabel}`,
+        ],
+        step2Title: "💼 Step 2: Income growth strategy",
+        portfolioBuckets: [
+          {
+            heading: "💰 Surplus expansion bucket",
+            expectedReturn: "Target: increase investable surplus over next 90 days.",
+            instruments: ["Salary raise plan", "Side income stream", "Discretionary spend cuts"],
+            allocationHint: `Aim to add at least ${formatInr(sideIncomeTarget)} monthly through income actions first.`,
+          },
+          {
+            heading: "🛡️ Stability bucket",
+            expectedReturn: "Preserve liquidity while strategy transitions.",
+            instruments: ["Emergency fund top-up", "Low-volatility debt allocation"],
+            allocationHint: "Avoid concentration risk until contribution capacity improves.",
+          },
+        ],
+        step3Title: "🧠 Step 3: 30-day execution plan",
+        actionPlanRows: [
+          {
+            category: "Income growth",
+            amount: `+${formatInr(sideIncomeTarget)} monthly target`,
+            whereToInvest: "Upskilling, role switch prep, freelance/consulting lead funnel",
+          },
+          {
+            category: "Expense control",
+            amount: `Cut ${formatInr(Math.max(Math.round(gap * 0.2), 1500))} monthly`,
+            whereToInvest: "Non-essential subscriptions, discretionary lifestyle line-items",
+          },
+          {
+            category: "Re-plan goal",
+            amount: "Recompute in 4 weeks",
+            whereToInvest: "Adjust timeline or target until required SIP <= 1.5x capacity",
+          },
+        ],
+      };
+    }
+
     return {
       recommendation: `${feasibilityMessage}${timelineHint}`,
       reason: `Your available monthly surplus is ${surplusLabel}. At that contribution level, projected corpus is about ${projectedLabel} for this timeline, so assumptions must stay realistic and math-consistent.`,
@@ -881,6 +1099,46 @@ function enforceAdviceGuardrails(input: {
         "Avoid relying on outsized return assumptions to close a funding gap. Use realistic return ranges, maintain emergency liquidity, and rebalance based on your risk profile.",
       nextAction:
         "Choose one now: increase monthly contribution, extend timeline, or reduce target amount. Then re-run the plan with your exact target amount and date before investing.",
+      intro: feasibilityMessage,
+      step1Title: "\ud83c\udfaf Step 1: How much you need to invest",
+      assumptionBullets: [
+        `Moderate return assumption around ${feasibility.annualReturnPct}% p.a.`,
+        `Target corpus: ${formatInr(feasibility.targetAmountInr)}`,
+      ],
+      bestAssumption: `Best assumption SIP requirement: ${formatInr(feasibility.requiredSipInr)} per month.`,
+      monthlySipRange: `${formatInr(Math.max(Math.round(feasibility.requiredSipInr * 0.9), 1000))} to ${formatInr(Math.round(feasibility.requiredSipInr * 1.1))}`,
+      monthlySipBreakdown: [
+        `Projected corpus at current surplus: ${projectedLabel}`,
+        `Current monthly surplus: ${surplusLabel}`,
+      ],
+      step2Title: "\ud83d\udcbc Step 2: How to allocate your SIP",
+      portfolioBuckets: [
+        {
+          heading: "\ud83d\udcc8 Equity Index Funds",
+          expectedReturn: "Expected return: about 10% to 12% p.a.",
+          instruments: ["Nifty 50 or Nifty Next 50 index funds"],
+          allocationHint: "Use as growth engine for long-horizon goals.",
+        },
+        {
+          heading: "\ud83d\udcc9 Debt Mutual Funds",
+          expectedReturn: "Expected return: about 6% to 7.5% p.a.",
+          instruments: ["Short Duration Debt Funds", "Banking and PSU Debt Funds"],
+          allocationHint: "Use for stability and drawdown control.",
+        },
+      ],
+      step3Title: "\ud83e\udde0 Step 3: Action plan for this month",
+      actionPlanRows: [
+        {
+          category: "Emergency fund",
+          amount: "Build to 6 months expenses",
+          whereToInvest: "Liquid fund or high-yield savings account",
+        },
+        {
+          category: "Monthly SIP",
+          amount: `${formatInr(feasibility.requiredSipInr)} target`,
+          whereToInvest: "Split across equity and debt as per risk profile",
+        },
+      ],
     };
   }
 
@@ -896,19 +1154,71 @@ function enforceAdviceGuardrails(input: {
 }
 
 function formatStructuredAdvice(advice: AgentStructuredAdvice): string {
-  return [
-    "Recommendation:",
-    advice.recommendation,
-    "",
-    "Reason:",
-    advice.reason,
-    "",
-    "Risk warning:",
-    advice.riskWarning,
-    "",
-    "Next action:",
-    advice.nextAction,
-  ].join("\n");
+  const step1Title = advice.step1Title ?? "\ud83c\udfaf Step 1: How much you need to invest";
+  const assumptionBullets = advice.assumptionBullets ?? [];
+  const monthlySipRange = advice.monthlySipRange;
+  const sipBreakdown = advice.monthlySipBreakdown ?? [];
+
+  const step2Title = advice.step2Title ?? "\ud83d\udcbc Step 2: How to allocate your SIP";
+  const portfolioBuckets = advice.portfolioBuckets ?? [];
+
+  const step3Title = advice.step3Title ?? "\ud83e\udde0 Step 3: Action plan for this month";
+  const actionPlanRows = advice.actionPlanRows ?? [];
+
+  const lines: string[] = [advice.intro ?? advice.recommendation, "", "\u2e3b", "", step1Title, ""];
+
+  if (assumptionBullets.length > 0) {
+    lines.push("Assuming realistic returns:");
+    lines.push("");
+    for (const bullet of assumptionBullets) {
+      lines.push(`- ${bullet}`);
+    }
+  }
+
+  if (advice.bestAssumption) {
+    lines.push("");
+    lines.push(`Best assumption: ${advice.bestAssumption}`);
+  }
+
+  if (monthlySipRange) {
+    lines.push(`Recommended SIP range: ${monthlySipRange}`);
+  }
+
+  if (sipBreakdown.length > 0) {
+    lines.push("");
+    for (const entry of sipBreakdown) {
+      lines.push(`- ${entry}`);
+    }
+  }
+
+  lines.push("", "\u2e3b", "", step2Title, "", "You should not put all your money in one place.", "", "Ideal Portfolio Mix:", "");
+
+  if (portfolioBuckets.length > 0) {
+    for (const [index, bucket] of portfolioBuckets.entries()) {
+      lines.push(`${index + 1}. ${bucket.heading}`);
+      lines.push(`   - ${bucket.expectedReturn}`);
+      lines.push(`   - Invest in: ${bucket.instruments.join(", ")}`);
+      lines.push(`   - ${bucket.allocationHint}`);
+      lines.push("");
+    }
+  } else {
+    lines.push(`- ${advice.reason}`);
+    lines.push("");
+  }
+
+  lines.push("\u2e3b", "", step3Title, "", "Category | Amount | Where to Invest", "--- | --- | ---");
+
+  if (actionPlanRows.length > 0) {
+    for (const row of actionPlanRows) {
+      lines.push(`${row.category} | ${row.amount} | ${row.whereToInvest}`);
+    }
+  } else {
+    lines.push(`Next action | ${advice.nextAction} | Use suitable low-cost diversified funds`);
+  }
+
+  lines.push("", `Risk warning: ${advice.riskWarning}`);
+
+  return lines.join("\n");
 }
 
 function extractRetrySeconds(message: string): string | null {
@@ -1162,6 +1472,12 @@ function isNimCapacityError(error: unknown): boolean {
     message.includes("nvidia nim api error (429)") ||
     message.includes("nvidia nim api error (401)") ||
     message.includes("nvidia nim api error (5") ||
+    message.includes("openrouter api error (429)") ||
+    message.includes("openrouter api error (401)") ||
+    message.includes("openrouter api error (5") ||
+    message.includes("deepseek api error (429)") ||
+    message.includes("deepseek api error (401)") ||
+    message.includes("deepseek api error (5") ||
     message.includes("bad gateway") ||
     message.includes("gateway timeout") ||
     message.includes("temporarily unavailable") ||
@@ -1177,6 +1493,68 @@ function isNimCapacityError(error: unknown): boolean {
     message.includes("missing openrouter_api_key") ||
     message.includes("quality gate failed")
   );
+}
+
+function inferProviderFromErrorReason(reason: string): "OpenRouter" | "NIM" | "DeepSeek" | "provider" {
+  const normalized = reason.toLowerCase();
+  if (normalized.includes("openrouter")) {
+    return "OpenRouter";
+  }
+
+  if (normalized.includes("nvidia") || normalized.includes("nim")) {
+    return "NIM";
+  }
+
+  if (normalized.includes("deepseek")) {
+    return "DeepSeek";
+  }
+
+  return "provider";
+}
+
+function isSexualOrNonFinancialPrompt(message: string): boolean {
+  const normalized = message.toLowerCase();
+  const sexualSignals = /\b(horny|sex|sexy|nude|naked|porn|xxx|aroused|turn me on|erotic)\b/i.test(normalized);
+  if (sexualSignals) {
+    return true;
+  }
+
+  const financeSignals = /\b(invest|sip|portfolio|mutual fund|equity|debt|gold|tax|80c|80d|goal|retire|retirement|house|home loan|emi|savings|budget|income|expense|wealth)\b/i.test(normalized);
+  const nonFinancialSmallTalk = /\b(joke|funny|sing|poem|love|flirt|date)\b/i.test(normalized);
+
+  return nonFinancialSmallTalk && !financeSignals;
+}
+
+function buildOutOfScopeStructuredAdvice(): AgentStructuredAdvice {
+  return {
+    recommendation: "Sorry, I can't assist with that.",
+    reason: "I can help only with financial planning, investing, taxes, and wealth-management questions.",
+    riskWarning: "No financial recommendation was generated because the request is outside advisory scope.",
+    nextAction: "Ask something like: 'How should I allocate INR 20,000 monthly SIP for a 5-year goal?'",
+    intro: "Sorry, I can't assist with that.",
+    step1Title: "Step 1: Share your financial goal",
+    assumptionBullets: [
+      "Tell me your target amount and time horizon.",
+      "Share your monthly investment capacity.",
+    ],
+    step2Title: "Step 2: I will suggest allocation",
+    portfolioBuckets: [
+      {
+        heading: "Financial-only guidance",
+        expectedReturn: "No estimate until relevant inputs are shared.",
+        instruments: ["Goal planning", "Risk-aligned allocation"],
+        allocationHint: "I provide only finance-focused recommendations.",
+      },
+    ],
+    step3Title: "Step 3: Next action",
+    actionPlanRows: [
+      {
+        category: "Ask a finance question",
+        amount: "N/A",
+        whereToInvest: "Share goal, timeline, and SIP budget",
+      },
+    ],
+  };
 }
 
 function buildFallbackDashboardActionPlan(context: AgentContext, reason: string): string {
@@ -1232,12 +1610,18 @@ function buildFallbackChatStructuredAdvice(input: {
   const riskBucket = resolveRiskBucket(input.context);
   const plan = getAllocationPlan(riskBucket);
   const retryIn = extractRetrySeconds(input.reason);
+  const providerLabel = inferProviderFromErrorReason(input.reason);
   const normalizedMessage = input.message.toLowerCase();
 
   const recommendation =
     monthlySurplus && monthlySurplus > 0
       ? `Invest ${formatInr(monthlySurplus)} each month using this split: ${formatAllocationLine(monthlySurplus, plan)}.`
       : "Start with a manageable SIP amount and use a baseline split of 55% equity, 30% debt, 10% gold, and 5% liquid reserve.";
+
+  const monthlyRange =
+    monthlySurplus && monthlySurplus > 0
+      ? `${formatInr(Math.max(Math.round(monthlySurplus * 0.75), 1000))} to ${formatInr(Math.round(monthlySurplus * 1.05))}`
+      : "INR 5,000 to INR 10,000";
 
   const rationaleParts = [
     `This aligns with your ${riskBucket} risk context and prioritizes diversified allocation instead of single-bet exposure.`,
@@ -1249,7 +1633,7 @@ function buildFallbackChatStructuredAdvice(input: {
   }
 
   const riskWarning = [
-    `Live AI response is temporarily unavailable due to NVIDIA NIM limits/availability${retryIn ? ` (retry after ~${retryIn})` : ""}.`,
+    `Live AI response is temporarily unavailable due to ${providerLabel} limits/availability${retryIn ? ` (retry after ~${retryIn})` : ""}.`,
     `Fallback guidance is rules-based. ${plan.note}`,
     "Educational guidance only. Validate suitability before investing.",
   ].join(" ");
@@ -1271,6 +1655,58 @@ function buildFallbackChatStructuredAdvice(input: {
     reason: rationaleParts.join(" "),
     riskWarning,
     nextAction,
+    intro: recommendation,
+    step1Title: "\ud83c\udfaf Step 1: How much you need to invest",
+    assumptionBullets: [
+      "Assuming moderate long-term market returns and disciplined monthly SIP.",
+      "Assuming no large SIP breaks in the next 12 months.",
+    ],
+    bestAssumption: `Use your current monthly capacity as baseline: ${monthlySurplus ? formatInr(monthlySurplus) : "INR not provided"}.`,
+    monthlySipRange: monthlyRange,
+    monthlySipBreakdown: [
+      `Equity allocation: ${plan.equityPct}%`,
+      `Debt allocation: ${plan.debtPct}%`,
+      `Gold allocation: ${plan.goldPct}%`,
+    ],
+    step2Title: "\ud83d\udcbc Step 2: How to allocate your SIP",
+    portfolioBuckets: [
+      {
+        heading: "\ud83d\udcc8 Equity Index Funds",
+        expectedReturn: "Expected return: about 10% to 12% p.a.",
+        instruments: ["Nifty 50 index fund", "Nifty Next 50 index fund"],
+        allocationHint: `${plan.equityPct}% allocation for growth based on your risk bucket.`,
+      },
+      {
+        heading: "\ud83d\udcc9 Debt Funds",
+        expectedReturn: "Expected return: about 6% to 7.5% p.a.",
+        instruments: ["Short duration debt fund", "Banking and PSU debt fund"],
+        allocationHint: `${plan.debtPct}% allocation for stability and downside cushion.`,
+      },
+      {
+        heading: "\ud83e\ude99 Gold",
+        expectedReturn: "Expected return: about 5% to 7% p.a. over long cycles.",
+        instruments: ["Gold ETF", "Gold savings fund"],
+        allocationHint: `${plan.goldPct}% allocation as macro hedge and diversification.`,
+      },
+    ],
+    step3Title: "\ud83e\udde0 Step 3: Action plan for this month",
+    actionPlanRows: [
+      {
+        category: "Emergency reserve",
+        amount: "6 months expenses",
+        whereToInvest: "Liquid fund or high-yield savings account",
+      },
+      {
+        category: "Monthly SIP",
+        amount: monthlySurplus ? formatInr(monthlySurplus) : "INR not provided",
+        whereToInvest: "Auto-debit SIP across equity/debt/gold buckets",
+      },
+      {
+        category: "Tax check",
+        amount: "Review quarterly",
+        whereToInvest: "80C and 80D eligible instruments where relevant",
+      },
+    ],
   };
 }
 
@@ -1537,9 +1973,11 @@ function buildSystemInstruction(mode: "chat" | "dashboard"): string {
     "When available, ground advice on primary goal, target amount, time horizon, monthly investment capacity, risk preference, monthly income band, and existing investments.",
     "Never invent numbers. Mention currency values only if present in context or clearly derived from context math.",
     "Run feasibility math before giving SIP suggestions. If required monthly SIP exceeds user surplus or implies unrealistic growth, explicitly say the goal is not feasible under current assumptions.",
-    "Respond in valid JSON only with exactly these string keys: recommendation, reason, riskWarning, nextAction.",
-    "Keep each field specific, concise, and practical in 1-2 sentences.",
-    "Include allocation logic, time horizon fit, and risk suitability in recommendation and reason.",
+    "Respond in valid JSON only using these keys: recommendation, reason, riskWarning, nextAction, intro, step1Title, assumptionBullets, bestAssumption, monthlySipRange, monthlySipBreakdown, step2Title, portfolioBuckets, step3Title, actionPlanRows.",
+    "Use the exact 3-step structure: step1Title for feasibility math, step2Title for allocation, step3Title for this-month actions.",
+    "Keep text concise and practical. For portfolioBuckets include heading, expectedReturn, instruments (array), and allocationHint.",
+    "For actionPlanRows include category, amount, whereToInvest with 3 to 4 rows.",
+    "Do not add markdown code fences.",
   ].join(" ");
 }
 
@@ -1835,6 +2273,14 @@ export async function generateAdvisorChatReply(input: {
   history: AgentChatHistoryItem[];
   context: AgentContext;
 }): Promise<AdvisorChatReply> {
+  if (isSexualOrNonFinancialPrompt(input.message)) {
+    const structured = buildOutOfScopeStructuredAdvice();
+    return {
+      reply: "Sorry, I can't assist with that.",
+      structured,
+    };
+  }
+
   const history = trimHistory(input.history);
 
   const messages: NimMessage[] = [
@@ -1878,7 +2324,7 @@ export async function generateAdvisorChatReply(input: {
 
     const strictStructured = parseStructuredAdviceStrict(raw);
     if (!strictStructured) {
-      throw new ProviderQualityError("NIM", "Response missing required structured fields.");
+      throw new ProviderQualityError("OpenRouter", "Response missing required structured fields.");
     }
 
     const structured = enforceAdviceGuardrails({

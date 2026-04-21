@@ -792,7 +792,7 @@ export default function Home() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="mt-1 flex w-full max-w-[18.5rem] flex-1 justify-center sm:max-w-[22rem] md:max-w-[27rem] lg:mt-0 lg:max-w-[30rem] lg:-translate-x-4 lg:justify-end xl:max-w-[34rem]"
+              className="mt-1 flex w-full max-w-[18.5rem] flex-1 justify-center sm:max-w-[22rem] md:max-w-[27rem] lg:mt-0 lg:max-w-[30rem] lg:-translate-x-[80px] lg:justify-end xl:max-w-[34rem]"
             >
               <HeroPhoneMockup />
             </motion.div>

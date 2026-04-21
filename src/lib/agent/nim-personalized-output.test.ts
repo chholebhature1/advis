@@ -90,6 +90,21 @@ describe("generateAdvisorChatReply personalization guard", () => {
       "fetch",
       vi.fn(async () => ({
         ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    recommendation: "Build a diversified SIP plan.",
+                    reason: "Diversification can reduce risk over time.",
+                    riskWarning: "Markets are volatile and returns are not guaranteed.",
+                    nextAction: "Start one SIP this week and monitor monthly.",
+                  }),
+                },
+              },
+            ],
+          }),
         json: async () => ({
           choices: [
             {
@@ -116,5 +131,59 @@ describe("generateAdvisorChatReply personalization guard", () => {
     expect(reply.structured.reason.toLowerCase()).toContain("ananya");
     expect(reply.structured.reason.toLowerCase()).toContain("monthly investable surplus");
     expect(reply.structured.reason.toLowerCase()).toContain("home down payment");
+  });
+
+  it("blocks sexual or non-financial prompts with boundary response", async () => {
+    const fetchSpy = vi.fn(async () => {
+      throw new Error("fetch should not be called for out-of-scope prompts");
+    });
+    vi.stubGlobal("fetch", fetchSpy as unknown as typeof fetch);
+    vi.clearAllMocks();
+
+    const reply = await generateAdvisorChatReply({
+      message: "im horny",
+      history: [],
+      context: testContext,
+    });
+
+    expect(reply.reply).toBe("Sorry, I can't assist with that.");
+    expect(reply.structured.recommendation).toBe("Sorry, I can't assist with that.");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("switches to income growth strategy when required SIP is more than 3x capacity", async () => {
+    process.env.OPENROUTER_API_KEY = "test-key";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    recommendation: "Use a diversified SIP approach.",
+                    reason: "Diversification can support long-term outcomes.",
+                    riskWarning: "Markets are volatile.",
+                    nextAction: "Start this month.",
+                  }),
+                },
+              },
+            ],
+          }),
+      })) as typeof fetch,
+    );
+
+    const reply = await generateAdvisorChatReply({
+      message: "I want 2 crore in 2 years. Tell me SIP plan.",
+      history: [],
+      context: testContext,
+    });
+
+    expect(reply.reply).toContain("This goal requires income growth first");
+    expect(reply.reply).toContain("Step 2: Income growth strategy");
+    expect(reply.structured.step2Title).toContain("Income growth strategy");
   });
 });

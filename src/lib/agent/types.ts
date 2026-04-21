@@ -10,6 +10,25 @@ export type AgentStructuredAdvice = {
   reason: string;
   riskWarning: string;
   nextAction: string;
+  intro?: string;
+  step1Title?: string;
+  assumptionBullets?: string[];
+  bestAssumption?: string;
+  monthlySipRange?: string;
+  monthlySipBreakdown?: string[];
+  step2Title?: string;
+  portfolioBuckets?: Array<{
+    heading: string;
+    expectedReturn: string;
+    instruments: string[];
+    allocationHint: string;
+  }>;
+  step3Title?: string;
+  actionPlanRows?: Array<{
+    category: string;
+    amount: string;
+    whereToInvest: string;
+  }>;
 };
 
 export type AgentProfileSnapshot = {
