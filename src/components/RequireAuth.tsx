@@ -17,15 +17,12 @@ export default function RequireAuth({ children, redirectTo = "/login" }: Require
   useEffect(() => {
     let mounted = true;
 
-    const supabase = (() => {
-      try {
-        return getSupabaseBrowserClient();
-      } catch {
-        return null;
-      }
-    })();
+    let supabase: ReturnType<typeof getSupabaseBrowserClient>;
 
-    if (!supabase) {
+    try {
+      supabase = getSupabaseBrowserClient();
+    } catch {
+      // If client creation fails, redirect
       router.replace(redirectTo);
       return;
     }
