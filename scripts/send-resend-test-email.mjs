@@ -35,7 +35,7 @@ function loadLocalEnv() {
 async function main() {
   loadLocalEnv();
 
-  const to = process.argv[2] || "usefullother6@gmail.com";
+  const to = process.argv[2] || "info@pravix.in";
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.ALERTS_EMAIL_FROM || "onboarding@resend.dev";
 

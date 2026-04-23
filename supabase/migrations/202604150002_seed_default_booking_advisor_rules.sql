@@ -10,7 +10,7 @@ with ensured_advisor as (
   )
   select
     'Pravix Wealth Consultant',
-    'usefullother6@gmail.com',
+    'info@pravix.in',
     'Asia/Kolkata',
     true,
     30,

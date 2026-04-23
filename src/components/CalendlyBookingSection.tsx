@@ -108,7 +108,7 @@ export default function CalendlyBookingSection() {
 
   const advisor = availability?.advisor ?? null;
   const advisorTimezone = advisor?.timezone ?? "Asia/Kolkata";
-  const contactEmail = advisor?.email ?? "usefullother6@gmail.com";
+  const contactEmail = advisor?.email ?? "info@pravix.com";
   const dateItems = useMemo(() => availability?.dates ?? [], [availability]);
 
   const selectedDate = useMemo(

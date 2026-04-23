@@ -165,18 +165,14 @@ const trustedPartners = [
     subtitle: "Mutual Fund",
     logo: (
       <div className="flex h-full w-full items-center justify-center bg-transparent">
-        <div className="flex items-center gap-2">
-          <div className="relative flex h-9 w-9 shrink-0 flex-col justify-between bg-[#e31e24] p-[2px]">
-             <div className="h-3 w-3 border-2 border-[#1a1a1a] bg-white" />
-             <div className="h-3 w-3 border-2 border-[#1a1a1a] bg-white self-end" />
-          </div>
-          <div className="flex flex-col">
-            <span className="mb-[2px] text-[1.85rem] font-black leading-none tracking-tight text-[#e31e24]">HDFC</span>
-            <div className="w-full bg-[#1f5fa8] px-1 py-[2px] text-center">
-              <span className="block text-[0.55rem] font-bold leading-none tracking-[0.2em] text-white">MUTUAL FUND</span>
-            </div>
-          </div>
-        </div>
+        <Image
+          src="/image/partners/hdfc-visual-mark.png"
+          alt="HDFC Mutual Fund logo"
+          width={300}
+          height={100}
+          className="h-14 w-auto object-contain sm:h-16"
+          sizes="(max-width: 640px) 140px, 180px"
+        />
       </div>
     ),
   },
@@ -317,16 +313,15 @@ const trustedPartners = [
     name: "HDFC Life",
     subtitle: "Life Insurance",
     logo: (
-      <div className="flex h-full w-full items-center gap-3 bg-transparent">
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-sm border border-[#f1c8c8] bg-[#f80c0c]">
-          <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fb]" />
-          <span className="absolute left-0 top-0 h-0 w-0 border-l-[24px] border-t-[24px] border-l-[#c70000] border-t-[#c70000] border-r-[24px] border-r-transparent border-b-[24px] border-b-transparent opacity-65" />
-          <span className="absolute bottom-0 right-0 h-0 w-0 border-b-[24px] border-r-[24px] border-b-[#c70000] border-r-[#c70000] border-l-[24px] border-l-transparent border-t-[24px] border-t-transparent opacity-65" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[clamp(0.98rem,2vw,1.35rem)] font-extrabold leading-none tracking-[0.04em] text-[#f80c0c]">HDFC</p>
-          <p className="mt-1 text-[clamp(0.95rem,2vw,1.28rem)] font-black leading-none text-[#1f4094]">Life</p>
-        </div>
+      <div className="flex h-full w-full items-center justify-center bg-transparent">
+        <Image
+          src="/image/partners/hdfc-life-visual-mark.png"
+          alt="HDFC Life logo"
+          width={300}
+          height={100}
+          className="h-14 w-auto object-contain sm:h-16"
+          sizes="(max-width: 640px) 140px, 180px"
+        />
       </div>
     ),
   },
