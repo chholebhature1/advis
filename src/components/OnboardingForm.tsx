@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import AuthPanel from "@/components/AuthPanel";
 import {
   AlertCircle,
   ArrowLeft,
@@ -316,6 +317,11 @@ function validateField(field: OnboardingField, value: FieldValue): string | null
   return null;
 }
 
+function isAuthSessionMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("auth session missing") || normalized.includes("session expired") || normalized.includes("authentication session expired");
+}
+
 export default function OnboardingForm() {
   const [answers, setAnswers] = useState<Answers>(() => buildInitialAnswers());
   const [currentStep, setCurrentStep] = useState(0);
@@ -327,6 +333,15 @@ export default function OnboardingForm() {
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [didResumeSession, setDidResumeSession] = useState(false);
+  const [isAuthenticatedUser, setIsAuthenticatedUser] = useState(false);
+  const [authPassword, setAuthPassword] = useState("");
+  const [emailVerificationCode, setEmailVerificationCode] = useState("");
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [emailVerificationError, setEmailVerificationError] = useState<string | null>(null);
+  const [emailVerificationMessage, setEmailVerificationMessage] = useState<string | null>(null);
 
   const currentScreen = FLOW[currentStep];
   const currentScreenVisual = getScreenVisual(currentScreen.id);
@@ -357,8 +372,11 @@ export default function OnboardingForm() {
 
         if (!userData.user || !authSessionData.session) {
           if (isMounted) {
-            setAuthRequired(true);
+            setSessionId(null);
+            setAuthRequired(false);
             setDidResumeSession(false);
+            setIsAuthenticatedUser(false);
+            setEmailVerified(false);
           }
           return;
         }
@@ -437,6 +455,8 @@ export default function OnboardingForm() {
           setCurrentStep(activeStep);
           setAnswers(hydratedAnswers);
           setAuthRequired(false);
+          setIsAuthenticatedUser(true);
+          setEmailVerified(true);
         }
       } catch (error) {
         if (isMounted) {
@@ -466,6 +486,125 @@ export default function OnboardingForm() {
       ...previous,
       [field.key]: value,
     }));
+
+    if (field.key === "email") {
+      setEmailVerificationSent(false);
+      setEmailVerified(false);
+      setEmailVerificationCode("");
+      setEmailVerificationError(null);
+      setEmailVerificationMessage(null);
+    }
+  }
+
+  async function sendEmailVerification() {
+    const emailValue = typeof answers.email === "string" ? answers.email.trim().toLowerCase() : "";
+
+    if (!emailValue || !emailValue.includes("@")) {
+      setEmailVerificationError("Please enter a valid email address first.");
+      return;
+    }
+
+    if (authPassword.trim().length < 6) {
+      setEmailVerificationError("Create a password with at least 6 characters.");
+      return;
+    }
+
+    setIsSendingVerification(true);
+    setEmailVerificationError(null);
+    setEmailVerificationMessage(null);
+
+    try {
+      const registerResponse = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailValue, password: authPassword }),
+      });
+
+      const registerPayload = (await registerResponse.json().catch(() => ({}))) as {
+        error?: string;
+        verificationMode?: string;
+      };
+
+      if (!registerResponse.ok) {
+        throw new Error(registerPayload.error ?? "Unable to create account right now.");
+      }
+
+      if (registerPayload.verificationMode === "supabase-email") {
+        setEmailVerificationMessage("Account created. Verify from your Supabase email, then sign in to continue.");
+        return;
+      }
+
+      const verifySendResponse = await fetch("/api/auth/send-verification-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailValue }),
+      });
+
+      const verifySendPayload = (await verifySendResponse.json().catch(() => ({}))) as { error?: string; message?: string };
+
+      if (!verifySendResponse.ok) {
+        throw new Error(verifySendPayload.error ?? "Unable to send verification code.");
+      }
+
+      setEmailVerificationSent(true);
+      setEmailVerificationMessage(verifySendPayload.message ?? "Verification code sent to your email.");
+    } catch (error) {
+      setEmailVerificationError(error instanceof Error ? error.message : "Unable to send verification code.");
+    } finally {
+      setIsSendingVerification(false);
+    }
+  }
+
+  async function confirmEmailVerification() {
+    const emailValue = typeof answers.email === "string" ? answers.email.trim().toLowerCase() : "";
+    const token = emailVerificationCode.trim();
+
+    if (!emailValue || !emailValue.includes("@")) {
+      setEmailVerificationError("Please enter a valid email address first.");
+      return;
+    }
+
+    if (token.length !== 6) {
+      setEmailVerificationError("Enter the 6-digit verification code.");
+      return;
+    }
+
+    setIsVerifyingEmail(true);
+    setEmailVerificationError(null);
+    setEmailVerificationMessage(null);
+
+    try {
+      const verifyResponse = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailValue, token }),
+      });
+
+      const verifyPayload = (await verifyResponse.json().catch(() => ({}))) as { error?: string };
+      if (!verifyResponse.ok) {
+        throw new Error(verifyPayload.error ?? "Verification failed.");
+      }
+
+      const supabase = getSupabaseBrowserClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: emailValue,
+        password: authPassword,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      setEmailVerified(true);
+      setIsAuthenticatedUser(true);
+      setAuthRequired(false);
+      setSubmitError(null);
+      setEmailVerificationMessage("Email verified and account created. You can now submit your plan.");
+    } catch (error) {
+      setEmailVerificationError(error instanceof Error ? error.message : "Verification failed.");
+    } finally {
+      setIsVerifyingEmail(false);
+    }
   }
 
   function toggleMultiChoiceValue(field: OnboardingField, optionValue: string) {
@@ -501,9 +640,30 @@ export default function OnboardingForm() {
     return Object.fromEntries(entries);
   }
 
+  async function createOnboardingSession() {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase
+      .from("onboarding_sessions")
+      .insert({
+        current_screen_id: currentScreen.id,
+        metadata: {
+          flow_version: "goal_flow_v2",
+          total_steps: TOTAL_STEPS,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data.id as string;
+  }
+
   async function persistCurrentScreen() {
     if (!sessionId) {
-      throw new Error("Onboarding session was not initialized.");
+      return;
     }
 
     const supabase = getSupabaseBrowserClient();
@@ -540,11 +700,7 @@ export default function OnboardingForm() {
     }
   }
 
-  async function submitFinalPayload() {
-    if (!sessionId) {
-      throw new Error("Onboarding session was not initialized.");
-    }
-
+  async function submitFinalPayload(activeSessionId: string) {
     const supabase = getSupabaseBrowserClient();
     const { data: authSessionData, error: authSessionError } = await supabase.auth.getSession();
 
@@ -564,7 +720,7 @@ export default function OnboardingForm() {
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        sessionId,
+        sessionId: activeSessionId,
         answers: buildAllAnswersPayload(),
       }),
     });
@@ -592,14 +748,47 @@ export default function OnboardingForm() {
       }
     }
 
+    if (isLastStep) {
+      if (!isAuthenticatedUser && !emailVerified) {
+        setSubmitError("Please verify your email before generating your plan.");
+        return;
+      }
+
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+        error: authSessionError,
+      } = await supabase.auth.getSession();
+
+      if (authSessionError) {
+        setSubmitError(null);
+        setAuthRequired(true);
+        return;
+      }
+
+      if (!session?.access_token) {
+        setSubmitError("Please verify and sign in to continue.");
+        setAuthRequired(true);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
       await persistCurrentScreen();
 
       if (isLastStep) {
-        await submitFinalPayload();
+        let activeSessionId = sessionId;
+
+        if (!activeSessionId) {
+          activeSessionId = await createOnboardingSession();
+          setSessionId(activeSessionId);
+        }
+
+        await submitFinalPayload(activeSessionId);
         setSubmitSuccess(true);
+        setAuthRequired(false);
       } else {
         setCurrentStep((previous) => previous + 1);
       }
@@ -620,6 +809,80 @@ export default function OnboardingForm() {
     const value = getFieldValue(field);
     const sharedInputClass =
       "w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3.5 text-finance-text shadow-[0_6px_16px_rgba(18,42,90,0.06)] outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20";
+
+    if (field.key === "email") {
+      return (
+        <div key={field.key} className="flex flex-col gap-2.5">
+          <label className="flex flex-col gap-2.5">
+            <span className="text-sm font-semibold text-finance-text">
+              {field.label}
+              {field.required ? " *" : ""}
+            </span>
+            <input
+              type="email"
+              value={typeof value === "string" ? value : ""}
+              onChange={(event) => setFieldValue(field, event.target.value)}
+              placeholder={field.placeholder}
+              className={`h-12 ${sharedInputClass}`}
+            />
+          </label>
+
+          {!isAuthenticatedUser ? (
+            <div className="rounded-2xl border border-[#d2dff7] bg-[#f8fbff] p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-finance-muted">Verify Email To Create Account</p>
+
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5 sm:col-span-2">
+                  <span className="text-xs font-semibold text-finance-text">Create Password *</span>
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    placeholder="Minimum 6 characters"
+                    className={`h-11 ${sharedInputClass}`}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => void sendEmailVerification()}
+                  disabled={isSendingVerification}
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-gradient-to-r from-[#2b5cff] to-[#1d4ed8] px-4 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {isSendingVerification ? "Sending..." : "Verify Email"}
+                </button>
+
+                {emailVerificationSent ? (
+                  <div className="flex gap-2 sm:col-span-2">
+                    <input
+                      type="text"
+                      value={emailVerificationCode}
+                      onChange={(event) => setEmailVerificationCode(event.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                      placeholder="Enter 6-digit code"
+                      className="h-11 w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3.5 text-finance-text shadow-[0_6px_16px_rgba(18,42,90,0.06)] outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void confirmEmailVerification()}
+                      disabled={isVerifyingEmail}
+                      className="inline-flex h-11 items-center justify-center rounded-full border border-[#b8ccf7] bg-white px-4 text-sm font-semibold text-finance-text disabled:opacity-60"
+                    >
+                      {isVerifyingEmail ? "Checking..." : "Confirm"}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {emailVerificationError ? <p className="mt-2 text-xs font-medium text-[#b64040]">{emailVerificationError}</p> : null}
+              {emailVerificationMessage ? <p className="mt-2 text-xs font-medium text-[#3158cc]">{emailVerificationMessage}</p> : null}
+              {emailVerified ? <p className="mt-2 text-xs font-semibold text-[#0d8f4f]">Email verified successfully.</p> : null}
+            </div>
+          ) : null}
+
+          {field.helpText ? <span className="text-xs text-finance-muted">{field.helpText}</span> : null}
+        </div>
+      );
+    }
 
     if (field.type === "choice") {
       const selected = typeof value === "string" ? value : "";
@@ -743,23 +1006,15 @@ export default function OnboardingForm() {
         <div className="pointer-events-none absolute -bottom-12 -right-12 h-40 w-40 rounded-full bg-[#56d3ff]/35 blur-3xl" />
 
         <div className="relative rounded-2xl border border-[#d2dff7] bg-white/92 p-5 shadow-[0_14px_28px_rgba(16,47,103,0.1)]">
-          <p className="text-sm font-semibold text-finance-text">Sign in required</p>
+          <p className="text-sm font-semibold text-finance-text">Finish by signing in</p>
           <p className="mt-2 text-sm leading-relaxed text-finance-muted">
-            Sign in to save progress and get your personalized strategy mapped to your secure profile.
+            Your answers are already filled in. Sign in or create an account here to save them and generate your plan.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              href="/login"
-              className="inline-flex items-center rounded-full bg-gradient-to-r from-[#2b5cff] to-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_18px_rgba(43,92,255,0.25)]"
-            >
-              Go to Login
-            </Link>
-            <Link
-              href="/create-account"
-              className="inline-flex items-center rounded-full border border-[#c7d9fb] bg-white px-4 py-2 text-sm font-semibold text-finance-text hover:bg-[#f4f8ff]"
-            >
-              Create Account
-            </Link>
+          <div className="mt-5">
+            <AuthPanel
+              defaultEmail={typeof answers.email === "string" && answers.email.trim().length > 0 ? answers.email : null}
+              onSignedIn={() => void handleNext()}
+            />
           </div>
         </div>
       </section>
@@ -925,7 +1180,7 @@ export default function OnboardingForm() {
           </motion.div>
         </AnimatePresence>
 
-        {submitError ? (
+        {submitError && !isAuthSessionMessage(submitError) ? (
           <div className="mt-5 flex items-start gap-2 rounded-2xl border border-[#f4c0c0] bg-[#fff1f1] p-3 text-sm text-[#b64040]">
             <AlertCircle className="mt-0.5 h-4 w-4" />
             <p>{submitError}</p>
@@ -946,7 +1201,7 @@ export default function OnboardingForm() {
           <button
             type="button"
             onClick={() => void handleNext()}
-            disabled={isSubmitting || !sessionId}
+            disabled={isSubmitting}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#2b5cff] via-[#4668ff] to-[#00bbff] px-6 text-sm font-semibold text-white shadow-[0_14px_26px_rgba(43,92,255,0.3)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

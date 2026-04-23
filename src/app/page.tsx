@@ -164,12 +164,18 @@ const trustedPartners = [
     name: "HDFC Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-[#d7e1f0] bg-white shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="flex flex-1 items-center justify-center bg-[#e31e24] px-2">
-          <span className="text-[clamp(1rem,2.4vw,1.55rem)] font-extrabold tracking-[0.06em] text-white">HDFC</span>
-        </div>
-        <div className="border-t border-[#cddbf0] bg-[#1f5fa8] px-2 py-1 text-center text-[10px] font-bold tracking-[0.34em] text-white sm:text-[11px]">
-          MUTUAL FUND
+      <div className="flex h-full w-full items-center justify-center bg-transparent">
+        <div className="flex items-center gap-2">
+          <div className="relative flex h-9 w-9 shrink-0 flex-col justify-between bg-[#e31e24] p-[2px]">
+             <div className="h-3 w-3 border-2 border-[#1a1a1a] bg-white" />
+             <div className="h-3 w-3 border-2 border-[#1a1a1a] bg-white self-end" />
+          </div>
+          <div className="flex flex-col">
+            <span className="mb-[2px] text-[1.85rem] font-black leading-none tracking-tight text-[#e31e24]">HDFC</span>
+            <div className="w-full bg-[#1f5fa8] px-1 py-[2px] text-center">
+              <span className="block text-[0.55rem] font-bold leading-none tracking-[0.2em] text-white">MUTUAL FUND</span>
+            </div>
+          </div>
         </div>
       </div>
     ),
@@ -178,13 +184,15 @@ const trustedPartners = [
     name: "ICICI Prudential Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-white px-3 py-2 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="flex items-end justify-center gap-1 text-center leading-none">
-          <span className="text-[clamp(1rem,2vw,1.45rem)] font-black italic tracking-tight text-[#da1f2f]">ICICI</span>
-          <span className="pb-0.5 text-[clamp(0.72rem,1.6vw,1rem)] font-semibold italic tracking-tight text-[#143e7a]">PRUDENTIAL</span>
+      <div className="flex h-full w-full items-center justify-center gap-2 bg-transparent">
+        <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
+           <div className="absolute inset-0 rotate-45 rounded-full border-[3.5px] border-[#da1f2f] border-b-transparent border-r-transparent" />
+           <div className="h-3 w-3 rounded-full bg-[#da1f2f]" />
         </div>
-        <div className="mt-1 border-t border-[#edf2f7] pt-1 text-center text-[10px] font-bold tracking-[0.28em] text-[#da1f2f] sm:text-[11px]">
-          MUTUAL FUND
+        <div className="flex flex-col leading-none">
+          <span className="text-[1.35rem] font-black italic tracking-tighter text-[#da1f2f]">ICICI</span>
+          <span className="-mt-0.5 text-[0.95rem] font-extrabold italic tracking-tighter text-[#da1f2f]">PRUDENTIAL</span>
+          <span className="mt-0.5 text-[0.5rem] font-bold tracking-[0.2em] text-[#143e7a]">MUTUAL FUND</span>
         </div>
       </div>
     ),
@@ -193,16 +201,15 @@ const trustedPartners = [
     name: "Kotak Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#27428f] text-white shadow-[inset_0_0_0_3px_rgba(255,255,255,0.08)]">
-          <span className="absolute left-2 top-2 h-4 w-4 rounded-full border-2 border-[#ef3d30]" />
-          <span className="absolute bottom-2 right-2 h-4 w-4 rounded-full border-2 border-[#ef3d30]" />
-          <span className="text-lg font-black leading-none tracking-tight">k</span>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[clamp(1rem,2vw,1.45rem)] font-black leading-none text-[#ef4836]">kotak</p>
-          <p className="mt-1 text-[clamp(0.74rem,1.6vw,1rem)] leading-none text-[#6f8aa9]">Mutual Fund</p>
-        </div>
+      <div className="flex h-full w-full items-center justify-center bg-transparent">
+        <Image
+          src="/image/partners/kotak-mutual-fund-logo.webp"
+          alt="Kotak Mutual Fund logo"
+          width={300}
+          height={100}
+          className="h-9 w-auto object-contain sm:h-10"
+          sizes="(max-width: 640px) 140px, 180px"
+        />
       </div>
     ),
   },
@@ -210,12 +217,12 @@ const trustedPartners = [
     name: "L&T Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full items-center justify-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black text-black">
-          <span className="text-base font-bold tracking-tight">LT</span>
+      <div className="flex h-full w-full items-center justify-center gap-2.5 bg-transparent">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-[2.5px] border-black text-black">
+          <span className="text-lg font-black tracking-tighter">LT</span>
         </div>
-        <div className="min-w-0">
-          <p className="text-[clamp(1rem,2vw,1.35rem)] font-semibold italic leading-none text-black">L&amp;T Mutual Fund</p>
+        <div className="flex min-w-0 flex-col justify-center">
+          <p className="text-[1.25rem] font-bold italic leading-none text-black">L&amp;T Mutual Fund</p>
         </div>
       </div>
     ),
@@ -224,18 +231,15 @@ const trustedPartners = [
     name: "SBI Mutual Fund",
     subtitle: "A partner for life",
     logo: (
-      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#1d8fd5] text-white shadow-[inset_0_0_0_2px_rgba(255,255,255,0.18)]">
-          <span className="absolute left-[10px] top-[10px] h-2.5 w-2.5 rounded-full bg-white" />
-          <span className="absolute right-[10px] top-[10px] h-2.5 w-2.5 rounded-full bg-white" />
-          <span className="absolute bottom-[10px] left-[10px] h-2.5 w-2.5 rounded-full bg-white" />
-          <span className="absolute bottom-[10px] right-[10px] h-2.5 w-2.5 rounded-full bg-white" />
-          <span className="relative text-[0.7rem] font-bold uppercase tracking-[0.16em]">sbi</span>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[clamp(1rem,2vw,1.4rem)] font-black leading-none text-black">SBI Mutual Fund</p>
-          <p className="mt-1 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#6f8aa9]">A partner for life</p>
-        </div>
+      <div className="flex h-full w-full items-center justify-center bg-transparent">
+        <Image
+          src="/image/partners/sbi-mutual-fund-logo.svg"
+          alt="SBI Mutual Fund logo"
+          width={380}
+          height={120}
+          className="h-11 w-auto object-contain sm:h-12"
+          sizes="(max-width: 640px) 160px, 200px"
+        />
       </div>
     ),
   },
@@ -243,12 +247,14 @@ const trustedPartners = [
     name: "DSP Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="flex items-end justify-between gap-2">
-          <span className="text-[clamp(1.35rem,2.6vw,1.9rem)] font-serif font-bold leading-none text-black">DSP</span>
-          <div className="h-1.5 flex-1 rounded-full bg-[#0ec5bf]" />
+      <div className="flex h-full w-full items-center justify-center gap-2 bg-transparent">
+        <div className="flex items-end gap-1.5">
+          <div className="flex flex-col">
+            <span className="text-[2.2rem] font-black leading-none text-black font-serif">DSP</span>
+            <div className="mt-1 h-[4px] w-[85%] bg-[#0ec5bf]" />
+          </div>
+          <span className="mb-1 text-[0.7rem] font-bold tracking-[0.12em] text-black">MUTUAL FUND</span>
         </div>
-        <p className="mt-1 text-[clamp(0.75rem,1.5vw,1rem)] font-semibold tracking-[0.16em] text-black">MUTUAL FUND</p>
       </div>
     ),
   },
@@ -256,9 +262,14 @@ const trustedPartners = [
     name: "Edelweiss Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-[#1f4f99] px-3 py-3 text-white shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <p className="text-[clamp(0.95rem,2vw,1.5rem)] font-medium tracking-[0.04em]">Edelweiss</p>
-        <p className="mt-1 text-[clamp(0.7rem,1.5vw,0.95rem)] font-medium tracking-[0.18em] text-[#cfe0ff]">Mutual Fund</p>
+      <div className="flex h-full w-full items-center justify-center gap-2.5 bg-transparent">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-[#1f4f99] text-white">
+          <span className="mt-1.5 text-3xl font-serif leading-none">*</span>
+        </div>
+        <div className="flex flex-col justify-center leading-none">
+          <p className="mb-1 text-[1.3rem] font-medium tracking-[0.02em] text-[#1f4f99]">Edelweiss</p>
+          <p className="text-[0.65rem] font-medium uppercase tracking-[0.1em] text-[#1f4f99]">Mutual Fund</p>
+        </div>
       </div>
     ),
   },
@@ -266,13 +277,19 @@ const trustedPartners = [
     name: "Franklin Templeton Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#d5dce8] bg-[#f7fafc] text-[#1f355c] shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
-          <span className="text-[0.65rem] font-bold uppercase leading-tight tracking-[0.12em] text-center">FT</span>
+      <div className="flex h-full w-full items-center justify-center gap-2.5 bg-transparent">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black bg-white shadow-sm">
+          <div className="flex h-full w-full items-center justify-center bg-gray-100">
+             <div className="h-7 w-5 rounded-t-full bg-gray-400" />
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="text-[clamp(0.9rem,1.9vw,1.28rem)] font-medium leading-tight text-[#1f355c]">Franklin Templeton</p>
-          <p className="mt-1 text-[clamp(0.72rem,1.5vw,0.95rem)] font-semibold uppercase tracking-[0.18em] text-[#6f8aa9]">Mutual Fund</p>
+        <div className="flex flex-col justify-center leading-none">
+          <p className="text-[1.05rem] font-bold uppercase text-black font-serif">Franklin Templeton</p>
+          <div className="mt-1 flex items-center gap-1">
+             <div className="h-[0.5px] flex-1 bg-black" />
+             <p className="text-[0.45rem] font-bold uppercase tracking-[0.15em] text-black">Investments</p>
+             <div className="h-[0.5px] flex-1 bg-black" />
+          </div>
         </div>
       </div>
     ),
@@ -281,19 +298,17 @@ const trustedPartners = [
     name: "Nippon India Mutual Fund",
     subtitle: "Wealth sets you free",
     logo: (
-      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-white px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#e22d2d] shadow-[inset_0_0_0_1px_rgba(226,45,45,0.15)]">
-          <div className="grid grid-cols-2 gap-1.5 rotate-45">
-            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
-            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
-            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
-            <span className="h-3.5 w-3.5 rounded-sm bg-[#e22d2d]" />
-          </div>
+      <div className="flex h-full w-full items-center justify-center gap-3 bg-transparent">
+        <div className="grid h-8 w-8 shrink-0 rotate-45 grid-cols-2 gap-[2px]">
+            <span className="h-full w-full rounded-tl-[8px] bg-[#e22d2d]" />
+            <span className="h-full w-full rounded-tr-[8px] bg-[#e22d2d]" />
+            <span className="h-full w-full rounded-bl-[8px] bg-[#e22d2d]" />
+            <span className="h-full w-full rounded-br-[8px] bg-[#e22d2d]" />
         </div>
-        <div className="min-w-0">
-          <p className="text-[clamp(1rem,2vw,1.35rem)] font-semibold leading-none text-black">Nippon <span className="text-[#e22d2d]">India</span></p>
-          <p className="mt-1 text-[clamp(0.72rem,1.5vw,0.95rem)] font-semibold uppercase tracking-[0.18em] text-[#6f8aa9]">Mutual Fund</p>
-          <p className="mt-1 text-[0.7rem] text-[#8aa2ca]">Wealth sets you free</p>
+        <div className="flex flex-col leading-none">
+          <p className="text-[1.3rem] font-medium text-[#4a4a4a]">Nippon <span className="text-[#e22d2d]">india</span></p>
+          <p className="mt-1 text-[1.1rem] font-medium text-[#4a4a4a]">Mutual Fund</p>
+          <p className="mt-1 text-[0.55rem] font-medium uppercase tracking-[0.05em] text-[#9b9b9b]">Wealth sets you free</p>
         </div>
       </div>
     ),
@@ -302,7 +317,7 @@ const trustedPartners = [
     name: "HDFC Life",
     subtitle: "Life Insurance",
     logo: (
-      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+      <div className="flex h-full w-full items-center gap-3 bg-transparent">
         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-sm border border-[#f1c8c8] bg-[#f80c0c]">
           <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 bg-[#f8f9fb]" />
           <span className="absolute left-0 top-0 h-0 w-0 border-l-[24px] border-t-[24px] border-l-[#c70000] border-t-[#c70000] border-r-[24px] border-r-transparent border-b-[24px] border-b-transparent opacity-65" />
@@ -319,7 +334,7 @@ const trustedPartners = [
     name: "TATA AIA Life Insurance",
     subtitle: "Life Insurance",
     logo: (
-      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+      <div className="flex h-full w-full flex-col justify-center bg-transparent">
         <div className="flex items-end justify-center gap-2 leading-none">
           <span className="text-[clamp(1rem,2vw,1.42rem)] font-black tracking-[0.04em] text-[#1277bb]">TATA</span>
           <span className="text-[clamp(1rem,2vw,1.42rem)] font-black tracking-[0.06em] text-[#c71e61]">AIA</span>
@@ -336,7 +351,7 @@ const trustedPartners = [
     name: "IndiaFirst Life Insurance",
     subtitle: "Promoted by Bank of Baroda",
     logo: (
-      <div className="flex h-full w-full flex-col justify-center rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+      <div className="flex h-full w-full flex-col justify-center bg-transparent">
         <div className="mx-auto mb-1 flex w-[88%] items-end justify-start gap-1.5">
           <span className="h-2.5 w-8 -skew-x-[24deg] bg-[#ea1b2c]" />
           <span className="h-3 w-9 -skew-x-[24deg] bg-[#1ea1df]" />
@@ -356,7 +371,7 @@ const trustedPartners = [
     name: "Wealthy",
     subtitle: "Digital Wealth Platform",
     logo: (
-      <div className="flex h-full w-full items-center gap-3 rounded-xl border border-[#d7e1f0] bg-[#f8f9fb] px-3 py-3 shadow-[0_8px_18px_rgba(10,25,48,0.06)]">
+      <div className="flex h-full w-full items-center gap-3 bg-transparent">
         <div className="flex h-12 w-12 items-end justify-center gap-1 rounded-xl bg-white/70 px-1.5 py-1.5">
           <span className="h-2 w-1.5 rounded-full bg-[#5a2de1]" />
           <span className="h-4 w-1.5 rounded-full bg-[#5a2de1]" />

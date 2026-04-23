@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { ArrowRight, Menu, UserRound, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -35,6 +35,7 @@ const HOME_SCROLL_SECTIONS = [
 
 export default function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const isOnboarding = pathname.startsWith("/onboarding");
 
   const [scrolled, setScrolled] = useState(false);
@@ -81,6 +82,44 @@ export default function SiteHeader() {
     window.addEventListener("hashchange", syncHash);
     return () => window.removeEventListener("hashchange", syncHash);
   }, [pathname]);
+
+  const routeAfterGuidanceAuthCheck = useCallback(
+    async (closeMobileMenu: boolean) => {
+      let hasSession = isAuthenticated;
+
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (!error) {
+          hasSession = Boolean(session?.user);
+          setIsAuthenticated(hasSession);
+          setSignedInEmail(session?.user?.email ?? null);
+          setIsAuthResolved(true);
+        }
+      } catch {
+        hasSession = false;
+      }
+
+      if (closeMobileMenu) {
+        setIsMobileMenuOpen(false);
+      }
+
+      router.push("/onboarding");
+    },
+    [isAuthenticated, router],
+  );
+
+  const handleGetGuidanceClick = useCallback(
+    (event: React.MouseEvent<HTMLAnchorElement>, closeMobileMenu = false) => {
+      event.preventDefault();
+      void routeAfterGuidanceAuthCheck(closeMobileMenu);
+    },
+    [routeAfterGuidanceAuthCheck],
+  );
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -230,7 +269,7 @@ export default function SiteHeader() {
     return (
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-finance-border/40 bg-finance-bg/95 backdrop-blur-sm">
         <div className="mx-auto h-16 max-w-6xl px-6 flex items-center justify-between">
-          <Link href="/" className="text-finance-text font-semibold tracking-tight">Pravix</Link>
+          <Link href="/" className="text-finance-text font-semibold tracking-tight text-lg">Pravix</Link>
           <div className="hidden md:flex items-center gap-4 text-[11px] uppercase tracking-[0.2em] text-finance-muted">
             <span>Application Progress</span>
             <div className="flex gap-2">
@@ -246,8 +285,8 @@ export default function SiteHeader() {
 
   /* ─── Nav Items ─── */
   const baseNavItems = [
-    { label: "How It Works", href: "/#how-it-works" },
     { label: "Dashboard", href: "/dashboard" },
+    { label: "Services", href: "/services" },
     { label: "Marketplace", href: "/#insights" },
     { label: "Blog", href: "/#blog" },
     { label: "Team Pravix", href: "/#about-us" },
@@ -470,13 +509,13 @@ export default function SiteHeader() {
             }}
             aria-label="Pravix home"
           >
-            <span className="relative inline-flex h-9 w-9 flex-none items-center justify-center overflow-visible mr-7">
+            <span className="relative inline-flex h-11 w-11 flex-none items-center justify-center overflow-visible mr-2">
               <Image
                 src="/image/pravix-visualmark.png"
                 alt="Pravix visual mark"
-                width={36}
-                height={36}
-                className="h-9 w-9 scale-[3] object-contain transition-transform duration-300 group-hover:-translate-y-0.5"
+                width={44}
+                height={44}
+                className="h-11 w-11 object-contain transition-transform duration-300 group-hover:-translate-y-0.5"
                 priority
               />
             </span>
@@ -545,6 +584,7 @@ export default function SiteHeader() {
                 <Link
                   href="/onboarding"
                   className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
+                  onClick={(event) => handleGetGuidanceClick(event)}
                   style={{
                     background: "#2b5cff",
                     padding: isMobileViewport ? "9px 22px" : scrolled ? "7px 18px" : "9px 22px",
@@ -593,6 +633,7 @@ export default function SiteHeader() {
                 <Link
                   href="/onboarding"
                   className="hidden sm:flex items-center gap-2 text-white font-semibold rounded-full overflow-hidden relative group"
+                  onClick={(event) => handleGetGuidanceClick(event)}
                   style={{
                     background: "#2b5cff",
                     padding: isMobileViewport ? "9px 22px" : scrolled ? "7px 18px" : "9px 22px",
@@ -661,6 +702,7 @@ export default function SiteHeader() {
                 <Link
                   href="/onboarding"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2b5cff] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(43,92,255,0.35)]"
+                  onClick={(event) => handleGetGuidanceClick(event, true)}
                 >
                   Get Guidance
                   <ArrowRight className="h-4 w-4" />
@@ -677,6 +719,7 @@ export default function SiteHeader() {
                 <Link
                   href="/onboarding"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2b5cff] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(43,92,255,0.35)]"
+                  onClick={(event) => handleGetGuidanceClick(event, true)}
                 >
                   Get Guidance
                   <ArrowRight className="h-4 w-4" />

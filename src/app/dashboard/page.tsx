@@ -42,6 +42,7 @@ import {
 } from "recharts";
 import SiteHeader from "@/components/SiteHeader";
 import AuthPanel from "@/components/AuthPanel";
+import RequireAuth from "@/components/RequireAuth";
 import AgentAdvisorPanel from "@/components/AgentAdvisorPanel";
 import ExecutiveIntelligencePanel from "@/components/ExecutiveIntelligencePanel";
 import HoldingsAnalyzerPanel from "@/components/HoldingsAnalyzerPanel";
@@ -1262,12 +1263,8 @@ export default function DashboardPage() {
   const kpiStripItems = useMemo<DashboardKpiItem[]>(() => {
     const investedCorpus = Math.max((profile?.current_savings_inr ?? 0) + (holdingsAnalytics?.totalMarketValueInr ?? 0), 0);
     const goalProgressPct = profile && profile.target_amount_inr > 0 ? Math.min((investedCorpus / profile.target_amount_inr) * 100, 999) : 0;
-    const alertSla = alertsSummary && alertsSummary.triggeredCount > 0
-      ? Math.round((alertsSummary.readyCount / alertsSummary.triggeredCount) * 100)
-      : null;
     const concentrationCount = holdingsAnalytics?.concentrationWarnings.length ?? 0;
     const concentrationTone = concentrationCount === 0 ? "Low" : concentrationCount <= 2 ? "Medium" : "High";
-    const taxRunway = taxSummary ? taxSummary.section80cRemainingInr : 0;
 
     return [
       {
@@ -1289,26 +1286,6 @@ export default function DashboardPage() {
         deltaTone: profile && profile.monthly_investable_surplus_inr > 0 ? "positive" : "neutral",
         detail: "Net monthly cash available for SIP and goal funding.",
         source: "Profile monthly cashflow",
-      },
-      {
-        id: "tax-runway",
-        label: "Tax Runway",
-        value: taxSummary ? formatCompactCurrency(taxRunway) : "N/A",
-        hint: taxSummary ? `${taxSummary.daysToFinancialYearEnd} days left` : "Tax profile pending",
-        deltaLabel: taxSummary ? `${formatCompactCurrency(taxSummary.section80cRemainingInr)} still optimizable` : "Awaiting tax calculations",
-        deltaTone: taxSummary && taxSummary.section80cRemainingInr > 0 ? "negative" : "positive",
-        detail: "Remaining 80C opportunity before FY end.",
-        source: "Tax optimization engine",
-      },
-      {
-        id: "alert-sla",
-        label: "Alert SLA",
-        value: alertSla !== null ? `${Math.max(alertSla, 0)}%` : "N/A",
-        hint: alertsSummary ? `${alertsSummary.readyCount} ready of ${alertsSummary.triggeredCount}` : "Alerts not evaluated",
-        deltaLabel: alertsSummary ? `${alertsSummary.blockedCount} blocked queue` : "Pipeline pending",
-        deltaTone: alertsSummary && alertsSummary.blockedCount > 0 ? "negative" : "positive",
-        detail: "Readiness ratio for triggered decision alerts.",
-        source: "Smart Alerts pipeline",
       },
       {
         id: "concentration-risk",
@@ -1815,9 +1792,10 @@ export default function DashboardPage() {
   }, [kpiStripItems, selectedHorizon, selectedLens]);
 
   return (
-    <>
-      <SiteHeader />
-      <div className="min-h-screen bg-[linear-gradient(180deg,#0a0f1e_0%,#101828_30%,#eef3ff_100%)] pb-16 pt-20 sm:pb-20 sm:pt-24">
+    <RequireAuth redirectTo="/onboarding">
+      <>
+        <SiteHeader />
+        <div className="min-h-screen bg-[linear-gradient(180deg,#0a0f1e_0%,#101828_30%,#eef3ff_100%)] pb-16 pt-20 sm:pb-20 sm:pt-24">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
           {/* ── Header Bar ── */}
           <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#0f1f3d] via-[#132040] to-[#0c1830] px-5 py-4 shadow-[0_20px_40px_rgba(2,8,26,0.55)] backdrop-blur-lg sm:px-6 sm:py-4">
@@ -3007,8 +2985,9 @@ export default function DashboardPage() {
             </div>
           </aside>
         </div>
-      ) : null}
-    </>
+        ) : null}
+      </>
+    </RequireAuth>
   );
 }
 
