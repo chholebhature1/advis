@@ -23,6 +23,8 @@ import {
   Target,
   TrendingUp,
   WalletMinimal,
+  Briefcase,
+  ArrowUpRight,
   X,
 } from "lucide-react";
 import {
@@ -403,6 +405,7 @@ export default function DashboardPage() {
   const [sipMonthlyAmount, setSipMonthlyAmount] = useState(15000);
   const [sipAnnualReturn, setSipAnnualReturn] = useState(12);
   const [sipDurationYears, setSipDurationYears] = useState(10);
+  const [projectionYears, setProjectionYears] = useState(10);
 
   // Sync profile data to dashboard filters & calculator
   useEffect(() => {
@@ -1676,6 +1679,135 @@ export default function DashboardPage() {
     [isCompactMotion],
   );
 
+  const allocationArchitecture = useMemo(() => {
+    if (!profile) return [];
+    
+    const surplus = profile.monthly_investable_surplus_inr || 15000;
+    const risk = profile.risk_appetite;
+    
+    let split = [
+      { name: "Equity Index Funds", pct: 30, color: "#2b5cff", theme: "blue", detail: "Long-term growth assets" },
+      { name: "Short/Medium Debt", pct: 55, color: "#7aaafc", theme: "sky", detail: "Capital preservation & stability" },
+      { name: "Gold ETF / Funds", pct: 10, color: "#f5cc73", theme: "gold", detail: "Inflation & currency hedge" },
+      { name: "Liquid Reserve", pct: 5, color: "#69c8ad", theme: "green", detail: "Immediate liquidity access" },
+    ];
+    
+    if (risk === 'aggressive') {
+      split = [
+        { name: "Equity Index Funds", pct: 70, color: "#2b5cff", theme: "blue", detail: "High-conviction growth" },
+        { name: "Short/Medium Debt", pct: 20, color: "#7aaafc", theme: "sky", detail: "Tactical safety buffer" },
+        { name: "Gold ETF / Funds", pct: 5, color: "#f5cc73", theme: "gold", detail: "Stability component" },
+        { name: "Liquid Reserve", pct: 5, color: "#69c8ad", theme: "green", detail: "Cash for opportunities" },
+      ];
+    } else if (risk === 'moderate') {
+      split = [
+        { name: "Equity Index Funds", pct: 50, color: "#2b5cff", theme: "blue", detail: "Balanced growth exposure" },
+        { name: "Short/Medium Debt", pct: 40, color: "#7aaafc", theme: "sky", detail: "Core income generation" },
+        { name: "Gold ETF / Funds", pct: 5, color: "#f5cc73", theme: "gold", detail: "Hedge against volatility" },
+        { name: "Liquid Reserve", pct: 5, color: "#69c8ad", theme: "green", detail: "Operational liquidity" },
+      ];
+    }
+    
+    return split.map(item => ({
+      ...item,
+      amount: (surplus * item.pct) / 100
+    }));
+  }, [profile]);
+
+  const corpusProjection = useMemo(() => {
+    if (!allocationArchitecture.length || !profile) return null;
+    
+    const months = projectionYears * 12;
+    const initialCorpus = profile.current_savings_inr + (holdingsAnalytics?.totalMarketValueInr ?? 0);
+    
+    // Conservative-leaning estimated annual returns for each bucket
+    const assetYields: Record<string, number> = {
+      "Equity Index Funds": 0.138,
+      "Short/Medium Debt": 0.072,
+      "Gold ETF / Funds": 0.095,
+      "Liquid Reserve": 0.042
+    };
+    
+    let totalInvested = 0;
+    let totalValue = 0;
+    
+    const layers = allocationArchitecture.map(item => {
+      const monthlyAmount = item.amount;
+      const annualRate = assetYields[item.name] || 0.10;
+      const monthlyRate = annualRate / 12;
+      
+      const principalInvested = monthlyAmount * months;
+      
+      // Future Value of an Annuity: P * [((1 + r)^n - 1) / r] * (1 + r)
+      const futureValue = monthlyRate === 0 
+        ? principalInvested 
+        : monthlyAmount * (((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate));
+        
+      totalInvested += principalInvested;
+      totalValue += futureValue;
+      
+      return {
+        ...item,
+        principalInvested,
+        futureValue,
+        netProfit: futureValue - principalInvested,
+        yieldPct: ((futureValue - principalInvested) / principalInvested) * 100
+      };
+    });
+
+    // Generate realistic year-by-year growth data for the graph
+    const graphData = [];
+    const numPoints = Math.min(12, Math.max(6, Math.floor(projectionYears) + 1));
+    const yrInterval = projectionYears / (numPoints - 1);
+    
+    for (let i = 0; i < numPoints; i++) {
+      // Ensure the last point is exactly projectionYears and intermediate points are strictly increasing
+      const yr = i === numPoints - 1 ? projectionYears : i * yrInterval;
+      const mths = Math.round(yr * 12);
+      
+      let yrInvested = 0;
+      let yrValue = 0;
+      
+      layers.forEach(layer => {
+        const annualRate = assetYields[layer.name] || 0.10;
+        const monthlyRate = annualRate / 12;
+        const principal = layer.amount * mths;
+        const value = monthlyRate === 0 
+          ? principal 
+          : layer.amount * (((Math.pow(1 + monthlyRate, mths) - 1) / monthlyRate) * (1 + monthlyRate));
+        
+        yrInvested += principal;
+        yrValue += value;
+      });
+      
+      const yrInitialAppreciated = initialCorpus * Math.pow(1 + 0.095, yr);
+      const yrTotalValue = yrValue + yrInitialAppreciated;
+      const yrTotalInvested = yrInvested + initialCorpus;
+      
+      graphData.push({
+        label: yr === 0 ? "Now" : `${yr.toFixed(yr > 0 && yr < 1 ? 1 : 0)}Y`,
+        totalValue: yrTotalValue,
+        invested: yrTotalInvested,
+        profit: yrTotalValue - yrTotalInvested
+      });
+    }
+
+    // Add initial corpus appreciation at a blended rate (assume balanced 10%)
+    const initialCorpusAppreciated = initialCorpus * Math.pow(1 + 0.10, projectionYears);
+    const totalFinalCorpus = totalValue + initialCorpusAppreciated;
+    
+    return {
+      totalInvested,
+      totalValue,
+      initialCorpus,
+      initialCorpusAppreciated,
+      totalFinalCorpus,
+      totalProfit: (totalValue - totalInvested) + (initialCorpusAppreciated - initialCorpus),
+      layers,
+      graphData
+    };
+  }, [allocationArchitecture, profile, projectionYears, holdingsAnalytics?.totalMarketValueInr]);
+
   const aiMarketLab = useMemo(() => {
     if (!profile || !profileIntelligence) {
       return null;
@@ -2012,6 +2144,303 @@ export default function DashboardPage() {
             </section>
           ) : null}
 
+          {!isLoading && !error && signedInEmail && profile && allocationArchitecture.length > 0 ? (
+            <section className="relative mt-5 overflow-hidden rounded-[2rem] border border-finance-border bg-white shadow-[0_20px_50px_rgba(10,25,48,0.08)] sm:mt-6">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_2%_2%,rgba(43,92,255,0.06),transparent_25%),linear-gradient(180deg,#ffffff_0%,#f8faff_100%)]" />
+              
+              <div className="relative p-6 sm:p-8">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="max-w-2xl">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-finance-accent/10 bg-finance-accent/5 px-3 py-1.5">
+                      <BarChart3 className="h-3.5 w-3.5 text-finance-accent" />
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-accent">Strategic Asset Architecture</p>
+                    </div>
+                    <h2 className="mt-4 text-3xl font-bold tracking-tight text-finance-text sm:text-4xl">
+                      Precision Money Flow Analysis
+                    </h2>
+                    <p className="mt-3 text-sm leading-relaxed text-finance-muted md:text-base">
+                      Your monthly investable surplus of <strong className="text-finance-text">{formatCurrency(profile.monthly_investable_surplus_inr)}</strong> is architected across four distinct asset layers to maximize returns while maintaining your <strong className="text-finance-text">{profile.risk_appetite}</strong> safety profile.
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-px bg-finance-border hidden lg:block" />
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted">Current Risk Mode</p>
+                      <StatusBadge label={profile.risk_appetite.toUpperCase()} tone={profile.risk_appetite === 'aggressive' ? 'info' : profile.risk_appetite === 'conservative' ? 'success' : 'info'} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-10 grid gap-8 lg:grid-cols-12 lg:items-center">
+                  {/* Left: High-Fidelity PowerBI Donut */}
+                  <div className="relative h-[320px] lg:col-span-5">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={allocationArchitecture}
+                          innerRadius={90}
+                          outerRadius={125}
+                          paddingAngle={6}
+                          dataKey="amount"
+                          stroke="none"
+                        >
+                          {allocationArchitecture.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="rounded-xl border border-finance-border bg-white p-3 shadow-xl">
+                                  <p className="text-xs font-bold text-finance-text">{data.name}</p>
+                                  <p className="text-lg font-black text-finance-accent">{formatCurrency(data.amount)}</p>
+                                  <p className="text-[10px] text-finance-muted">{data.pct}% of total</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-muted">Monthly Plan</p>
+                      <p className="mt-1 text-2xl font-black text-finance-text">{formatCompactCurrency(profile.monthly_investable_surplus_inr)}</p>
+                      <div className="mt-2 h-1 w-8 rounded-full bg-finance-accent/20" />
+                    </div>
+                  </div>
+
+                  {/* Right: Detailed Intelligence Cards */}
+                  <div className="grid gap-3 sm:grid-cols-2 lg:col-span-7">
+                    {allocationArchitecture.map((item) => (
+                      <div key={item.name} className="group relative overflow-hidden rounded-2xl border border-finance-border bg-white p-4 transition-all duration-300 hover:border-finance-accent/30 hover:shadow-[0_8px_30px_rgba(43,92,255,0.06)]">
+                        <div className={`absolute top-0 left-0 h-full w-1.5 transition-all duration-300 group-hover:w-2`} style={{ backgroundColor: item.color }} />
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted">{item.name}</p>
+                            <p className="mt-1 text-xl font-bold text-finance-text">{formatCurrency(item.amount)}</p>
+                          </div>
+                          <div className="rounded-lg bg-finance-surface px-2 py-1 text-[10px] font-black text-finance-text border border-finance-border">
+                            {item.pct}%
+                          </div>
+                        </div>
+                        <p className="mt-3 text-[11px] leading-relaxed text-finance-muted">
+                          {item.detail}
+                        </p>
+                        <div className="mt-4 flex items-center gap-2">
+                          <div className="h-1 flex-1 rounded-full bg-finance-surface">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              whileInView={{ width: `${item.pct}%` }}
+                              transition={{ duration: 1, ease: "easeOut" }}
+                              className="h-full rounded-full" 
+                              style={{ backgroundColor: item.color }} 
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-8 flex items-center gap-4 rounded-2xl bg-finance-accent/5 p-4 border border-finance-accent/10">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+                    <ShieldCheck className="h-5 w-5 text-finance-accent" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-finance-text">Risk-Adjusted Efficiency</p>
+                    <p className="text-xs text-finance-muted">
+                      This allocation architecture is mathematically optimized to neutralize inflation while maintaining a 
+                      {profile.risk_appetite === 'aggressive' ? ' high-growth' : ' stable'} liquidity floor based on your Pravix profile.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+          {!isLoading && !error && signedInEmail && profile && corpusProjection ? (
+            <section className="relative mt-5 overflow-hidden rounded-[2rem] border border-finance-border bg-white shadow-[0_20px_50px_rgba(10,25,48,0.08)] sm:mt-6">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,rgba(43,92,255,0.06),transparent_40%),linear-gradient(180deg,#ffffff_0%,#f8faff_100%)]" />
+              
+              <div className="relative p-6 sm:p-8">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-finance-accent/10 bg-finance-accent/5 px-3 py-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-finance-accent" />
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-accent">Horizon Intelligence</p>
+                    </div>
+                    <h2 className="mt-4 text-3xl font-bold tracking-tight text-finance-text sm:text-4xl">
+                      Future Corpus Simulator
+                    </h2>
+                    <p className="mt-3 text-sm leading-relaxed text-finance-muted md:text-base">
+                      See how your <strong className="text-finance-text">Strategic Asset Architecture</strong> compounds over time. Adjust the horizon to visualize your projected wealth.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-finance-border bg-finance-surface/45 p-2">
+                    {[1, 3, 5, 10, 20].map((years) => (
+                      <button
+                        key={years}
+                        onClick={() => setProjectionYears(years)}
+                        className={`h-9 rounded-xl px-4 text-xs font-bold transition-all ${
+                          projectionYears === years 
+                            ? 'bg-finance-accent text-white shadow-lg shadow-finance-accent/25' 
+                            : 'text-finance-muted hover:bg-white hover:text-finance-text'
+                        }`}
+                      >
+                        {years}Y
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-2 px-3 border-l border-finance-border/50 ml-1">
+                      <div className="relative">
+                        <input 
+                          type="number" 
+                          value={projectionYears} 
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val)) setProjectionYears(Math.min(50, Math.max(1, val)));
+                          }}
+                          className="h-9 w-16 rounded-xl border border-finance-border bg-white pl-3 pr-1 text-sm font-bold text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30 transition-all"
+                          placeholder="00"
+                        />
+                      </div>
+                      <span className="text-[10px] font-black text-finance-muted uppercase tracking-[0.15em]">Years</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-10 grid gap-8 lg:grid-cols-12">
+                  <div className="lg:col-span-8">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-finance-border bg-finance-surface/30 p-5">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted">Total Invested</p>
+                        <p className="mt-2 text-2xl font-bold text-finance-text">{formatCompactCurrency(corpusProjection.totalInvested)}</p>
+                        <p className="mt-1 text-xs text-finance-muted">Over {projectionYears} years</p>
+                      </div>
+                      <div className="rounded-2xl border border-finance-border bg-finance-surface/30 p-5">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-finance-accent">Net Yield (Profit)</p>
+                        <p className="mt-2 text-2xl font-bold text-finance-accent">+{formatCompactCurrency(corpusProjection.totalProfit)}</p>
+                        <p className="mt-1 text-xs text-finance-muted">Compounded gains</p>
+                      </div>
+                      <div className="rounded-2xl border border-finance-accent/10 bg-finance-accent/5 p-5 shadow-[inset_0_0_20px_rgba(43,92,255,0.03)]">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-finance-text">Estimated Corpus</p>
+                        <p className="mt-2 text-2xl font-bold text-finance-text">{formatCompactCurrency(corpusProjection.totalFinalCorpus)}</p>
+                        <p className="mt-1 text-xs text-finance-muted">Final value</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 h-[320px] rounded-[2rem] border border-finance-border bg-[#fcfdff] p-6 shadow-[inset_0_1px_4px_rgba(10,25,48,0.04)]">
+                       <ResponsiveContainer width="100%" height="100%">
+                         <AreaChart data={corpusProjection.graphData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                           <defs>
+                            <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.25}/>
+                              <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.05}/>
+                            </linearGradient>
+                            <linearGradient id="investedGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.15}/>
+                              <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.02}/>
+                            </linearGradient>
+                           </defs>
+                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(10,25,48,0.06)" />
+                           <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10 }} />
+                           <YAxis hide />
+                           <Tooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div className="rounded-xl border border-[#d8e7ff] bg-white p-3 shadow-xl">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">{data.label}</p>
+                                    <div className="mt-2 space-y-1">
+                                      <div className="flex items-center justify-between gap-6">
+                                        <p className="text-xs text-[#5f7396]">Total Value</p>
+                                        <p className="text-sm font-bold text-[#0a1930]">{formatCurrency(data.totalValue)}</p>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-6">
+                                        <p className="text-xs text-[#5f7396]">Invested</p>
+                                        <p className="text-sm font-semibold text-[#50607d]">{formatCurrency(data.invested)}</p>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-6 border-t border-[#edf4ff] pt-1">
+                                        <p className="text-xs font-medium text-finance-accent">Net Profit</p>
+                                        <p className="text-sm font-bold text-finance-accent">+{formatCurrency(data.profit)}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                           />
+                          <Area 
+                            type="monotone" 
+                            dataKey="totalValue" 
+                            stackId="1"
+                            stroke="#2b5cff" 
+                            strokeWidth={3} 
+                            fillOpacity={1} 
+                            fill="url(#profitGradient)" 
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="invested" 
+                            stackId="2"
+                            stroke="#94a3b8" 
+                            strokeWidth={1.5} 
+                            strokeDasharray="4 4"
+                            fill="url(#investedGradient)" 
+                          />
+                         </AreaChart>
+                       </ResponsiveContainer>
+                      <div className="mt-4 flex items-center justify-center gap-6">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-finance-accent" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted">Total Value (Compounded)</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-slate-400" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted">Invested Capital</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-4 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-muted mb-4">Asset Layer Performance</p>
+                    {corpusProjection.layers.map((layer) => (
+                      <div key={layer.name} className="group rounded-2xl border border-finance-border bg-white p-4 transition-all hover:border-finance-accent/30 hover:shadow-[0_8px_25px_rgba(43,92,255,0.05)]">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-finance-text">{layer.name}</p>
+                          <span className="text-[10px] font-black text-finance-accent">+{layer.yieldPct.toFixed(0)}% Yield</span>
+                        </div>
+                        <div className="mt-3 flex items-end justify-between">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-widest text-finance-muted">Projected Value</p>
+                            <p className="text-lg font-bold text-finance-text">{formatCompactCurrency(layer.futureValue)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] uppercase tracking-widest text-finance-accent">Net Profit</p>
+                            <p className="text-sm font-bold text-finance-accent">+{formatCompactCurrency(layer.netProfit)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <div className="mt-6 rounded-2xl bg-finance-accent/5 p-4 border border-finance-accent/10">
+                      <p className="text-[11px] leading-relaxed text-finance-muted">
+                        <Sparkles className="inline-block h-3 w-3 text-finance-accent mr-1 mb-0.5" />
+                        At a {projectionYears}Y horizon, the <span className="text-finance-text font-bold">Power of Compounding</span> contributes <span className="text-finance-accent font-bold">{((corpusProjection.totalProfit / corpusProjection.totalInvested) * 100).toFixed(0)}%</span> in additional wealth over your principal investments.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
           {isLoading && (
             <DashboardSectionCard
               className="mt-5 sm:mt-6"
@@ -2137,218 +2566,191 @@ export default function DashboardPage() {
 
               {aiMarketLab ? (
                 <motion.section
-                  className="relative overflow-hidden rounded-[2rem] border border-[#d7e4fb] bg-white shadow-[0_18px_44px_rgba(10,25,48,0.08)]"
+                  className="relative overflow-hidden rounded-[2.5rem] border border-[#d7e4fb] bg-white shadow-[0_22px_60px_rgba(10,25,48,0.08)]"
                   variants={sectionReveal}
                   initial="hidden"
                   whileInView="show"
                   viewport={denseSectionViewport}
                 >
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(43,92,255,0.08),transparent_28%),radial-gradient(circle_at_88%_14%,rgba(0,216,255,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(245,249,255,0.96))]" />
-                  <div className="relative px-5 py-6 sm:px-6 sm:py-7 md:px-8 md:py-8">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(43,92,255,0.06),transparent_28%),radial-gradient(circle_at_88%_14%,rgba(0,216,255,0.05),transparent_24%),linear-gradient(180deg,rgba(255,255,255,1),rgba(248,251,255,1))]" />
+                  
+                  <div className="relative px-6 py-8 sm:px-8 sm:py-10">
+                    <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                       <div className="max-w-3xl">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-[#edf4ff] px-3 py-1.5">
-                          <Sparkles className="h-3.5 w-3.5 text-[#2b5cff]" />
-                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#2b5cff]">AI + Market Lab</p>
+                        <div className="inline-flex items-center gap-2 rounded-full border border-finance-accent/10 bg-finance-accent/5 px-3 py-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-finance-accent" />
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-accent">Pravix Precision Lab</p>
                         </div>
-                        <h3 className="mt-4 text-[clamp(1.65rem,3.8vw,2.75rem)] font-bold leading-[1.05] tracking-tight text-[#0a1930]">
-                          Five handcrafted intelligence panels for clearer financial decisions
+                        <h3 className="mt-4 text-[clamp(1.8rem,4vw,3rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                          Intelligence Built on <span className="text-finance-accent">Certainty</span>
                         </h3>
-                        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#50607d] md:text-base">
-                          Scenario planning, goal confidence, and market context are all computed from your profile,
-                          holdings, tax, and live feed data.
+                        <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
+                          Every insight in this lab is computed using institutional-grade risk models. We don&apos;t just predict; we validate your future against thousands of market scenarios.
                         </p>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 border border-[#d8e7ff] shadow-sm">
+                          <span className="h-2 w-2 rounded-full bg-finance-green animate-pulse" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#0a1930]">Real-Time Audit Active</p>
+                        </div>
                         <StatusBadge label={selectedHorizonLabel} tone="info" />
-                        <StatusBadge label={aiMarketLab.marketContextLabel} tone={marketStatus.tone} />
-                        <StatusBadge label={aiMarketLab.marketTrendLabel} tone={marketTrendStatus.tone} />
                       </div>
                     </div>
 
-                    <div className="mt-6 grid gap-4 lg:grid-cols-12">
+                    <div className="mt-10 grid gap-6 lg:grid-cols-12">
+                      {/* Left: Trust Engine & Goal Probability */}
                       <motion.article
-                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-12"
+                        className="relative overflow-hidden rounded-[2rem] border border-[#d8e7ff] bg-white p-6 shadow-[0_12px_35px_rgba(43,92,255,0.06)] lg:col-span-7"
                         variants={featureCardReveal}
                         custom={1}
                       >
-                        <div className="flex items-center gap-2">
-                          <Target className="h-4.5 w-4.5 text-[#2b5cff]" />
-                          <p className="text-sm font-semibold text-[#0a1930]">Goal Probability Meter</p>
-                        </div>
-                        <p className="mt-1 text-xs text-[#5f7396]">Probability that current cashflow and holdings can reach your target on time.</p>
-
-                        <div className="mt-5 flex items-center gap-4">
-                          <div className="relative flex h-32 w-32 items-center justify-center">
-                            <div
-                              className="absolute inset-0 rounded-full shadow-[inset_0_0_0_1px_rgba(43,92,255,0.08)]"
-                              style={{
-                                background: `conic-gradient(#2b5cff 0 ${aiMarketLab.goalProbability}%, rgba(43,92,255,0.12) ${aiMarketLab.goalProbability}% 100%)`,
-                              }}
-                            />
-                            <div className="absolute inset-[10px] rounded-full border border-white bg-white shadow-[inset_0_1px_4px_rgba(10,25,48,0.06)]" />
-                            <div className="relative text-center">
-                              <p className="text-3xl font-bold text-[#0a1930]">{aiMarketLab.goalProbability}%</p>
-                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#5f7396]">probability</p>
-                            </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-finance-accent/5">
+                            <Target className="h-5 w-5 text-finance-accent" />
                           </div>
-
-                          <div className="flex-1 space-y-3">
-                            <div className="rounded-2xl border border-[#edf4ff] bg-[#f8fbff] p-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs uppercase tracking-[0.14em] text-[#5f7396]">Confidence</p>
-                                <StatusBadge
-                                  label={
-                                    aiMarketLab.goalProbability >= 70
-                                      ? "High confidence"
-                                      : aiMarketLab.goalProbability >= 50
-                                        ? "Moderate confidence"
-                                        : "Needs support"
-                                  }
-                                  tone={aiMarketLab.goalProbability >= 70 ? "success" : aiMarketLab.goalProbability >= 50 ? "info" : "warning"}
-                                />
-                              </div>
-                              <p className="mt-1 text-sm font-semibold text-[#0a1930]">{intelligence?.goalCoveragePct.toFixed(1)}% goal coverage</p>
-                              <p className="mt-1 text-xs leading-relaxed text-[#5f7396]">
-                                Monthly funding momentum and emergency runway are the biggest drivers of this meter.
-                              </p>
-                            </div>
-
-                            <div className="rounded-2xl border border-[#edf4ff] bg-white p-3">
-                              <p className="text-xs uppercase tracking-[0.14em] text-[#5f7396]">What moves it</p>
-                              <p className="mt-1 text-xs leading-relaxed text-[#50607d]">
-                                Improve this score by widening the surplus gap, reducing concentration risk, and keeping the goal horizon realistic.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.article>
-
-
-
-                      <motion.article
-                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-12"
-                        variants={featureCardReveal}
-                        custom={2}
-                      >
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="h-4.5 w-4.5 text-[#2b5cff]" />
-                          <p className="text-sm font-semibold text-[#0a1930]">Market Context Summary</p>
-                        </div>
-                        <p className="mt-1 text-xs text-[#5f7396]">Live market context matched to your profile&apos;s {selectedHorizonLabel} horizon.</p>
-
-                        <div className="mt-4 h-36 rounded-2xl border border-[#edf4ff] bg-[#f8fbff] p-3">
-                          {marketTrend.length > 1 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={marketTrend} margin={{ top: 6, right: 6, left: -12, bottom: 0 }}>
-                                <defs>
-                                  <linearGradient id="dashboard-market-lab-gradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.45} />
-                                    <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.03} />
-                                  </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="4 6" stroke="rgba(91,115,150,0.12)" vertical={false} />
-                                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10 }} />
-                                <YAxis hide />
-                                <Tooltip
-                                  formatter={(value) => formatCompactCurrency(Number(value ?? 0))}
-                                  contentStyle={{ backgroundColor: "#ffffff", borderColor: "#d8e7ff", borderRadius: "12px" }}
-                                />
-                                <Area type="monotone" dataKey="close" stroke="#2b5cff" strokeWidth={2.2} fill="url(#dashboard-market-lab-gradient)" dot={false} />
-                              </AreaChart>
-                            </ResponsiveContainer>
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-xs text-[#5f7396]">Trend history loading...</div>
-                          )}
-                        </div>
-
-                        <div className="mt-4 space-y-2.5">
-                          {aiMarketLab.marketPulseItems.map((item) => (
-                            <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-[#edf4ff] bg-[#f8fbff] px-3 py-2.5">
-                              <div>
-                                <p className="text-sm font-semibold text-[#0a1930]">{item.label}</p>
-                                <p className="text-xs text-[#5f7396]">{item.detail}</p>
-                              </div>
-                              <StatusBadge label={item.value} tone={insightToneToBadgeTone(item.tone)} />
-                            </div>
-                          ))}
-                        </div>
-
-                        <p className="mt-3 text-xs text-[#5f7396]">NIFTY trend: {aiMarketLab.marketTrendMovement}</p>
-                      </motion.article>
-
-
-
-                      <motion.article
-                        className="rounded-[1.75rem] border border-[#dce8ff] bg-gradient-to-br from-white to-[#f9fbff] p-6 shadow-[0_12px_28px_rgba(43,92,255,0.06)] lg:col-span-12"
-                        variants={featureCardReveal}
-                        custom={3}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-4">
                           <div>
-                            <div className="flex items-center gap-2">
-                              <BarChart3 className="h-4.5 w-4.5 text-[#2b5cff]" />
-                              <p className="text-sm font-bold text-[#0a1930]">Strategic Strategy Outcomes</p>
-                            </div>
-                            <p className="mt-1 text-xs text-[#5f7396]">Projected wealth at the end of your {selectedHorizonLabel} horizon based on your profile.</p>
+                            <p className="text-sm font-bold text-[#0a1930]">Goal Probability Architecture</p>
+                            <p className="text-[10px] uppercase tracking-widest text-finance-muted font-bold">Mathematical Confidence Engine</p>
                           </div>
-                          <StatusBadge label="AI Projection" tone="info" />
                         </div>
 
-                        <div className="mt-8 grid gap-8 lg:grid-cols-12">
-                          <div className="h-48 lg:col-span-7">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart
-                                data={aiMarketLab.scenarioCards.map(card => ({
-                                  name: card.label.split(' ')[0],
-                                  value: card.projectedValue,
-                                  fill: card.tone === 'warning' ? '#ff8a7b' : card.tone === 'positive' ? '#69c8ad' : '#2b5cff'
-                                }))}
-                                margin={{ top: 0, right: 0, left: -25, bottom: 0 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f3f8" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10, fontWeight: 600 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10 }} tickFormatter={(val) => formatCompactCurrency(val)} />
-                                <Tooltip
-                                  cursor={{ fill: 'rgba(43,92,255,0.03)' }}
-                                  contentStyle={{ borderRadius: '12px', border: '1px solid #e1e8f5', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
-                                  formatter={(value) => [formatCompactCurrency(Number(value)), 'Projected Wealth']}
-                                />
-                                <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={40} />
-                              </BarChart>
-                            </ResponsiveContainer>
+                        <div className="mt-8 flex flex-col items-center gap-8 md:flex-row">
+                          <div className="relative flex h-40 w-40 items-center justify-center shrink-0">
+                            <svg className="h-full w-full -rotate-90">
+                              <circle
+                                cx="80"
+                                cy="80"
+                                r="72"
+                                fill="none"
+                                stroke="rgba(43,92,255,0.06)"
+                                strokeWidth="12"
+                              />
+                              <circle
+                                cx="80"
+                                cy="80"
+                                r="72"
+                                fill="none"
+                                stroke="url(#goalGradient)"
+                                strokeWidth="12"
+                                strokeDasharray={2 * Math.PI * 72}
+                                strokeDashoffset={2 * Math.PI * 72 * (1 - aiMarketLab.goalProbability / 100)}
+                                strokeLinecap="round"
+                                className="transition-all duration-1000 ease-out"
+                              />
+                              <defs>
+                                <linearGradient id="goalGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                  <stop offset="0%" stopColor="#2b5cff" />
+                                  <stop offset="100%" stopColor="#00d8ff" />
+                                </linearGradient>
+                              </defs>
+                            </svg>
+                            <div className="absolute text-center">
+                              <p className="text-4xl font-bold text-[#0a1930]">{aiMarketLab.goalProbability}%</p>
+                              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#5f7396]">Safety</p>
+                            </div>
                           </div>
 
-                          <div className="lg:col-span-5 space-y-3">
-                            {aiMarketLab.scenarioCards.map((card) => (
-                              <div key={card.label} className="rounded-xl border border-[#edf4ff] bg-white p-3.5 transition-all hover:border-[#2b5cff]/30 hover:shadow-sm">
+                          <div className="flex-1 space-y-4">
+                            <div className="rounded-2xl bg-[#f8fbff] p-4 border border-[#edf4ff]">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">The Diagnosis</p>
+                              <p className="mt-2 text-sm font-semibold text-[#0a1930]">
+                                {aiMarketLab.goalProbability >= 70 
+                                  ? `Your "Easy Money Plan" is mathematically sound. At a ${intelligence?.goalCoveragePct.toFixed(0)}% coverage rate, your current trajectory is primed for success.` 
+                                  : `While your "Easy Money Plan" provides a solid foundation, reaching 100% certainty requires minor adjustments to your surplus-to-goal ratio.`}
+                              </p>
+                              <div className="mt-3 flex items-center gap-2">
+                                <span className={`h-1.5 w-1.5 rounded-full ${aiMarketLab.goalProbability >= 70 ? 'bg-finance-green' : 'bg-finance-orange'}`} />
+                                <p className="text-xs text-[#5f7396] font-medium">{intelligence?.goalCoveragePct.toFixed(1)}% Goal Coverage</p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">Path to 100% Certainty</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  { icon: <TrendingUp className="h-3 w-3" />, label: "Surplus Expansion" },
+                                  { icon: <ShieldCheck className="h-3 w-3" />, label: "Risk Mitigation" },
+                                  { icon: <Briefcase className="h-3 w-3" />, label: "Asset Balancing" },
+                                  { icon: <Sparkles className="h-3 w-3" />, label: "Tax Alpha" }
+                                ].map((item, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 rounded-lg bg-white border border-[#edf4ff] px-2 py-1.5">
+                                    <div className="text-finance-accent">{item.icon}</div>
+                                    <p className="text-[10px] font-bold text-[#50607d]">{item.label}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.article>
+
+                      {/* Right: Market Insight & Strategic Outcomes */}
+                      <div className="grid gap-6 lg:col-span-5">
+                        <motion.article
+                          className="rounded-[2rem] border border-[#d8e7ff] bg-white p-6 shadow-[0_10px_30px_rgba(43,92,255,0.05)]"
+                          variants={featureCardReveal}
+                          custom={2}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <BarChart3 className="h-4 w-4 text-finance-accent" />
+                              <p className="text-sm font-bold text-[#0a1930]">Strategic Wealth Forecast</p>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-finance-accent">AI Validated</span>
+                          </div>
+                          
+                          <div className="mt-6 space-y-3">
+                            {aiMarketLab.scenarioCards.slice(1).map((card) => (
+                              <div key={card.label} className="group relative rounded-2xl border border-finance-border bg-white p-4 transition-all hover:border-finance-accent/30 hover:bg-finance-accent/[0.01]">
                                 <div className="flex items-center justify-between">
-                                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">{card.label}</p>
-                                  <span className={`text-[10px] font-black ${card.tone === 'positive' ? 'text-finance-green' : card.tone === 'warning' ? 'text-finance-red' : 'text-finance-accent'}`}>
-                                    {card.annualReturnPct}% Return
-                                  </span>
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-finance-muted">{card.label}</p>
+                                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-finance-accent/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <ArrowUpRight className="h-3 w-3 text-finance-accent" />
+                                  </div>
                                 </div>
-                                <div className="mt-1 flex items-baseline gap-2">
-                                  <p className="text-lg font-bold text-[#0a1930]">{formatCompactCurrency(card.projectedValue)}</p>
-                                  <p className={`text-[10px] font-bold ${card.gainPct >= 0 ? 'text-finance-green' : 'text-finance-red'}`}>
-                                    {formatSignedPercent(card.gainPct)}
-                                  </p>
+                                <div className="mt-2 flex items-baseline justify-between">
+                                  <p className="text-xl font-bold text-[#0a1930]">{formatCompactCurrency(card.projectedValue)}</p>
+                                  <div className="text-right">
+                                    <p className="text-[10px] font-bold text-finance-accent">+{card.annualReturnPct}% Est.</p>
+                                  </div>
                                 </div>
                               </div>
                             ))}
                           </div>
-                        </div>
 
-                        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-[#f0f5ff]/50 p-4 border border-[#d8e7ff]/40">
-                          <Target className="h-4 w-4 text-[#2b5cff] shrink-0" />
-                          <p className="text-xs leading-relaxed text-[#234374] font-medium">
-                            This visualization takes your <strong>{formatCurrency(profile.monthly_investable_surplus_inr)}</strong> monthly contribution and your current corpus to map exactly how your wealth accelerates across three market conditions.
+                          <div className="mt-6 rounded-xl bg-finance-accent/5 p-4 border border-finance-accent/10">
+                            <p className="text-[11px] leading-relaxed text-[#234374]">
+                              <Sparkles className="inline-block h-3 w-3 mr-1 text-finance-accent mb-0.5" />
+                              Based on your <strong>{formatCurrency(profile.monthly_investable_surplus_inr)}</strong> monthly plan, these projections account for compounding and periodic market volatility.
+                            </p>
+                          </div>
+                        </motion.article>
+
+                        <motion.article
+                          className="rounded-[2rem] border border-[#d8e7ff] bg-gradient-to-br from-[#0a1930] to-[#1a2d4d] p-6 shadow-xl text-white"
+                          variants={featureCardReveal}
+                          custom={3}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
+                              <ShieldCheck className="h-5 w-5 text-finance-accent" />
+                            </div>
+                            <p className="text-sm font-bold">Invest with Peace of Mind</p>
+                          </div>
+                          <p className="mt-4 text-xs leading-relaxed text-white/70">
+                            Pravix uses bank-grade encryption and does not touch your funds. We provide the <strong className="text-white">mathematical blueprint</strong>; you maintain 100% custody of your assets.
                           </p>
-                        </div>
-                      </motion.article>
-
-
+                          <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Institutional Grade</p>
+                            <div className="flex -space-x-2">
+                              {[1, 2, 3].map((i) => (
+                                <div key={i} className="h-6 w-6 rounded-full border-2 border-[#0a1930] bg-white/20 backdrop-blur-sm" />
+                              ))}
+                            </div>
+                          </div>
+                        </motion.article>
+                      </div>
                     </div>
                   </div>
                 </motion.section>
