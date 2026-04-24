@@ -26,22 +26,15 @@ import {
   ChevronRight,
   PieChart as PieChartIcon,
 } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+const MiniSparkline = dynamic(() => import("@/components/charts/HomepageCharts").then((mod) => mod.MiniSparkline), {
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-white/5 animate-pulse rounded-lg" />,
+});
+
+const MainTrendChart = dynamic(() => import("@/components/charts/HomepageCharts").then((mod) => mod.MainTrendChart), {
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-white/5 animate-pulse rounded-2xl" />,
+});
 import SiteHeader from "@/components/SiteHeader";
 import { blogPosts } from "@/app/learn/blog-data";
 
@@ -1416,24 +1409,7 @@ export default function Home() {
                     </p>
                     <div className="mt-3 h-14">
                       {miniTrendPoints.length > 1 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={miniTrendPoints} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-                            <defs>
-                            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={indexItem.trend === "down" ? "#ef4444" : "#10b981"} stopOpacity={0.32} />
-                                <stop offset="95%" stopColor={indexItem.trend === "down" ? "#ef4444" : "#10b981"} stopOpacity={0.03} />
-                              </linearGradient>
-                            </defs>
-                            <Area
-                              type="monotone"
-                              dataKey="close"
-                              stroke={indexItem.trend === "down" ? "#f87171" : "#34d399"}
-                              strokeWidth={1.8}
-                              fill={`url(#${gradientId})`}
-                              dot={false}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                        <MiniSparkline data={miniTrendPoints} trend={indexItem.trend} gradientId={gradientId} />
                       ) : (
                         <div className="flex h-full items-center justify-center rounded-lg border border-white/15 bg-white/8 text-[11px] text-[#d9e6ff]">
                           Sparkline unavailable
@@ -1498,29 +1474,7 @@ export default function Home() {
               </p>
               <div className="mt-4 h-56">
                 {isHeroReady && trendPoints.length > 1 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendPoints} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="niftyTrendGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.6} />
-                          <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.06} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="4 4" stroke="rgba(219,234,254,0.18)" />
-                      <XAxis dataKey="label" stroke="#c4d7fb" fontSize={12} />
-                      <YAxis stroke="#c4d7fb" fontSize={12} tickFormatter={(value) => `${Number(value).toFixed(0)}`} />
-                      <Tooltip
-                        formatter={(value) => [
-                          `${Number(value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`,
-                          "NIFTY 50",
-                        ]}
-                        contentStyle={{ backgroundColor: "#1f3f95", borderColor: "#6f8fcd", borderRadius: "10px" }}
-                        labelStyle={{ color: "#dce8ff" }}
-                        itemStyle={{ color: "#f2f7ff" }}
-                      />
-                      <Area type="monotone" dataKey="close" stroke="#2b5cff" fill="url(#niftyTrendGradient)" strokeWidth={2.5} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <MainTrendChart data={trendPoints} />
                 ) : (
                   <div className="h-full w-full animate-pulse rounded-2xl border border-white/20 bg-white/10" />
                 )}

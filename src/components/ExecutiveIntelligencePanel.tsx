@@ -66,10 +66,8 @@ type MarketTrendResponse = {
 type DashboardHorizon = "12m" | "24m" | "36m";
 
 const moduleLabel: Record<DashboardModuleKey, string> = {
-  alerts: "Alerts",
   profile: "Profile",
   holdings: "Holdings",
-  tax: "Tax",
   advisor: "Copilot",
 };
 

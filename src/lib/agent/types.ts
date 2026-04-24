@@ -78,17 +78,6 @@ export type AgentGoalSnapshot = {
   priority: string;
 };
 
-export type AgentTaxSnapshot = {
-  financial_year: string;
-  tax_regime: string;
-  annual_taxable_income_inr: number;
-  section_80c_used_inr: number;
-  section_80d_used_inr: number;
-  home_loan_interest_inr: number;
-  capital_gains_short_term_inr: number;
-  capital_gains_long_term_inr: number;
-};
-
 export type AgentCommunicationSnapshot = {
   preferred_channel: string;
   phone_e164: string | null;
@@ -115,21 +104,18 @@ export type AgentContext = {
   profile: AgentProfileSnapshot | null;
   latestRiskAssessment: AgentRiskSnapshot | null;
   goals: AgentGoalSnapshot[];
-  latestTaxProfile: AgentTaxSnapshot | null;
   communicationPreferences: AgentCommunicationSnapshot | null;
   holdings: AgentHoldingSnapshot[];
-  enabledAlertsCount: number;
 };
 
 export type AgentReadiness = {
   hasProfile: boolean;
   hasRiskAssessment: boolean;
   hasGoals: boolean;
-  hasTaxProfile: boolean;
   hasHoldings: boolean;
 };
 
-export type DashboardModuleKey = "alerts" | "profile" | "holdings" | "tax" | "advisor";
+export type DashboardModuleKey = "profile" | "holdings" | "advisor";
 
 export type IntelligenceSourceStatus = "live" | "fallback";
 

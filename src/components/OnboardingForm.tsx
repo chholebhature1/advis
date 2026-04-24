@@ -749,6 +749,25 @@ export default function OnboardingForm() {
       return;
     }
 
+    // Helper to format values for readability
+    const format = (val: any) => (Array.isArray(val) ? val.join(", ") : String(val || "N/A"));
+
+    // We create a "pretty" version of the keys so the email receiver sees clear labels
+    const prettyData = {
+      "Full Name": allAnswers.full_name,
+      "Email Address": allAnswers.email,
+      "Mobile Number": allAnswers.phone_e164,
+      "Primary Financial Goal": format(allAnswers.primary_financial_goal),
+      "Target Amount Choice": format(allAnswers.target_goal_amount_choice),
+      "Custom Target Amount": allAnswers.target_goal_custom_amount_inr ? `₹${allAnswers.target_goal_custom_amount_inr}` : "N/A",
+      "Time Horizon": format(allAnswers.time_horizon_band),
+      "Monthly Investment Capacity": format(allAnswers.monthly_investment_capacity_band),
+      "Risk Preference": format(allAnswers.risk_preference),
+      "Monthly Income": format(allAnswers.monthly_income_band),
+      "Has Existing Investments": format(allAnswers.has_existing_investments),
+      "Investment Types": format(allAnswers.existing_investment_types),
+    };
+
     try {
       await fetch(FORMSPREE_ENDPOINT, {
         method: "POST",
@@ -757,9 +776,10 @@ export default function OnboardingForm() {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          subject: `New Onboarding: ${allAnswers.full_name || "Unknown"}`,
-          ...allAnswers,
-          source: "Onboarding Flow",
+          _subject: `💎 New Pravix Investor: ${allAnswers.full_name || "Lead"}`,
+          ...prettyData,
+          "_Metadata": "Submitted via Pravix Onboarding Flow",
+          "_Timestamp": new Date().toLocaleString("en-IN"),
         }),
       });
     } catch (err) {

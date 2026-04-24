@@ -256,138 +256,40 @@ function buildModulePriorities(context: AgentContext, market: MarketIntelligence
   const fearGreed = market.fearGreedIndex;
   const fxMove = market.usdInrChangePct;
 
-  let alertsScore = 42;
-  if (fearGreed !== null && (fearGreed <= 30 || fearGreed >= 75)) {
-    alertsScore += 24;
-  } else if (fearGreed !== null) {
-    alertsScore += 8;
-  }
-
-  if (fxMove !== null && Math.abs(fxMove) >= 0.35) {
-    alertsScore += 14;
-  }
-
-  if (context.enabledAlertsCount === 0) {
-    alertsScore += 12;
-  } else if (context.enabledAlertsCount < 2) {
-    alertsScore += 6;
-  }
-
-  const alertsPriority = buildPriority(
-    "alerts",
-    alertsScore,
-    "Alert routing resilience",
-    context.enabledAlertsCount === 0
-      ? "No alert preferences are currently enabled while market inputs are changing."
-      : `Alerts are configured (${context.enabledAlertsCount} active), but today’s macro movement may require tighter routing.`,
-    "Refresh Smart Alerts and run automation to validate channels and escalation thresholds.",
-  );
-
-  let profileScore = 34;
-  const missingProfileInputs = [
-    context.profile?.monthly_income_inr,
-    context.profile?.monthly_investable_surplus_inr,
-    context.profile?.risk_appetite,
-    context.profile?.emergency_fund_months,
-  ].filter((value) => value === null || value === undefined).length;
-
-  profileScore += missingProfileInputs * 10;
-
-  if (!context.profile?.onboarding_completed_at) {
-    profileScore += 14;
-  }
+  const profileScore = 34 + 
+    ([context.profile?.monthly_income_inr, context.profile?.monthly_investable_surplus_inr, context.profile?.risk_appetite, context.profile?.emergency_fund_months].filter(v => v == null).length * 10) +
+    (!context.profile?.onboarding_completed_at ? 14 : 0);
 
   const profilePriority = buildPriority(
     "profile",
     profileScore,
     "Profile confidence",
-    missingProfileInputs > 0
-      ? `${missingProfileInputs} core planning fields are missing or stale, reducing recommendation precision.`
-      : "Core profile fields are present and aligned for planning workflows.",
-    "Review your profile metadata and refresh income, surplus, and emergency-fund details.",
+    "Core profile fields are present and aligned for planning workflows.",
+    "Review your profile metadata and refresh income, surplus, and emergency-fund details."
   );
 
   let holdingsScore = 36;
-  if (holdingsStats.holdingsCount === 0) {
-    holdingsScore -= 8;
-  } else {
-    holdingsScore += 16;
-
-    if (holdingsStats.topHoldingPct >= 45) {
-      holdingsScore += 26;
-    } else if (holdingsStats.topHoldingPct >= 30) {
-      holdingsScore += 14;
-    }
-
-    if (holdingsStats.holdingsCount < 5) {
-      holdingsScore += 8;
-    }
-
-    if (holdingsStats.pnlPct !== null && Math.abs(holdingsStats.pnlPct) >= 12) {
-      holdingsScore += 10;
-    }
+  if (holdingsStats.holdingsCount > 0) {
+    holdingsScore += 16 + (holdingsStats.topHoldingPct >= 45 ? 26 : holdingsStats.topHoldingPct >= 30 ? 14 : 0) + (holdingsStats.holdingsCount < 5 ? 8 : 0);
   }
 
   const holdingsPriority = buildPriority(
     "holdings",
     holdingsScore,
     "Portfolio concentration risk",
-    holdingsStats.holdingsCount === 0
-      ? "No holdings are loaded, so diversification and exposure checks are currently blind."
-      : `Top position concentration is ${holdingsStats.topHoldingPct}% across ${holdingsStats.holdingsCount} holdings.`,
-    holdingsStats.holdingsCount === 0
-      ? "Import holdings manually or via CSV to unlock allocation and concentration controls."
-      : "Review allocation and trim concentration if one position exceeds your risk policy.",
+    `Top position concentration is ${holdingsStats.topHoldingPct}% across ${holdingsStats.holdingsCount} holdings.`,
+    "Review allocation and trim concentration if one position exceeds your risk policy."
   );
-
-  let taxScore = 37;
-  const section80cUsed = context.latestTaxProfile?.section_80c_used_inr ?? 0;
-  const section80cRemaining = Math.max(150000 - section80cUsed, 0);
-
-  if (section80cRemaining > 0) {
-    taxScore += section80cRemaining >= 75000 ? 20 : 12;
-  }
-
-  if (daysToFyEnd <= 120) {
-    taxScore += 24;
-  } else if (daysToFyEnd <= 210) {
-    taxScore += 10;
-  }
-
-  if (!context.latestTaxProfile) {
-    taxScore += 8;
-  }
-
-  const taxPriority = buildPriority(
-    "tax",
-    taxScore,
-    "Tax runway optimization",
-    `Section 80C room left is INR ${section80cRemaining.toLocaleString("en-IN")} with ${daysToFyEnd} days until financial year close.`,
-    "Open Tax Optimization to schedule monthly 80C actions and verify regime alignment.",
-  );
-
-  let advisorScore = 40;
-  if (context.goals.length >= 3) {
-    advisorScore += 10;
-  }
-
-  if (missingProfileInputs > 0 || holdingsStats.holdingsCount === 0 || !context.latestTaxProfile) {
-    advisorScore += 12;
-  }
-
-  if (market.fxSourceStatus === "fallback" || market.sentimentSourceStatus === "fallback") {
-    advisorScore += 6;
-  }
 
   const advisorPriority = buildPriority(
     "advisor",
-    advisorScore,
+    40 + (context.goals.length >= 3 ? 10 : 0),
     "Cross-module decision synthesis",
     "Your dashboard has multi-domain signals that benefit from one integrated AI action sequence.",
-    "Use Pravix Copilot to convert today’s priorities into a step-by-step monthly execution plan.",
+    "Use Pravix Copilot to convert today’s priorities into a step-by-step monthly execution plan."
   );
 
-  return [alertsPriority, holdingsPriority, taxPriority, profilePriority, advisorPriority].sort((a, b) => b.score - a.score);
+  return [holdingsPriority, profilePriority, advisorPriority].sort((a, b) => b.score - a.score);
 }
 
 function deriveFocusConfidence(priorities: ModulePriority[]): FocusConfidence {

@@ -48,7 +48,6 @@ import ExecutiveIntelligencePanel from "@/components/ExecutiveIntelligencePanel"
 import HoldingsAnalyzerPanel from "@/components/HoldingsAnalyzerPanel";
 import { DashboardSectionCard, StatCard, StatusBadge } from "@/components/dashboard/DashboardPrimitives";
 import type { AgentStructuredAdvice, DashboardIntelligenceSnapshot, DashboardModuleKey } from "@/lib/agent/types";
-import type { TaxOptimizationSummary } from "@/lib/agent/tax-optimization";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type RiskAppetite = "conservative" | "moderate" | "aggressive";
@@ -145,24 +144,12 @@ type AlertsSubscriptionSnapshot = {
   upgradeMessage: string | null;
 };
 
-type AlertsApiPayload = {
-  ok?: boolean;
-  summary?: AlertsSummarySnapshot;
-  subscription?: AlertsSubscriptionSnapshot;
-  error?: string;
-};
-
 type IntelligenceApiPayload = {
   ok?: boolean;
   snapshot?: DashboardIntelligenceSnapshot;
   error?: string;
 };
 
-type TaxApiPayload = {
-  ok?: boolean;
-  summary?: TaxOptimizationSummary;
-  error?: string;
-};
 
 type AgentDashboardPayload = {
   ok?: boolean;
@@ -413,9 +400,6 @@ export default function DashboardPage() {
   const [intelligenceSnapshot, setIntelligenceSnapshot] = useState<DashboardIntelligenceSnapshot | null>(null);
   const [holdingsAnalytics, setHoldingsAnalytics] = useState<HoldingsAnalyticsSnapshot | null>(null);
   const [holdingsCount, setHoldingsCount] = useState(0);
-  const [taxSummary, setTaxSummary] = useState<TaxOptimizationSummary | null>(null);
-  const [alertsSummary, setAlertsSummary] = useState<AlertsSummarySnapshot | null>(null);
-  const [alertsSubscription, setAlertsSubscription] = useState<AlertsSubscriptionSnapshot | null>(null);
   const [advisorSummary, setAdvisorSummary] = useState<string | null>(null);
   const [aiAllocation, setAiAllocation] = useState<AgentStructuredAdvice | null>(null);
   const [isAiAllocationLoading, setIsAiAllocationLoading] = useState(false);
@@ -676,9 +660,6 @@ export default function DashboardPage() {
         setIntelligenceSnapshot(null);
         setHoldingsAnalytics(null);
         setHoldingsCount(0);
-        setTaxSummary(null);
-        setAlertsSummary(null);
-        setAlertsSubscription(null);
         setAdvisorSummary(null);
         return;
       }
@@ -706,11 +687,9 @@ export default function DashboardPage() {
           return payload;
         };
 
-        const [intelligenceResult, holdingsResult, taxResult, alertsResult, advisorResult] = await Promise.allSettled([
+        const [intelligenceResult, holdingsResult, advisorResult] = await Promise.allSettled([
           authedGet<IntelligenceApiPayload>("/api/agent/intelligence"),
           authedGet<HoldingsApiPayload>("/api/agent/holdings"),
-          authedGet<TaxApiPayload>("/api/agent/tax"),
-          authedGet<AlertsApiPayload>("/api/agent/alerts"),
           authedGet<AgentDashboardPayload>("/api/agent/dashboard"),
         ]);
 
@@ -730,19 +709,6 @@ export default function DashboardPage() {
           setHoldingsCount(0);
         }
 
-        if (taxResult.status === "fulfilled") {
-          setTaxSummary(taxResult.value.summary ?? null);
-        } else {
-          setTaxSummary(null);
-        }
-
-        if (alertsResult.status === "fulfilled") {
-          setAlertsSummary(alertsResult.value.summary ?? null);
-          setAlertsSubscription(alertsResult.value.subscription ?? null);
-        } else {
-          setAlertsSummary(null);
-          setAlertsSubscription(null);
-        }
 
         if (advisorResult.status === "fulfilled") {
           setAdvisorSummary(advisorResult.value.aiSummary ?? null);
@@ -753,12 +719,10 @@ export default function DashboardPage() {
         const failedCount = [
           intelligenceResult,
           holdingsResult,
-          taxResult,
-          alertsResult,
           advisorResult,
         ].filter((result) => result.status === "rejected").length;
 
-        if (failedCount === 5) {
+        if (failedCount === 3) {
           setPowerInsightsError("Could not load dashboard insights from Pravix modules.");
         } else if (failedCount > 0) {
           setPowerInsightsError("Some insight widgets are temporarily unavailable.");
@@ -771,9 +735,7 @@ export default function DashboardPage() {
           setIntelligenceSnapshot(null);
           setHoldingsAnalytics(null);
           setHoldingsCount(0);
-          setTaxSummary(null);
-          setAlertsSummary(null);
-          setAlertsSubscription(null);
+          setHoldingsCount(0);
           setAdvisorSummary(null);
         }
       } finally {
