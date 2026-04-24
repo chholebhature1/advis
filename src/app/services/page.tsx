@@ -80,12 +80,12 @@ const SERVICES: ServiceNode[] = [
     shortLabel: "Alternative & Emerging Products",
     icon: Sparkles,
     summary:
-      "Selective access to high-conviction thematic and alternative opportunities for diversification beyond traditional allocations.",
+      "Comprehensive access to curated financial products including IPOs, comprehensive Life & Health insurance coverage, emerging NFOs, and secure Corporate FDs to complete your wealth strategy.",
     highlights: [
-      "Thematic opportunities aligned to macro trends",
-      "Allocation caps to control concentration risk",
-      "Due diligence checklist before entry",
-      "Exit and liquidity planning for non-traditional products",
+      "Early access and detailed analysis for high-potential IPOs and NFOs",
+      "Tailored Life and Health insurance solutions for complete family protection",
+      "Highly-rated Corporate FDs for predictable, stable income streams",
+      "Strict due-diligence checklists to manage risk across all alternative assets",
     ],
     suitableFor: [
       "Experienced investors with core portfolios in place",
@@ -120,9 +120,16 @@ export default function ServicesPage() {
   return (
     <>
       <SiteHeader />
-      <main className="min-h-screen bg-gradient-to-br from-[#f2f7ff] via-[#edf5ff] to-[#e4f0ff] pb-20 pt-28">
-        <section className="mx-auto w-full max-w-6xl px-5 sm:px-6">
-          <div className="rounded-[30px] border border-white/70 bg-white/85 p-6 shadow-[0_22px_48px_rgba(16,47,103,0.12)] backdrop-blur-sm md:p-8">
+      <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#f2f7ff] via-[#edf5ff] to-[#e4f0ff] pb-20 pt-28">
+        {/* Creative Background Elements */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -right-40 -top-40 h-[800px] w-[800px] rounded-full bg-gradient-to-b from-[#2b5cff]/10 to-[#04bfff]/5 blur-[120px]" />
+          <div className="absolute -bottom-60 -left-60 h-[900px] w-[900px] rounded-full bg-gradient-to-t from-[#04bfff]/10 to-[#2b5cff]/5 blur-[150px]" />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCI+CjxjaXJjbGUgY3g9IjEiIGN5PSIxIiByPSIxIiBmaWxsPSIjMmI1Y2ZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] [mask-image:linear-gradient(to_bottom,white,transparent)]" />
+        </div>
+
+        <section className="relative z-10 mx-auto w-full max-w-6xl px-5 sm:px-6">
+          <div className="rounded-[30px] border border-white/70 bg-white/85 p-6 shadow-[0_22px_48px_rgba(16,47,103,0.12)] backdrop-blur-md md:p-8">
             <p className="inline-flex items-center gap-2 rounded-full border border-[#c9daf9] bg-[#f4f8ff] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.13em] text-finance-muted">
               <Briefcase className="h-3.5 w-3.5 text-finance-accent" />
               Investment Services
@@ -160,6 +167,7 @@ export default function ServicesPage() {
                         key={service.id}
                         type="button"
                         onClick={() => setActiveId(service.id)}
+                        onMouseEnter={() => setActiveId(service.id)}
                         className={`group absolute ${NODE_POSITION[service.id]} ${NODE_WIDTH[service.id]} rounded-[28px] border p-2 transition-all duration-300 ${isActive
                             ? "z-20 scale-105 border-white bg-white shadow-[0_20px_48px_rgba(43,92,255,0.15)]"
                             : "z-10 border-white/60 bg-white/40 shadow-sm backdrop-blur-md hover:scale-105 hover:border-white hover:bg-white/80 hover:shadow-[0_12px_32px_rgba(43,92,255,0.1)]"
@@ -199,6 +207,7 @@ export default function ServicesPage() {
                       key={`mobile-${service.id}`}
                       type="button"
                       onClick={() => setActiveId(service.id)}
+                      onMouseEnter={() => setActiveId(service.id)}
                       className={`group w-full rounded-[24px] border p-2 text-left transition-all duration-300 ${isActive
                           ? "border-white bg-white shadow-[0_16px_36px_rgba(43,92,255,0.15)] scale-[1.02]"
                           : "border-white/60 bg-white/40 shadow-sm backdrop-blur-md hover:bg-white/80 hover:border-white hover:shadow-[0_8px_24px_rgba(43,92,255,0.08)]"
@@ -236,6 +245,7 @@ export default function ServicesPage() {
                     transition={{ duration: 0.3 }}
                     className="absolute inset-0 z-30 flex items-center justify-center bg-[#eaf2ff]/40 p-4 backdrop-blur-[12px] md:p-6"
                     onClick={() => setActiveId(null)}
+                    onMouseLeave={() => setActiveId(null)}
                   >
                     <motion.section
                       initial={{ scale: 0.9, opacity: 0, y: 20 }}

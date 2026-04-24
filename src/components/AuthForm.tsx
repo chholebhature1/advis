@@ -139,6 +139,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         body: JSON.stringify({
           email: normalizedEmail,
           token: verificationCode,
+          password: signUpPassword || password,
         }),
       });
 
@@ -148,14 +149,21 @@ export default function AuthForm({ mode }: AuthFormProps) {
         throw new Error(data.error || "Verification failed");
       }
 
-      const supabase = getSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password: signUpPassword || password,
-      });
+      const session = data.session as
+        | { access_token?: string; refresh_token?: string }
+        | null
+        | undefined;
 
-      if (signInError) {
-        throw signInError;
+      if (session?.access_token && session.refresh_token) {
+        const supabase = getSupabaseBrowserClient();
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+
+        if (sessionError) {
+          throw sessionError;
+        }
       }
 
       router.push("/dashboard");

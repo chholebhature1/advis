@@ -20,6 +20,11 @@ import {
   CircleUserRound,
   RefreshCcw,
   Wallet,
+  Briefcase,
+  Landmark,
+  Building2,
+  ChevronRight,
+  PieChart as PieChartIcon,
 } from "lucide-react";
 import {
   Area,
@@ -49,16 +54,7 @@ const HeroPhoneMockup = dynamic(() => import("@/components/HeroPhoneMockup"), {
   ),
 });
 
-const AllModulesVideoSection = dynamic(() => import("@/components/AllModulesVideoSection"), {
-  ssr: false,
-  loading: () => (
-    <section className="relative overflow-hidden py-28 md:py-36">
-      <div className="mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-        <div className="h-[520px] animate-pulse rounded-[2rem] border border-[#d8e7ff] bg-white/80" />
-      </div>
-    </section>
-  ),
-});
+
 
 const CalendlyBookingSection = dynamic(() => import("@/components/CalendlyBookingSection"), {
   ssr: false,
@@ -942,26 +938,26 @@ export default function Home() {
                   {/* Floating stats badges */}
                   <div className="absolute left-4 top-4 sm:left-6 sm:top-6">
                     <motion.div
-                      className="rounded-2xl border border-white/25 bg-white/15 px-4 py-3 backdrop-blur-xl"
+                      className="rounded-2xl border border-white/25 bg-black/30 px-4 py-3 backdrop-blur-xl"
                       initial={{ opacity: 0, x: -20 }}
                       whileInView={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.6, delay: 0.3 }}
                       viewport={{ once: true }}
                     >
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Families Served</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white">Families Served</p>
                       <p className="mt-0.5 text-2xl font-bold text-white">2,500+</p>
                     </motion.div>
                   </div>
 
                   <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
                     <motion.div
-                      className="rounded-2xl border border-white/25 bg-white/15 px-4 py-3 backdrop-blur-xl"
+                      className="rounded-2xl border border-white/25 bg-black/30 px-4 py-3 backdrop-blur-xl"
                       initial={{ opacity: 0, x: 20 }}
                       whileInView={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.6, delay: 0.45 }}
                       viewport={{ once: true }}
                     >
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Goals Tracked</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white">Goals Tracked</p>
                       <p className="mt-0.5 text-2xl font-bold text-white">8,200+</p>
                     </motion.div>
                   </div>
@@ -989,40 +985,41 @@ export default function Home() {
                 variants={chartCardReveal}
                 custom={1}
               >
-                {/* Money Mistakes Card */}
+                {/* Core Services Card */}
                 <div className="flex-1 rounded-[1.6rem] border border-[#d8e7ff] bg-white p-6 shadow-[0_16px_40px_rgba(43,92,255,0.08)] sm:p-7">
                   <div className="flex items-center gap-3">
-                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff0f0]">
-                      <ShieldCheck className="h-5 w-5 text-[#e74c3c]" />
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0f5ff]">
+                      <Briefcase className="h-5 w-5 text-[#2b5cff]" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#e74c3c]/80">Common Pitfalls</p>
-                      <h3 className="text-lg font-bold text-[#0a1930]">Money mistakes Pravix prevents</h3>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2b5cff]/80">Wealth Architecture</p>
+                      <h3 className="text-lg font-bold text-[#0a1930]">Core services we provide</h3>
                     </div>
                   </div>
 
                   <div className="mt-5 space-y-3">
                     {[
-                      { mistake: "Missed SIPs and delayed monthly actions", icon: "⏰" },
-                      { mistake: "Poor diversification and unnoticed concentration", icon: "📊" },
-                      { mistake: "Last-minute tax moves in March", icon: "📋" },
-                      { mistake: "Emotional reactions to market noise", icon: "🧘" },
+                      { name: "HNI Services", icon: <Briefcase className="h-4 w-4" />, desc: "Goal-linked allocation & tax-aware structuring" },
+                      { name: "Mutual Fund Portfolio", icon: <Landmark className="h-4 w-4" />, desc: "Curated SIP & lump sum strategies" },
+                      { name: "Corporate Bonds", icon: <Building2 className="h-4 w-4" />, desc: "Income-focused fixed income opportunities" },
+                      { name: "Alternative Products", icon: <PieChartIcon className="h-4 w-4" />, desc: "IPOs, NFOs, Insurance & Corporate FDs" },
                     ].map((item, index) => (
-                      <motion.div
-                        key={item.mistake}
-                        className="group flex items-start gap-3.5 rounded-xl border border-[#ffe0e0]/60 bg-gradient-to-r from-[#fff8f8] to-white px-4 py-3.5 transition-all duration-200 hover:border-[#2b5cff]/15 hover:from-[#f7f9ff] hover:to-white hover:shadow-[0_6px_20px_rgba(43,92,255,0.06)]"
-                        variants={featureCardReveal}
-                        custom={index}
-                      >
-                        <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white text-sm shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                          {item.icon}
-                        </span>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-[#1f365b] transition-colors group-hover:text-[#0a1930]">{item.mistake}</p>
-                          <div className="mt-1.5 h-1 w-0 rounded-full bg-gradient-to-r from-[#e74c3c]/40 to-[#2b5cff]/40 transition-all duration-500 group-hover:w-full" />
-                        </div>
-                        <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#e74c3c]/30 transition-colors group-hover:text-[#2b5cff]" />
-                      </motion.div>
+                      <Link href="/services" key={item.name}>
+                        <motion.div
+                          className="group flex items-center gap-3.5 rounded-xl border border-[#e0ebff]/60 bg-gradient-to-r from-[#f8faff] to-white px-4 py-3.5 transition-all duration-200 hover:border-[#2b5cff]/30 hover:from-[#f0f5ff] hover:to-white hover:shadow-[0_8px_24px_rgba(43,92,255,0.12)] cursor-pointer mt-3"
+                          variants={featureCardReveal}
+                          custom={index}
+                        >
+                          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#2b5cff] shadow-[0_2px_10px_rgba(43,92,255,0.12)] transition-transform group-hover:scale-110">
+                            {item.icon}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[15px] font-bold text-[#0a1930] leading-tight truncate">{item.name}</p>
+                            <p className="text-[13px] text-[#475569] mt-0.5 truncate">{item.desc}</p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#2b5cff]/40 transition-all group-hover:text-[#2b5cff] group-hover:translate-x-1" />
+                        </motion.div>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -1758,7 +1755,7 @@ export default function Home() {
           </div>
         </motion.section>
 
-        <AllModulesVideoSection isCompactMotion={isCompactMotion} isHeroReady={isHeroReady} />
+
 
         {/* ═══════════════════════════════════════════════════════════════════
           SECTION: TEAM PRAVIX — Premium Redesign

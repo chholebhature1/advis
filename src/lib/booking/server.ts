@@ -428,47 +428,27 @@ async function dispatchReminder(
     const resend = new Resend(apiKey);
     const extra = parseExtraRecipientsFromEnv();
     const normalizedLead = booking.lead_email.trim();
+    const bcc = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
+    const to = [normalizedLead];
 
-    // Send primary message to the lead
-    const leadPayload = await resend.emails.send({
+    const payload = await resend.emails.send({
       from,
-      to: [normalizedLead],
+      to,
+      ...(bcc.length > 0 ? { bcc } : {}),
       subject: message.subject,
       text: message.body,
       html: `<p>${message.body}</p>`,
     });
 
-    if (leadPayload.error) {
-      throw new Error(`Resend booking reminder failed: ${JSON.stringify(leadPayload.error)}`);
-    }
-
-    const leadMessageId = typeof leadPayload.data?.id === "string" ? leadPayload.data.id : null;
-
-    // Send separate reminders to extra recipients (best-effort)
-    const extras = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
-    if (extras.length > 0) {
-      await Promise.allSettled(
-        extras.map((recipient) =>
-          resend.emails.send({
-            from,
-            to: [recipient],
-            subject: message.subject,
-            text: message.body,
-            html: `<p>${message.body}</p>`,
-          }).then((res) => {
-            if (res.error) {
-              console.warn(`Extra booking reminder send failed for ${recipient}: ${JSON.stringify(res.error)}`);
-            }
-          }),
-        ),
-      );
+    if (payload.error) {
+      throw new Error(`Resend booking reminder failed: ${JSON.stringify(payload.error)}`);
     }
 
     return {
       provider: "resend",
-      messageId: leadMessageId,
+      messageId: typeof payload.data?.id === "string" ? payload.data.id : null,
       response: {
-        data: leadPayload.data ?? null,
+        data: payload.data ?? null,
       },
     };
   }

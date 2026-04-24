@@ -46,10 +46,8 @@ import RequireAuth from "@/components/RequireAuth";
 import AgentAdvisorPanel from "@/components/AgentAdvisorPanel";
 import ExecutiveIntelligencePanel from "@/components/ExecutiveIntelligencePanel";
 import HoldingsAnalyzerPanel from "@/components/HoldingsAnalyzerPanel";
-import SmartAlertsPanel from "@/components/SmartAlertsPanel";
-import TaxOptimizationPanel from "@/components/TaxOptimizationPanel";
 import { DashboardSectionCard, StatCard, StatusBadge } from "@/components/dashboard/DashboardPrimitives";
-import type { DashboardIntelligenceSnapshot, DashboardModuleKey } from "@/lib/agent/types";
+import type { AgentStructuredAdvice, DashboardIntelligenceSnapshot, DashboardModuleKey } from "@/lib/agent/types";
 import type { TaxOptimizationSummary } from "@/lib/agent/tax-optimization";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -172,6 +170,24 @@ type AgentDashboardPayload = {
   error?: string;
 };
 
+type AgentChatPayload = {
+  ok?: boolean;
+  structured?: AgentStructuredAdvice;
+  error?: string;
+};
+
+type AgentChatReplyPayload = {
+  ok?: boolean;
+  reply?: string;
+  error?: string;
+};
+
+type FollowUpQaItem = {
+  id: string;
+  question: string;
+  answer: string;
+};
+
 type DashboardHorizon = "1y" | "2y" | "3y" | "custom";
 type DashboardLens = "goal" | "cashflow" | "risk";
 type KpiDeltaTone = "positive" | "negative" | "neutral";
@@ -195,12 +211,7 @@ type ScenarioCard = {
   gainPct: number;
   tone: InsightTone;
 };
-type ActionQueueItem = {
-  title: string;
-  detail: string;
-  badge: string;
-  tone: InsightTone;
-};
+
 type MarketPulseItem = {
   label: string;
   value: string;
@@ -406,6 +417,13 @@ export default function DashboardPage() {
   const [alertsSummary, setAlertsSummary] = useState<AlertsSummarySnapshot | null>(null);
   const [alertsSubscription, setAlertsSubscription] = useState<AlertsSubscriptionSnapshot | null>(null);
   const [advisorSummary, setAdvisorSummary] = useState<string | null>(null);
+  const [aiAllocation, setAiAllocation] = useState<AgentStructuredAdvice | null>(null);
+  const [isAiAllocationLoading, setIsAiAllocationLoading] = useState(false);
+  const [aiAllocationError, setAiAllocationError] = useState<string | null>(null);
+  const [followUpQuestion, setFollowUpQuestion] = useState("");
+  const [followUpThread, setFollowUpThread] = useState<FollowUpQaItem[]>([]);
+  const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [selectedHorizon, setSelectedHorizon] = useState<DashboardHorizon>("1y");
   const [customHorizonYears, setCustomHorizonYears] = useState(5);
   const [selectedLens, setSelectedLens] = useState<DashboardLens>("goal");
@@ -566,6 +584,87 @@ export default function DashboardPage() {
 
     return token;
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAiAllocation() {
+      if (!signedInEmail || !profile) {
+        setAiAllocation(null);
+        setAiAllocationError(null);
+        setIsAiAllocationLoading(false);
+        return;
+      }
+
+      // Check localStorage for cached AI allocation summary to save API rate limits
+      // Cache key includes profile.updated_at so a new onboarding invalidates it
+      const cacheKey = `ai_allocation_${profile.id}_${profile.updated_at}`;
+      const cached = localStorage.getItem(cacheKey);
+      
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (!cancelled) {
+            setAiAllocation(parsed);
+            setAiAllocationError(null);
+            setIsAiAllocationLoading(false);
+          }
+          return;
+        } catch (e) {
+          // If JSON parse fails, ignore and fetch normally
+        }
+      }
+
+      setIsAiAllocationLoading(true);
+      setAiAllocationError(null);
+
+      try {
+        const token = await getAccessToken();
+
+        const response = await fetch("/api/agent/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            message:
+              "Create a simple money plan for this user based on their onboarding answers. Use very easy language and avoid technical words. Return structured JSON with intro, monthlySipRange, nextAction, and portfolioBuckets with exactly three entries for low-risk, balanced, and high-growth styles. For each bucket include heading, expectedReturn, instruments array, and allocationHint. Keep every line practical and easy to understand for an Indian user.",
+            history: [],
+          }),
+        });
+
+        const payload = (await response.json().catch(() => ({}))) as AgentChatPayload;
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? `AI allocation request failed (${response.status})`);
+        }
+
+        if (!cancelled) {
+          const structuredData = payload.structured ?? null;
+          setAiAllocation(structuredData);
+          if (structuredData) {
+            localStorage.setItem(cacheKey, JSON.stringify(structuredData));
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAiAllocation(null);
+          setAiAllocationError(err instanceof Error ? err.message : "Could not load AI allocation summary.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAiAllocationLoading(false);
+        }
+      }
+    }
+
+    void loadAiAllocation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessToken, profile, refreshTick, signedInEmail]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1248,10 +1347,100 @@ export default function DashboardPage() {
     ];
   }, [alertsSummary, holdingsCount, profile]);
 
+  const aiAllocationBuckets = useMemo(() => {
+    const parsedBuckets = (aiAllocation?.portfolioBuckets ?? []).filter((bucket) =>
+      Boolean(bucket.heading?.trim())
+    );
+
+    if (parsedBuckets.length >= 3) {
+      return parsedBuckets.slice(0, 3);
+    }
+
+    return [
+      {
+        heading: "Safe Plan",
+        expectedReturn: "About 7-9% a year",
+        instruments: ["Mostly stable funds", "A small monthly amount in top 50 companies", "Keep some money easy to use"],
+        allocationHint: "Best if you want less ups and downs and steady progress.",
+      },
+      {
+        heading: "Balanced Plan",
+        expectedReturn: "About 10-12% a year",
+        instruments: ["Mix of stable and growth funds", "Monthly investment in broad market funds", "A small safety bucket"],
+        allocationHint: "Good mix of growth and safety for most people.",
+      },
+      {
+        heading: "Growth Plan",
+        expectedReturn: "About 13-16% a year",
+        instruments: ["More growth-focused funds", "A selected stock list", "Small part in theme-based ideas"],
+        allocationHint: "For long-term goals if you can handle bigger market swings.",
+      },
+    ];
+  }, [aiAllocation?.portfolioBuckets]);
+
+  const handleFollowUpSubmit = useCallback(async () => {
+    const trimmedQuestion = followUpQuestion.trim();
+    if (!trimmedQuestion) {
+      setFollowUpError("Please type your question first.");
+      return;
+    }
+
+    setIsFollowUpLoading(true);
+    setFollowUpError(null);
+
+    try {
+      const token = await getAccessToken();
+      const contextSummary = [
+        aiAllocation?.intro,
+        aiAllocation?.monthlySipRange,
+        aiAllocation?.nextAction,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      const response = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message:
+            `Answer this user follow-up in very simple language with no jargon. Keep it short, practical, and easy to act on. User question: ${trimmedQuestion}. Current plan context: ${contextSummary || "N/A"}.`,
+          history: followUpThread.flatMap((item) => ([
+            { role: "user", content: item.question },
+            { role: "assistant", content: item.answer },
+          ])),
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as AgentChatReplyPayload;
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Follow-up request failed (${response.status})`);
+      }
+
+      const answer = payload.reply ?? "I could not generate a reply right now. Please try again.";
+      setFollowUpThread((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-${current.length}`,
+          question: trimmedQuestion,
+          answer,
+        },
+      ]);
+      setFollowUpQuestion("");
+    } catch (submitError) {
+      setFollowUpError(submitError instanceof Error ? submitError.message : "Could not fetch follow-up answer.");
+    } finally {
+      setIsFollowUpLoading(false);
+    }
+  }, [aiAllocation?.intro, aiAllocation?.monthlySipRange, aiAllocation?.nextAction, followUpQuestion, followUpThread, getAccessToken]);
+
   const effectiveFocus = useMemo(() => manualFocus ?? recommendedFocus, [manualFocus, recommendedFocus]);
 
   const orderedModuleKeys = useMemo(() => {
-    const baseOrder: DashboardModuleKey[] = ["alerts", "profile", "holdings", "tax", "advisor"];
+    const baseOrder: DashboardModuleKey[] = ["profile", "holdings", "advisor"];
 
     if (!effectiveFocus) {
       return baseOrder;
@@ -1334,14 +1523,58 @@ export default function DashboardPage() {
     if (!profile) return [];
     const currentCorpus = Math.max(profile.current_savings_inr + (holdingsAnalytics?.totalMarketValueInr ?? 0), 0);
     const investable = Math.max(profile.monthly_investable_surplus_inr, 0);
-    const points = Array.from({ length: 7 }, (_, index) => Math.round((selectedHorizonMonths * index) / 6));
+    
+    // Generate more points for a smooth, natural-looking chart
+    const STEPS = 36;
+    const points = Array.from({ length: STEPS + 1 }, (_, index) => (selectedHorizonMonths * index) / STEPS);
 
-    return points.map((month) => {
+    let consVol = 0;
+    let modVol = 0;
+    let aggVol = 0;
+
+    return points.map((month, index) => {
+      const isStart = index === 0;
+      const isEnd = index === STEPS;
+      
+      const baseCons = projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.conservative, month);
+      const baseMod = projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.moderate, month);
+      const baseAgg = projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.aggressive, month);
+
+      if (isStart) {
+        return { label: "Now", conservative: Math.round(baseCons), moderate: Math.round(baseMod), aggressive: Math.round(baseAgg) };
+      }
+
+      // Deterministic pseudo-random noise to avoid jumping on React re-renders
+      const seed = month * 12.9898 + currentCorpus;
+      const pseudoRandom = Math.sin(seed) * 43758.5453;
+      const noise = pseudoRandom - Math.floor(pseudoRandom); // 0 to 1
+      const fluctuation = (noise - 0.5) * 2; // -1 to 1
+
+      // Accumulate volatility (conservative = low swings, aggressive = high swings)
+      consVol += fluctuation * 0.006;
+      modVol += fluctuation * 0.020;
+      aggVol += fluctuation * 0.045;
+
+      // Mean reversion to gradually pull lines back to their theoretical path
+      consVol *= 0.85;
+      modVol *= 0.88;
+      aggVol *= 0.92;
+
+      // Snap the final point to the exact expected value to match dashboard text
+      if (isEnd) {
+        consVol = 0;
+        modVol = 0;
+        aggVol = 0;
+      }
+
+      const displayMonth = Math.round(month);
+      const label = displayMonth % 12 === 0 && displayMonth > 0 ? `Y${displayMonth / 12}` : `M${displayMonth}`;
+
       return {
-        label: month === 0 ? "Now" : month % 12 === 0 ? `Y${month / 12}` : `M${month}`,
-        conservative: Math.round(projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.conservative, month)),
-        moderate: Math.round(projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.moderate, month)),
-        aggressive: Math.round(projectCorpusValue(currentCorpus, investable, SCENARIO_RETURN_PCT.aggressive, month)),
+        label,
+        conservative: Math.max(Math.round(baseCons * (1 + consVol)), 0),
+        moderate: Math.max(Math.round(baseMod * (1 + modVol)), 0),
+        aggressive: Math.max(Math.round(baseAgg * (1 + aggVol)), 0),
       };
     });
   }, [holdingsAnalytics?.totalMarketValueInr, profile, selectedHorizonMonths]);
@@ -1600,22 +1833,10 @@ export default function DashboardPage() {
         Math.min(fundingMomentum * 0.3, 30) +
         Math.min(profileIntelligence.savingsRatePct * 0.15, 15) +
         (profile.emergency_fund_months >= 6 ? 5 : -3) -
-        Math.min(concentrationCount * 5, 16) -
-        Math.min((alertsSummary?.blockedCount ?? 0) * 2, 10),
+        Math.min(concentrationCount * 5, 16),
       ),
       8,
       98,
-    );
-
-    const riskDriftScore = clamp(
-      Math.round(
-        highestConcentration +
-        (profile.loss_tolerance_pct === null ? 8 : Math.max(0, highestConcentration - profile.loss_tolerance_pct)) +
-        (profileIntelligence.expenseLoadPct >= 65 ? 8 : 0) +
-        Math.min((alertsSummary?.blockedCount ?? 0) * 2, 10),
-      ),
-      0,
-      100,
     );
 
     const marketPulseItems: MarketPulseItem[] = orderedMarketIndicators.slice(0, 3).map((indicator) => ({
@@ -1625,63 +1846,19 @@ export default function DashboardPage() {
       tone: indicator.trend === "up" ? "positive" : indicator.trend === "down" ? "warning" : "neutral",
     }));
 
-    const actionQueue: ActionQueueItem[] = [];
-
-    actionQueue.push({
-      title: taxSummary && taxSummary.section80cRemainingInr > 0 ? "Close the 80C gap" : "Validate tax regime",
-      detail: taxSummary
-        ? taxSummary.section80cRemainingInr > 0
-          ? `You still have INR ${taxSummary.section80cRemainingInr.toLocaleString("en-IN")} left. Target about INR ${Math.round(taxSummary.suggestedMonthly80cInr).toLocaleString("en-IN")} monthly to stay on pace.`
-          : "Your 80C room looks fully used. Lock in documentation and confirm the regime before payroll cutoff."
-        : "Tax profile is incomplete, so the tax assistant cannot calculate a reliable regime recommendation yet.",
-      badge: taxSummary ? `${taxSummary.daysToFinancialYearEnd} days left` : "Tax module",
-      tone: taxSummary && taxSummary.section80cRemainingInr > 0 ? "warning" : "positive",
-    });
-
-    actionQueue.push({
-      title: concentrationCount > 0 ? "Reduce concentration risk" : "Hold the current allocation",
-      detail: concentrationCount > 0
-        ? `Top warning sits near ${highestConcentration.toFixed(1)}% concentration. Rebalance the crowded position before new money goes in.`
-        : "No major concentration flags are active. Keep the allocation disciplined and review after the next holdings sync.",
-      badge: concentrationCount > 0 ? `${concentrationCount} warning${concentrationCount === 1 ? "" : "s"}` : "Stable",
-      tone: concentrationCount > 0 ? "critical" : "positive",
-    });
-
-    actionQueue.push({
-      title: profileIntelligence.goalFundingStress > 0 ? "Increase monthly SIP" : "Keep the current cadence",
-      detail: profileIntelligence.goalFundingStress > 0
-        ? `You need roughly INR ${Math.round(profileIntelligence.requiredMonthlyToGoal).toLocaleString("en-IN")} monthly for the goal. Close the gap by adding about INR ${Math.round(profileIntelligence.goalFundingStress).toLocaleString("en-IN")} more.`
-        : "Your current surplus can support the goal path. Preserve the plan and use extra cash for buffer or tax efficiency.",
-      badge: profileIntelligence.goalFundingStress > 0 ? "Funding gap" : "On track",
-      tone: profileIntelligence.goalFundingStress > 0 ? "warning" : "positive",
-    });
-
     return {
       scenarioCards,
       goalProbability,
-      riskDriftScore,
-      riskLabel:
-        riskDriftScore >= 70
-          ? "High drift"
-          : riskDriftScore >= 45
-            ? "Watch closely"
-            : "Aligned",
-      riskMessage:
-        concentrationCount > 0
-          ? holdingsAnalytics?.concentrationWarnings[0]?.message ?? "Portfolio concentration deserves attention."
-          : "No material concentration drift is visible right now.",
       marketPulseItems,
       marketTrendMovement: niftyTrendSummary
         ? `${niftyTrendSummary.change >= 0 ? "+" : ""}${formatIndexNumber(niftyTrendSummary.change)} · ${niftyTrendSummary.changePct >= 0 ? "+" : ""}${niftyTrendSummary.changePct.toFixed(2)}%`
         : "Waiting for trend history",
       marketTrendLabel: marketTrendStatus.label,
       marketContextLabel: marketStatus.label,
-      advisorExcerpt: advisorSummary ? advisorSummary.split(".")[0].trim() : "Advisor summary is building from live module outputs.",
-      actionQueue,
     };
   }, [
     advisorSummary,
-    alertsSummary?.blockedCount,
+
     holdingsAnalytics?.concentrationWarnings,
     marketStatus.label,
     marketTrendStatus.label,
@@ -1690,7 +1867,6 @@ export default function DashboardPage() {
     profile,
     profileIntelligence,
     selectedHorizonMonths,
-    taxSummary,
   ]);
 
   const getModuleContainerClassName = (moduleKey: DashboardModuleKey): string => {
@@ -1702,10 +1878,6 @@ export default function DashboardPage() {
   };
 
   const renderSignedInModule = (moduleKey: DashboardModuleKey, activeProfile: ProfileRow) => {
-    if (moduleKey === "alerts") {
-      return <SmartAlertsPanel refreshKey={refreshTick} />;
-    }
-
     if (moduleKey === "profile") {
       return (
         <DashboardSectionCard
@@ -1773,10 +1945,6 @@ export default function DashboardPage() {
       );
     }
 
-    if (moduleKey === "tax") {
-      return <TaxOptimizationPanel refreshKey={refreshTick} />;
-    }
-
     return <AgentAdvisorPanel refreshKey={refreshTick} />;
   };
 
@@ -1839,6 +2007,169 @@ export default function DashboardPage() {
               </div>
             </div>
           </section>
+
+          {!isLoading && !error && signedInEmail && profile ? (
+            <section className="relative mt-5 overflow-hidden rounded-2xl border border-[#d8e7ff] bg-white shadow-[0_12px_30px_rgba(10,25,48,0.08)] sm:mt-6">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_15%,rgba(43,92,255,0.1),transparent_30%),radial-gradient(circle_at_95%_12%,rgba(0,216,255,0.12),transparent_28%),linear-gradient(180deg,#ffffff_0%,#f6f9ff_100%)]" />
+              <div className="relative p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-3 py-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-[#2b5cff]" />
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#2b5cff]">My Easy Money Plan</p>
+                    </div>
+                    <h2 className="mt-3 text-xl font-bold tracking-tight text-[#0a1930] sm:text-2xl">A simple plan for your money</h2>
+                    <p className="mt-1.5 max-w-3xl text-sm text-[#5f7396]">
+                      Built from the answers you gave us about your income, goals, and comfort with risk.
+                    </p>
+                  </div>
+                  <StatusBadge label={isAiAllocationLoading ? "Updating plan..." : "Plan ready"} tone={isAiAllocationLoading ? "neutral" : "success"} />
+                </div>
+
+                {isAiAllocationLoading ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-5 overflow-hidden rounded-2xl border border-[#d8e7ff] bg-gradient-to-r from-[#f8faff] via-white to-[#f8faff] p-8 shadow-[0_8px_30px_rgba(43,92,255,0.06)] relative"
+                  >
+                    <motion.div 
+                      animate={{ x: ["-100%", "200%"] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-[#2b5cff]/5 to-transparent w-1/2"
+                    />
+                    
+                    <div className="flex flex-col items-center justify-center text-center relative z-10">
+                      <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#f0f5ff] shadow-[0_0_20px_rgba(43,92,255,0.15)] mb-5">
+                        <motion.div 
+                          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0, 0.3] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                          className="absolute inset-0 rounded-full border-2 border-[#2b5cff]" 
+                        />
+                        <motion.div 
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                          className="absolute inset-2 rounded-full border border-dashed border-[#04bfff]/40" 
+                        />
+                        <Sparkles className="h-7 w-7 text-[#2b5cff] animate-pulse" />
+                      </div>
+                      
+                      <h3 className="text-lg font-bold text-[#0a1930]">Pravix AI is generating your plan</h3>
+                      <p className="mt-2 max-w-sm text-sm text-[#5f7396] leading-relaxed">
+                        We are analyzing your profile, risk appetite, and goals. Please wait here for a moment...
+                      </p>
+
+                      <div className="mt-6 flex w-full max-w-xs items-center gap-2">
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#edf4ff]">
+                          <motion.div 
+                            initial={{ x: "-100%" }}
+                            animate={{ x: "200%" }}
+                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                            className="h-full w-1/2 rounded-full bg-gradient-to-r from-[#04bfff] to-[#2b5cff]" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : null}
+
+                {aiAllocationError ? (
+                  <div className="mt-5 rounded-xl border border-finance-red/25 bg-finance-red/10 p-3.5 text-sm text-finance-red">
+                    {aiAllocationError}
+                  </div>
+                ) : null}
+
+                {!isAiAllocationLoading ? (
+                  <>
+                    {aiAllocation?.intro ? (
+                      <p className="mt-5 rounded-xl border border-[#e1ebff] bg-white/90 px-4 py-3 text-sm leading-relaxed text-[#2b3f62]">
+                        {aiAllocation.intro}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-[#e1ebff] bg-white p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Suggested Monthly Amount</p>
+                        <p className="mt-1.5 text-base font-semibold text-[#0a1930]">{aiAllocation?.monthlySipRange ?? "A monthly amount based on your goals and extra income"}</p>
+                      </div>
+                      <div className="rounded-xl border border-[#e1ebff] bg-white p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">What To Do First</p>
+                        <p className="mt-1.5 text-base font-semibold text-[#0a1930]">{aiAllocation?.nextAction ?? "Pick one option below and start a monthly investment this week."}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      {aiAllocationBuckets.map((bucket, index) => (
+                        <article key={`${bucket.heading}-${index}`} className="rounded-2xl border border-[#dce8ff] bg-white p-4 shadow-[0_8px_20px_rgba(43,92,255,0.08)]">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#2b5cff]">Option {index + 1}</p>
+                          <h3 className="mt-1.5 text-lg font-bold text-[#0a1930]">{bucket.heading}</h3>
+                          <p className="mt-1 text-xs font-semibold text-[#4a628b]">Possible yearly growth: {bucket.expectedReturn}</p>
+                          <p className="mt-2 text-xs leading-relaxed text-[#5f7396]">{bucket.allocationHint}</p>
+                          <div className="mt-3 space-y-1.5">
+                            {bucket.instruments.slice(0, 4).map((instrument) => (
+                              <p key={`${bucket.heading}-${instrument}`} className="rounded-lg bg-[#f4f8ff] px-2.5 py-1.5 text-xs font-medium text-[#234374]">
+                                {instrument}
+                              </p>
+                            ))}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+
+                    <div className="mt-5 rounded-2xl border border-[#dce8ff] bg-white p-4 shadow-[0_8px_20px_rgba(43,92,255,0.08)]">
+                      <label htmlFor="ai-follow-up-question" className="text-sm font-semibold text-[#0a1930]">
+                        Ask a follow up question?
+                      </label>
+                      <p className="mt-1 text-xs text-[#5f7396]">
+                        If anything is unclear, type your question and get a simple answer. You can ask as many times as you want.
+                      </p>
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
+                        <textarea
+                          id="ai-follow-up-question"
+                          value={followUpQuestion}
+                          onChange={(event) => {
+                            setFollowUpQuestion(event.target.value);
+                            if (followUpError) {
+                              setFollowUpError(null);
+                            }
+                          }}
+                          placeholder="Example: If I can invest INR 8,000 monthly, which option should I pick first?"
+                          className="min-h-24 w-full rounded-xl border border-[#dce8ff] bg-[#f8fbff] px-3.5 py-2.5 text-sm text-[#0a1930] outline-none transition focus:border-[#2b5cff] focus:bg-white focus:ring-2 focus:ring-[#2b5cff]/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleFollowUpSubmit()}
+                          disabled={isFollowUpLoading}
+                          className="inline-flex h-10 items-center justify-center rounded-full bg-[#2b5cff] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isFollowUpLoading ? "Answering..." : "Get Answer"}
+                        </button>
+                      </div>
+
+                      {followUpError ? (
+                        <p className="mt-3 rounded-lg border border-finance-red/25 bg-finance-red/10 px-3 py-2 text-xs text-finance-red">
+                          {followUpError}
+                        </p>
+                      ) : null}
+
+                      {followUpThread.length > 0 ? (
+                        <div className="mt-3 space-y-2.5">
+                          {followUpThread.map((item, index) => (
+                            <div key={item.id} className="rounded-xl border border-[#e1ebff] bg-[#f8fbff] px-3.5 py-3">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Question {index + 1}</p>
+                              <p className="mt-1 text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
+                              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Simple Answer</p>
+                              <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-[#1d355d]">{item.answer}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           {isLoading && (
             <DashboardSectionCard
@@ -2080,7 +2411,7 @@ export default function DashboardPage() {
                           Five handcrafted intelligence panels for clearer financial decisions
                         </h3>
                         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#50607d] md:text-base">
-                          Scenario planning, goal confidence, risk drift, market context, and next actions are all computed from your profile,
+                          Scenario planning, goal confidence, and market context are all computed from your profile,
                           holdings, tax, and live feed data.
                         </p>
                       </div>
@@ -2228,59 +2559,12 @@ export default function DashboardPage() {
                         </div>
                       </motion.article>
 
+
+
                       <motion.article
-                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-[linear-gradient(160deg,#ffffff_0%,#f7f9ff_100%)] p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-4"
+                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-12"
                         variants={featureCardReveal}
                         custom={2}
-                      >
-                        <div className="flex items-center gap-2">
-                          <ShieldAlert className="h-4.5 w-4.5 text-[#2b5cff]" />
-                          <p className="text-sm font-semibold text-[#0a1930]">Risk Drift Alert</p>
-                        </div>
-                        <p className="mt-1 text-xs text-[#5f7396]">Live concentration and tolerance check versus your declared risk profile.</p>
-
-                        <div className="mt-5 flex items-center gap-4">
-                          <div className="relative flex h-28 w-28 items-center justify-center">
-                            <div
-                              className="absolute inset-0 rounded-full"
-                              style={{
-                                background: `conic-gradient(${aiMarketLab.riskDriftScore >= 70 ? "#e74c3c" : aiMarketLab.riskDriftScore >= 45 ? "#f59e0b" : "#10b981"} 0 ${aiMarketLab.riskDriftScore}%, rgba(10,25,48,0.08) ${aiMarketLab.riskDriftScore}% 100%)`,
-                              }}
-                            />
-                            <div className="absolute inset-[10px] rounded-full border border-white bg-white shadow-[inset_0_1px_4px_rgba(10,25,48,0.06)]" />
-                            <div className="relative text-center">
-                              <p className="text-3xl font-bold text-[#0a1930]">{aiMarketLab.riskDriftScore}</p>
-                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#5f7396]">/100</p>
-                            </div>
-                          </div>
-
-                          <div className="flex-1">
-                            <StatusBadge
-                              label={aiMarketLab.riskLabel}
-                              tone={aiMarketLab.riskDriftScore >= 70 ? "critical" : aiMarketLab.riskDriftScore >= 45 ? "warning" : "success"}
-                            />
-                            <p className="mt-2 text-xs leading-relaxed text-[#50607d]">{aiMarketLab.riskMessage}</p>
-                            <div className="mt-3 space-y-2">
-                              {(holdingsAnalytics?.concentrationWarnings ?? []).slice(0, 2).map((warning) => (
-                                <div key={warning.id} className="rounded-2xl border border-[#edf4ff] bg-[#f8fbff] px-3 py-2">
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5f7396]">{warning.title}</p>
-                                  <p className="mt-1 text-xs leading-relaxed text-[#0a1930]">{warning.message}</p>
-                                </div>
-                              ))}
-                              {(holdingsAnalytics?.concentrationWarnings ?? []).length === 0 ? (
-                                <p className="rounded-2xl border border-[#edf4ff] bg-[#f8fbff] px-3 py-2 text-xs leading-relaxed text-[#5f7396]">
-                                  Portfolio concentration is currently calm. The risk meter stays green until a new drift signal appears.
-                                </p>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      </motion.article>
-
-                      <motion.article
-                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-4"
-                        variants={featureCardReveal}
-                        custom={3}
                       >
                         <div className="flex items-center gap-2">
                           <TrendingUp className="h-4.5 w-4.5 text-[#2b5cff]" />
@@ -2328,49 +2612,7 @@ export default function DashboardPage() {
                         <p className="mt-3 text-xs text-[#5f7396]">NIFTY trend: {aiMarketLab.marketTrendMovement}</p>
                       </motion.article>
 
-                      <motion.article
-                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-[linear-gradient(160deg,#f9fbff_0%,#eef4ff_100%)] p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-4"
-                        variants={featureCardReveal}
-                        custom={4}
-                      >
-                        <div className="flex items-center gap-2">
-                          <RefreshCcw className="h-4.5 w-4.5 text-[#2b5cff]" />
-                          <p className="text-sm font-semibold text-[#0a1930]">AI Action Queue</p>
-                        </div>
-                        <p className="mt-1 text-xs text-[#5f7396]">The next three actions the dashboard wants you to see first.</p>
 
-                        <div className="mt-4 rounded-2xl border border-white/70 bg-white/90 p-3.5 shadow-[0_8px_18px_rgba(10,25,48,0.04)]">
-                          <p className="text-[11px] uppercase tracking-[0.14em] text-[#5f7396]">AI summary</p>
-                          <p className="mt-1 text-sm leading-relaxed text-[#0a1930]">{aiMarketLab.advisorExcerpt}</p>
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                          {aiMarketLab.actionQueue.map((item, index) => {
-                            const stepTone = insightToneToBadgeTone(item.tone);
-                            const stepColor =
-                              item.tone === "critical"
-                                ? "from-finance-red/90 to-[#ff8a7b]"
-                                : item.tone === "warning"
-                                  ? "from-amber-500 to-orange-400"
-                                  : "from-[#2b5cff] to-[#00d8ff]";
-
-                            return (
-                              <div key={item.title} className="flex items-start gap-3 rounded-2xl border border-[#edf4ff] bg-white px-3 py-3">
-                                <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br ${stepColor} text-sm font-bold text-white shadow-[0_8px_16px_rgba(43,92,255,0.16)]`}>
-                                  {index + 1}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-semibold text-[#0a1930]">{item.title}</p>
-                                    <StatusBadge label={item.badge} tone={stepTone} />
-                                  </div>
-                                  <p className="mt-1 text-xs leading-relaxed text-[#5f7396]">{item.detail}</p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </motion.article>
                     </div>
                   </div>
                 </motion.section>

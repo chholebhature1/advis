@@ -7,6 +7,15 @@ function requireEnv(key: string): string {
   return value;
 }
 
+function optionalEnv(key: string): string | null {
+  const value = process.env[key];
+  if (!value || value.trim().length === 0) {
+    return null;
+  }
+
+  return value;
+}
+
 async function confirmSupabaseUserByEmail(
   supabase: SupabaseClient,
   normalizedEmail: string
@@ -49,8 +58,9 @@ async function confirmSupabaseUserByEmail(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, token } = body;
+    const { email, token, password } = body;
     const normalizedEmail = String(email ?? "").toLowerCase();
+    const passwordValue = String(password ?? "");
 
     if (!normalizedEmail || !normalizedEmail.includes("@")) {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
@@ -103,10 +113,38 @@ export async function POST(request: NextRequest) {
       // Don't fail here - token is verified in database even if auth update fails
     }
 
+    let sessionResult: Record<string, unknown> | null = null;
+    const clientKey = optionalEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") ?? optionalEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+    if (clientKey && passwordValue.length >= 6) {
+      try {
+        const authClient = createClient(supabaseUrl, clientKey);
+        const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
+          email: normalizedEmail,
+          password: passwordValue,
+        });
+
+        if (signInError) {
+          console.error("Sign-in after verification failed:", signInError);
+        } else if (signInData.session) {
+          sessionResult = {
+            access_token: signInData.session.access_token,
+            refresh_token: signInData.session.refresh_token,
+            expires_at: signInData.session.expires_at,
+            token_type: signInData.session.token_type,
+            user: signInData.user,
+          };
+        }
+      } catch (signInError) {
+        console.error("Sign-in after verification error:", signInError);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
         message: "Email verified successfully",
+        session: sessionResult,
       },
       { status: 200 }
     );

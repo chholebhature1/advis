@@ -515,7 +515,7 @@ export default function SiteHeader() {
                 alt="Pravix visual mark"
                 width={44}
                 height={44}
-                className="h-11 w-11 object-contain transition-transform duration-300 group-hover:-translate-y-0.5"
+                className="h-11 w-11 object-contain transition-transform duration-300 group-hover:-translate-y-0.5 scale-[300%]"
                 priority
               />
             </span>
