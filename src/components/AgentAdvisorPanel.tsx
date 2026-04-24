@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { AlertCircle, Loader2, Send } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useState, useRef } from "react";
+import { AlertCircle, Loader2, Send, Sparkles, ShieldCheck, Target, Cpu } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AIInsightChips,
   DashboardSectionCard,
@@ -28,9 +29,6 @@ type AgentBootstrapResponse = {
   starterPrompts: string[];
 };
 
-type AgentDashboardResponse = {
-  aiSummary: string;
-};
 
 type AgentChatResponse = {
   reply: string;
@@ -79,7 +77,6 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
   const [error, setError] = useState<string | null>(null);
   const [greeting, setGreeting] = useState<string>("Hi, I am your Pravix AI advisor.");
   const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
-  const [dashboardSummary, setDashboardSummary] = useState<string | null>(null);
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [input, setInput] = useState("");
 
@@ -133,10 +130,7 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
       setError(null);
 
       try {
-        const [bootstrap, dashboard] = await Promise.all([
-          callAgentEndpoint<AgentBootstrapResponse>("/api/agent/bootstrap", { method: "GET" }),
-          callAgentEndpoint<AgentDashboardResponse>("/api/agent/dashboard", { method: "GET" }),
-        ]);
+        const bootstrap = await callAgentEndpoint<AgentBootstrapResponse>("/api/agent/bootstrap", { method: "GET" });
 
         if (cancelled) {
           return;
@@ -144,7 +138,6 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
 
         setGreeting(bootstrap.greeting);
         setStarterPrompts(bootstrap.starterPrompts ?? []);
-        setDashboardSummary(dashboard.aiSummary ?? null);
       } catch (loadError) {
         if (cancelled) {
           return;
@@ -211,112 +204,223 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
     await sendMessage(input);
   }
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   return (
-    <DashboardSectionCard
-      eyebrow="AI Wealth Advisor"
-      title="Pravix Copilot"
-      description={greeting}
+    <motion.section
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="relative overflow-hidden rounded-3xl border border-finance-border bg-white shadow-[0_4px_24px_rgba(10,25,48,0.04)]"
     >
+      <div className="flex flex-col lg:flex-row min-h-[650px]">
+        
+        {/* ── Left Control Bar (Sidebar) ── */}
+        <aside className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-finance-border bg-finance-surface/30 p-6 sm:p-8 flex flex-col">
+          <div className="mb-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-finance-accent/10 border border-finance-accent/20">
+              <Sparkles className="h-3.5 w-3.5 text-finance-accent" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-finance-accent text-nowrap">Intelligence Core</span>
+            </div>
+            <h2 className="mt-4 text-2xl font-bold text-finance-text tracking-tight">AI Wealth Advisor</h2>
+            <p className="mt-2 text-sm leading-relaxed text-finance-muted font-medium">
+              {greeting}
+            </p>
+          </div>
 
-      {isLoading && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-finance-muted sm:mt-5">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading personalized AI context...
-        </div>
-      )}
-
-      {!isLoading && dashboardSummary && (
-        <div className="mt-4 rounded-2xl border border-finance-accent/20 bg-finance-accent/10 p-4 sm:p-5">
-          <p className="text-xs uppercase tracking-[0.14em] text-finance-muted">AI Action Plan</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-finance-text leading-relaxed">{dashboardSummary}</p>
-        </div>
-      )}
-
-      {!isLoading && starterPrompts.length > 0 && (
-        <div className="mt-4 sm:mt-5">
-          <p className="mb-2 text-xs uppercase tracking-[0.14em] text-finance-muted">Quick prompts</p>
-          <AIInsightChips items={starterPrompts} onClick={(prompt) => void sendMessage(prompt)} disabled={isSending} />
-        </div>
-      )}
-
-      <div className="mt-4 rounded-2xl bg-finance-surface/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_12px_28px_rgba(10,25,48,0.06)] sm:mt-5 sm:p-5">
-        <div className="max-h-72 space-y-3 overflow-y-auto pr-0.5 sm:space-y-3.5 sm:pr-1">
-          {messages.length === 0 ? (
-            <EmptyState
-              title="No messages yet"
-              description="Ask a question to start a personalized strategy conversation based on your profile and portfolio context."
-            />
-          ) : (
-            messages.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={`rounded-lg p-3 text-sm ${
-                  message.role === "assistant"
-                    ? "bg-white/95 text-finance-text shadow-[inset_0_1px_0_rgba(255,255,255,0.75),0_4px_14px_rgba(10,25,48,0.08)]"
-                    : "bg-finance-accent text-white shadow-[0_4px_14px_rgba(43,92,255,0.24)]"
-                }`}
-              >
-                <p className={`text-[10px] uppercase tracking-[0.1em] ${message.role === "assistant" ? "text-finance-muted" : "text-white/80"}`}>
-                  {message.role === "assistant" ? "advisor" : "you"} · {formatTime(message.sentAt)}
-                </p>
-                {message.role === "assistant" && message.structured ? (
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.12em] text-finance-muted">Recommendation</p>
-                      <p className="mt-1 text-sm leading-relaxed text-finance-text">{message.structured.recommendation}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.12em] text-finance-muted">Reason</p>
-                      <p className="mt-1 text-sm leading-relaxed text-finance-text">{message.structured.reason}</p>
-                    </div>
-                    <div className="rounded-lg border border-finance-red/20 bg-finance-red/10 p-3">
-                      <p className="text-[10px] uppercase tracking-[0.12em] text-finance-red">Risk Warning</p>
-                      <p className="mt-1 text-sm leading-relaxed text-finance-red">{message.structured.riskWarning}</p>
-                    </div>
-                    <div className="rounded-lg border border-finance-accent/20 bg-finance-accent/10 p-3">
-                      <p className="text-[10px] uppercase tracking-[0.12em] text-finance-accent">Next Action</p>
-                      <p className="mt-1 text-sm leading-relaxed text-finance-text">{message.structured.nextAction}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-1 whitespace-pre-wrap">{message.content}</p>
-                )}
+          <div className="flex-1 space-y-8">
+            {starterPrompts.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-muted mb-4">Inquiry Frameworks</p>
+                <div className="grid gap-2">
+                  {starterPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => void sendMessage(prompt)}
+                      disabled={isSending}
+                      className="w-full text-left rounded-xl border border-finance-border bg-white p-3.5 text-xs font-semibold text-finance-text transition-all hover:border-finance-accent/40 hover:bg-white hover:shadow-sm active:scale-[0.98] disabled:opacity-40"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))
-          )}
-        </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="mt-4 flex items-center gap-2.5 sm:mt-5">
-          <input
-            type="text"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={isSending}
-            placeholder="Ask: Where should I invest 15000 INR per month?"
-            className="h-11 flex-1 rounded-xl border border-transparent bg-white px-3.5 text-sm text-finance-text shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_8px_rgba(10,25,48,0.05)] transition-colors focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
-          />
-          <button
-            type="submit"
-            disabled={isSending || input.trim().length === 0}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-finance-accent px-4 text-sm font-semibold text-white transition-all duration-150 hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-finance-accent/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Send
-          </button>
-        </form>
+            <div className="mt-auto pt-6 border-t border-finance-border">
+              <div className="flex items-center gap-3 p-4 rounded-2xl bg-finance-accent/5 border border-finance-accent/10">
+                <ShieldCheck className="h-5 w-5 text-finance-accent" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-finance-text">Encrypted Protocol</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── Main Analytical Feed ── */}
+        <div className="flex-1 flex flex-col bg-white">
+          <header className="px-6 py-5 border-b border-finance-border flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-finance-surface border border-finance-border flex items-center justify-center">
+                <Cpu className="h-4 w-4 text-finance-accent" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted">Active Stream</p>
+                <p className="text-xs font-bold text-finance-text">Strategy Dialogue</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-finance-green/10 border border-finance-green/20">
+              <div className="h-1.5 w-1.5 rounded-full bg-finance-green animate-pulse" />
+              <span className="text-[10px] font-bold text-finance-green uppercase tracking-wider">Live</span>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 custom-scrollbar">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center py-20">
+                <div className="h-20 w-20 rounded-3xl bg-finance-surface border border-finance-border flex items-center justify-center mb-6">
+                  <Target className="h-10 w-10 text-finance-accent opacity-20" />
+                </div>
+                <h3 className="text-xl font-bold text-finance-text">Awaiting Inquiry</h3>
+                <p className="mt-2 text-sm text-finance-muted max-w-xs leading-relaxed">
+                  Select a framework from the sidebar or type a custom question to generate analytical insights.
+                </p>
+              </div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {messages.map((message, index) => (
+                  <motion.div
+                    key={`${message.role}-${index}`}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`h-6 w-6 rounded-md flex items-center justify-center border ${
+                        message.role === "assistant" ? "bg-finance-accent/10 border-finance-accent/20" : "bg-finance-surface border-finance-border"
+                      }`}>
+                        {message.role === "assistant" ? <Cpu className="h-3 w-3 text-finance-accent" /> : <div className="h-1 w-1 rounded-full bg-finance-text" />}
+                      </div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-finance-muted">
+                        {message.role === "assistant" ? "Analytical Output" : "User Input"} • {formatTime(message.sentAt)}
+                      </p>
+                    </div>
+
+                    <div className={`rounded-2xl border ${
+                      message.role === "assistant" 
+                        ? "bg-finance-surface/40 border-finance-border p-6" 
+                        : "bg-white border-finance-accent/30 p-5 shadow-sm"
+                    }`}>
+                      {message.role === "assistant" && message.structured ? (
+                        <div className="grid gap-6">
+                          <div className="border-l-2 border-finance-accent pl-5 py-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-finance-accent">Strategic Directive</p>
+                            <p className="mt-2 text-base font-bold text-finance-text leading-tight">{message.structured.recommendation}</p>
+                          </div>
+                          
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div className="p-4 rounded-xl bg-white border border-finance-border shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted mb-2">Technical Rationale</p>
+                              <p className="text-xs font-medium text-finance-text leading-relaxed">{message.structured.reason}</p>
+                            </div>
+                            <div className="p-4 rounded-xl bg-finance-red/[0.03] border border-finance-red/10">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-finance-red mb-2">Risk Vectors</p>
+                              <p className="text-xs font-medium text-finance-red leading-relaxed">{message.structured.riskWarning}</p>
+                            </div>
+                          </div>
+
+                          <div className="p-5 rounded-xl bg-finance-accent text-white shadow-lg shadow-finance-accent/15 flex items-center justify-between gap-4">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-white/70">Critical Next Action</p>
+                              <p className="mt-1 text-sm font-black tracking-tight">{message.structured.nextAction}</p>
+                            </div>
+                            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                              <Send className="h-4 w-4" />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-semibold text-finance-text leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+                <div ref={messagesEndRef} />
+              </AnimatePresence>
+            )}
+
+            {isSending && (
+              <div className="flex items-center gap-3 text-finance-accent">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Synthesizing Data Models...</span>
+              </div>
+            )}
+          </div>
+
+          {/* ── Analytical Input ── */}
+          <footer className="p-6 border-t border-finance-border bg-finance-surface/10">
+            <form onSubmit={handleSubmit} className="relative flex items-center gap-3">
+              <div className="flex-1 relative group">
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                  <Send className="h-4 w-4 text-finance-muted group-focus-within:text-finance-accent transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  disabled={isSending}
+                  placeholder="Execute custom strategy inquiry..."
+                  className="w-full h-14 pl-12 pr-6 rounded-2xl border border-finance-border bg-white text-sm font-semibold text-finance-text outline-none focus:border-finance-accent transition-all placeholder:text-finance-muted/60"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSending || input.trim().length === 0}
+                className="h-14 px-8 rounded-2xl bg-finance-accent text-white text-sm font-black uppercase tracking-widest shadow-lg shadow-finance-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30"
+              >
+                Inquire
+              </button>
+            </form>
+            <div className="mt-4 flex items-center justify-between gap-4">
+              <p className="text-[10px] font-bold text-finance-muted uppercase tracking-widest">
+                Verification Required Prior to Execution
+              </p>
+              {error && (
+                <div className="flex items-center gap-2 text-finance-red text-[10px] font-black uppercase tracking-widest">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
+          </footer>
+        </div>
       </div>
 
-      {error && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-finance-red/25 bg-finance-red/10 p-3 text-sm text-finance-red sm:p-3.5">
-          <AlertCircle className="mt-0.5 h-4 w-4" />
-          <p>{error}</p>
-        </div>
-      )}
-
-      <p className="mt-3 text-xs text-finance-muted">
-        Educational guidance only. Validate suitability before investing.
-      </p>
-    </DashboardSectionCard>
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.1);
+        }
+      `}</style>
+    </motion.section>
   );
 }
 

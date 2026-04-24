@@ -398,12 +398,42 @@ export default function DashboardPage() {
   const [selectedLens, setSelectedLens] = useState<DashboardLens>("goal");
   const [selectedKpiId, setSelectedKpiId] = useState<string | null>(null);
   const [marketTrend, setMarketTrend] = useState<MarketTrendPoint[]>([]);
+
+  // SIP Calculator local state - initialized to profile values in useEffect below
+  const [sipMonthlyAmount, setSipMonthlyAmount] = useState(15000);
+  const [sipAnnualReturn, setSipAnnualReturn] = useState(12);
+  const [sipDurationYears, setSipDurationYears] = useState(10);
+
+  // Sync profile data to dashboard filters & calculator
+  useEffect(() => {
+    if (!profile) return;
+
+    // 1. Sync Horizon
+    const years = profile.target_horizon_years || 1;
+    if (years === 1) setSelectedHorizon("1y");
+    else if (years === 2) setSelectedHorizon("2y");
+    else if (years === 3) setSelectedHorizon("3y");
+    else {
+      setSelectedHorizon("custom");
+      setCustomHorizonYears(years);
+    }
+
+    // 2. Sync SIP Calculator
+    const surplus = profile.monthly_investable_surplus_inr;
+    if (surplus > 0) setSipMonthlyAmount(surplus);
+
+    const horizon = profile.target_horizon_years;
+    if (horizon > 0) setSipDurationYears(horizon);
+
+    const risk = profile.risk_appetite;
+    if (risk === "aggressive") setSipAnnualReturn(13.5);
+    else if (risk === "conservative") setSipAnnualReturn(8.5);
+    else setSipAnnualReturn(11.0);
+
+  }, [profile]);
   const [marketTrendSource, setMarketTrendSource] = useState<"live" | "fallback" | null>(null);
   const [marketTrendGeneratedAt, setMarketTrendGeneratedAt] = useState<string | null>(null);
   const [isMarketTrendLoading, setIsMarketTrendLoading] = useState(true);
-  const [sipMonthlyAmount, setSipMonthlyAmount] = useState(10000);
-  const [sipAnnualReturn, setSipAnnualReturn] = useState(12);
-  const [sipDurationYears, setSipDurationYears] = useState(10);
   const [isCompactMotion, setIsCompactMotion] = useState(false);
 
   useEffect(() => {
@@ -1360,14 +1390,8 @@ export default function DashboardPage() {
   const effectiveFocus = useMemo(() => manualFocus ?? recommendedFocus, [manualFocus, recommendedFocus]);
 
   const orderedModuleKeys = useMemo(() => {
-    const baseOrder: DashboardModuleKey[] = ["profile", "holdings", "advisor"];
-
-    if (!effectiveFocus) {
-      return baseOrder;
-    }
-
-    return [effectiveFocus, ...baseOrder.filter((moduleKey) => moduleKey !== effectiveFocus)];
-  }, [effectiveFocus]);
+    return ["advisor"] as DashboardModuleKey[];
+  }, []);
 
   const kpiStripItems = useMemo<DashboardKpiItem[]>(() => {
     const investedCorpus = Math.max((profile?.current_savings_inr ?? 0) + (holdingsAnalytics?.totalMarketValueInr ?? 0), 0);
@@ -1762,73 +1786,6 @@ export default function DashboardPage() {
   };
 
   const renderSignedInModule = (moduleKey: DashboardModuleKey, activeProfile: ProfileRow) => {
-    if (moduleKey === "profile") {
-      return (
-        <DashboardSectionCard
-          className="pt-1"
-          eyebrow="Financial Snapshot"
-          title="Your financial command snapshot"
-          description="A quick status view before diving into portfolio and tax actions."
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-lg font-semibold text-finance-text">{activeProfile.full_name}</p>
-              <p className="text-sm text-finance-muted">{activeProfile.email}</p>
-            </div>
-            <StatusBadge label={profileFreshness.label} tone={profileFreshness.tone} />
-          </div>
-
-          <section className="mt-3 grid gap-3 sm:mt-4 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Monthly Income" value={formatCurrency(activeProfile.monthly_income_inr)} tone="default" />
-            <StatCard label="Current Savings" value={formatCurrency(activeProfile.current_savings_inr)} tone="positive" />
-            <StatCard label="Target Gap" value={formatCurrency(targetGap)} tone={targetGap > 0 ? "warning" : "positive"} />
-            <StatCard
-              label="Risk and Horizon"
-              value={`${formatRisk(activeProfile.risk_appetite)} · ${activeProfile.target_horizon_years}y`}
-              tone="info"
-            />
-          </section>
-
-          <details className="mt-4 rounded-xl border border-finance-border bg-finance-surface/50 p-3.5 sm:p-4">
-            <summary className="cursor-pointer text-sm font-semibold text-finance-text">
-              Profile metadata and planner notes
-            </summary>
-
-            <section className="mt-3 grid gap-3 sm:gap-4 md:grid-cols-2">
-              <article className="rounded-xl border border-finance-border bg-white p-3.5 sm:p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-[0.14em] text-finance-muted">Profile Metadata</p>
-                  <StatusBadge
-                    label={activeProfile.consent_to_contact ? "contact allowed" : "contact blocked"}
-                    tone={activeProfile.consent_to_contact ? "success" : "warning"}
-                  />
-                </div>
-                <p className="mt-2 text-sm text-finance-text">Source: {activeProfile.source}</p>
-                <p className="mt-1 text-xs text-finance-muted">Captured: {latestCreatedAt}</p>
-                <p className="mt-1 text-xs text-finance-muted">Last Updated: {latestUpdatedAt}</p>
-              </article>
-
-              <article className="rounded-xl border border-finance-border bg-white p-3.5 sm:p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-finance-muted">Planner Notes</p>
-                <p className="mt-2 text-sm leading-relaxed text-finance-text">
-                  {activeProfile.notes.trim() ? activeProfile.notes : "No additional notes provided in your latest submission."}
-                </p>
-              </article>
-            </section>
-          </details>
-        </DashboardSectionCard>
-      );
-    }
-
-    if (moduleKey === "holdings") {
-      return (
-        <HoldingsAnalyzerPanel
-          refreshKey={refreshTick}
-          onHoldingsChanged={() => setRefreshTick((current) => current + 1)}
-        />
-      );
-    }
-
     return <AgentAdvisorPanel refreshKey={refreshTick} />;
   };
 
@@ -2168,105 +2125,8 @@ export default function DashboardPage() {
             <div className="mt-6 space-y-5 sm:mt-7 sm:space-y-6">
 
               {/* ── Control Bar ── */}
-              <section className="rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_8px_24px_rgba(10,25,48,0.07)] backdrop-blur-sm sm:p-5">
-                <div className="flex flex-wrap items-end gap-4">
-                  <div className="min-w-[140px]">
-                    <label htmlFor="horizon-filter" className="text-[10px] font-bold uppercase tracking-[0.16em] text-finance-muted">
-                      Horizon
-                    </label>
-                    <select
-                      id="horizon-filter"
-                      value={selectedHorizon}
-                      onChange={(event) => setSelectedHorizon(event.target.value as DashboardHorizon)}
-                      className="mt-1.5 h-9 w-full rounded-lg border border-finance-border bg-white px-3 text-sm font-medium text-finance-text shadow-[inset_0_1px_3px_rgba(10,25,48,0.06)] focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
-                    >
-                      <option value="1y">1 year</option>
-                      <option value="2y">2 years</option>
-                      <option value="3y">3 years</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                    {selectedHorizon === "custom" ? (
-                      <div className="mt-2">
-                        <label htmlFor="custom-horizon-years" className="text-[10px] font-bold uppercase tracking-[0.16em] text-finance-muted">
-                          Custom years
-                        </label>
-                        <input
-                          id="custom-horizon-years"
-                          type="number"
-                          min={1}
-                          max={10}
-                          value={customHorizonYears}
-                          onChange={(event) => setCustomHorizonYears(Math.max(1, Math.min(10, Number(event.target.value) || 1)))}
-                          className="mt-1.5 h-9 w-full rounded-lg border border-finance-border bg-white px-3 text-sm font-medium text-finance-text shadow-[inset_0_1px_3px_rgba(10,25,48,0.06)] focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
-                        />
-                      </div>
-                    ) : null}
-                  </div>
 
-                  <div className="min-w-[160px]">
-                    <label htmlFor="lens-filter" className="text-[10px] font-bold uppercase tracking-[0.16em] text-finance-muted">
-                      Dashboard Lens
-                    </label>
-                    <select
-                      id="lens-filter"
-                      value={selectedLens}
-                      onChange={(event) => setSelectedLens(event.target.value as DashboardLens)}
-                      className="mt-1.5 h-9 w-full rounded-lg border border-finance-border bg-white px-3 text-sm font-medium text-finance-text shadow-[inset_0_1px_3px_rgba(10,25,48,0.06)] focus:outline-none focus:ring-2 focus:ring-finance-accent/30"
-                    >
-                      <option value="goal">🎯 Goal performance</option>
-                      <option value="cashflow">💸 Cashflow quality</option>
-                      <option value="risk">🛡 Risk posture</option>
-                    </select>
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                    <StatusBadge label={marketStatus.label} tone={marketStatus.tone === "success" ? "success" : marketStatus.tone === "neutral" ? "neutral" : "warning"} />
-                    <StatusBadge label={`${selectedLens} lens`} tone="info" />
-                    <button type="button" onClick={() => void handleShareSnapshot()} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-finance-border bg-white px-3.5 text-xs font-semibold text-finance-text shadow-sm transition-all hover:bg-finance-surface hover:shadow-md">
-                      <Share2 className="h-3.5 w-3.5" />
-                      Share
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {/* ── Priority Snapshot KPI Strip ── */}
-              <section className="rounded-2xl border border-finance-border bg-white px-5 py-4 shadow-[0_8px_24px_rgba(10,25,48,0.06)] sm:px-6 sm:py-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2b5cff]">Priority Snapshot</p>
-                    <p className="mt-0.5 text-sm text-finance-muted">Click any metric to drill into its trend.</p>
-                  </div>
-                  {selectedKpiId ? (
-                    <button type="button" onClick={() => setSelectedKpiId(null)} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-3 text-[11px] font-semibold text-finance-muted hover:text-finance-text">
-                      <X className="h-3 w-3" />
-                      Clear
-                    </button>
-                  ) : null}
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                  {kpiStripItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSelectedKpiId(selectedKpiId === item.id ? null : item.id)}
-                      className={`group relative overflow-hidden rounded-xl border px-3.5 py-4 text-left shadow-[0_4px_14px_rgba(10,25,48,0.06)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(10,25,48,0.12)] ${
-                        selectedKpiId === item.id
-                          ? "border-finance-accent bg-[linear-gradient(135deg,#f0f4ff,#e8efff)] ring-2 ring-finance-accent/25"
-                          : "border-finance-border bg-white hover:border-finance-accent/30"
-                      }`}
-                    >
-                      {selectedKpiId === item.id && (
-                        <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-gradient-to-r from-finance-accent to-[#7aaafc]" />
-                      )}
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-finance-muted">{item.label}</p>
-                      <p className={`mt-1.5 text-lg font-bold ${ selectedKpiId === item.id ? "text-finance-accent" : "text-finance-text"}`}>{item.value}</p>
-                      <p className={`mt-1 text-[11px] font-medium ${toneToClassName(item.deltaTone)}`}>{item.deltaLabel}</p>
-                      <p className="mt-0.5 text-[10px] text-finance-muted">{item.hint}</p>
-                    </button>
-                  ))}
-                </div>
-              </section>
 
               {/* ── Section label: Decision Intelligence ── */}
               <div className="flex items-center gap-3">
@@ -2309,85 +2169,7 @@ export default function DashboardPage() {
 
                     <div className="mt-6 grid gap-4 lg:grid-cols-12">
                       <motion.article
-                        className="relative overflow-hidden rounded-[1.75rem] border border-[#d8e7ff] bg-[linear-gradient(160deg,#f8fbff_0%,#eef4ff_100%)] p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-7"
-                        variants={featureCardReveal}
-                        custom={0}
-                      >
-                        <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-[#2b5cff]/10 blur-[90px]" />
-                        <div className="relative flex items-start justify-between gap-4">
-                          <div>
-                            <div className="inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/12 bg-white px-3 py-1.5">
-                              <BarChart3 className="h-3.5 w-3.5 text-[#2b5cff]" />
-                              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#2b5cff]">AI Scenario Simulator</p>
-                            </div>
-                            <p className="mt-3 text-sm font-semibold text-[#0a1930]">{selectedHorizonLabel} plan range</p>
-                            <p className="mt-1 text-xs text-[#5f7396]">Uses your current corpus, investable surplus, and a risk-weighted return band.</p>
-                          </div>
-                          <div className="rounded-2xl border border-white/60 bg-white px-4 py-3 text-right shadow-[0_8px_18px_rgba(43,92,255,0.06)]">
-                            <p className="text-[10px] uppercase tracking-[0.14em] text-[#5f7396]">Current visible corpus</p>
-                            <p className="mt-1 text-lg font-bold text-[#0a1930]">{formatCompactCurrency(intelligence?.totalVisibleCorpus ?? 0)}</p>
-                          </div>
-                        </div>
-
-                        <div className="relative mt-5 space-y-3">
-                          {aiMarketLab.scenarioCards.map((scenario, index) => {
-                            const maxProjected = Math.max(...aiMarketLab.scenarioCards.map((item) => item.projectedValue), 1);
-                            const fillWidth = clamp((scenario.projectedValue / maxProjected) * 100, 8, 100);
-                            const gradientClass =
-                              scenario.tone === "warning"
-                                ? "from-amber-400 via-orange-400 to-[#2b5cff]"
-                                : scenario.tone === "positive"
-                                  ? "from-emerald-400 via-[#00d8ff] to-[#2b5cff]"
-                                  : "from-[#2b5cff] via-[#4d7dff] to-[#00d8ff]";
-
-                            return (
-                              <motion.div
-                                key={scenario.label}
-                                className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-[0_8px_18px_rgba(10,25,48,0.04)] backdrop-blur-sm"
-                                initial={{ opacity: 0, y: 12 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true, amount: 0.35 }}
-                                transition={{ duration: 0.4, delay: index * 0.05, ease: motionEase }}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <Sparkles className="h-4 w-4 text-[#2b5cff]" />
-                                      <p className="text-sm font-semibold text-[#0a1930]">{scenario.label}</p>
-                                    </div>
-                                    <p className="mt-1 text-xs text-[#5f7396]">{scenario.annualReturnPct.toFixed(1)}% return assumption</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-lg font-bold text-[#0a1930]">{formatCompactCurrency(scenario.projectedValue)}</p>
-                                    <p className={`text-xs font-semibold ${scenario.gainInr >= 0 ? "text-finance-green" : "text-finance-red"}`}>
-                                      {scenario.gainInr >= 0 ? "+" : "-"}
-                                      {formatCompactCurrency(Math.abs(scenario.gainInr))} gain
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#edf4ff]">
-                                  <motion.div
-                                    className={`h-full rounded-full bg-gradient-to-r ${gradientClass}`}
-                                    initial={{ width: 0 }}
-                                    whileInView={{ width: `${fillWidth}%` }}
-                                    viewport={{ once: true }}
-                                    transition={{ duration: 0.7, ease: motionEase }}
-                                  />
-                                </div>
-
-                                <div className="mt-2 flex items-center justify-between text-[11px] text-[#5f7396]">
-                                  <span>{scenario.gainPct.toFixed(1)}% gain vs current corpus</span>
-                                  <span className="font-medium uppercase tracking-[0.12em]">{selectedHorizonLabel}</span>
-                                </div>
-                              </motion.div>
-                            );
-                          })}
-                        </div>
-                      </motion.article>
-
-                      <motion.article
-                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-5"
+                        className="rounded-[1.75rem] border border-[#d8e7ff] bg-white p-5 shadow-[0_14px_30px_rgba(43,92,255,0.08)] lg:col-span-12"
                         variants={featureCardReveal}
                         custom={1}
                       >
@@ -2454,7 +2236,7 @@ export default function DashboardPage() {
                           <TrendingUp className="h-4.5 w-4.5 text-[#2b5cff]" />
                           <p className="text-sm font-semibold text-[#0a1930]">Market Context Summary</p>
                         </div>
-                        <p className="mt-1 text-xs text-[#5f7396]">Live market context blended with the horizon you selected above.</p>
+                        <p className="mt-1 text-xs text-[#5f7396]">Live market context matched to your profile&apos;s {selectedHorizonLabel} horizon.</p>
 
                         <div className="mt-4 h-36 rounded-2xl border border-[#edf4ff] bg-[#f8fbff] p-3">
                           {marketTrend.length > 1 ? (
@@ -2497,6 +2279,76 @@ export default function DashboardPage() {
                       </motion.article>
 
 
+
+                      <motion.article
+                        className="rounded-[1.75rem] border border-[#dce8ff] bg-gradient-to-br from-white to-[#f9fbff] p-6 shadow-[0_12px_28px_rgba(43,92,255,0.06)] lg:col-span-12"
+                        variants={featureCardReveal}
+                        custom={3}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <BarChart3 className="h-4.5 w-4.5 text-[#2b5cff]" />
+                              <p className="text-sm font-bold text-[#0a1930]">Strategic Strategy Outcomes</p>
+                            </div>
+                            <p className="mt-1 text-xs text-[#5f7396]">Projected wealth at the end of your {selectedHorizonLabel} horizon based on your profile.</p>
+                          </div>
+                          <StatusBadge label="AI Projection" tone="info" />
+                        </div>
+
+                        <div className="mt-8 grid gap-8 lg:grid-cols-12">
+                          <div className="h-48 lg:col-span-7">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={aiMarketLab.scenarioCards.map(card => ({
+                                  name: card.label.split(' ')[0],
+                                  value: card.projectedValue,
+                                  fill: card.tone === 'warning' ? '#ff8a7b' : card.tone === 'positive' ? '#69c8ad' : '#2b5cff'
+                                }))}
+                                margin={{ top: 0, right: 0, left: -25, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f3f8" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10, fontWeight: 600 }} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10 }} tickFormatter={(val) => formatCompactCurrency(val)} />
+                                <Tooltip
+                                  cursor={{ fill: 'rgba(43,92,255,0.03)' }}
+                                  contentStyle={{ borderRadius: '12px', border: '1px solid #e1e8f5', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
+                                  formatter={(value) => [formatCompactCurrency(Number(value)), 'Projected Wealth']}
+                                />
+                                <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={40} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          <div className="lg:col-span-5 space-y-3">
+                            {aiMarketLab.scenarioCards.map((card) => (
+                              <div key={card.label} className="rounded-xl border border-[#edf4ff] bg-white p-3.5 transition-all hover:border-[#2b5cff]/30 hover:shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">{card.label}</p>
+                                  <span className={`text-[10px] font-black ${card.tone === 'positive' ? 'text-finance-green' : card.tone === 'warning' ? 'text-finance-red' : 'text-finance-accent'}`}>
+                                    {card.annualReturnPct}% Return
+                                  </span>
+                                </div>
+                                <div className="mt-1 flex items-baseline gap-2">
+                                  <p className="text-lg font-bold text-[#0a1930]">{formatCompactCurrency(card.projectedValue)}</p>
+                                  <p className={`text-[10px] font-bold ${card.gainPct >= 0 ? 'text-finance-green' : 'text-finance-red'}`}>
+                                    {formatSignedPercent(card.gainPct)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-[#f0f5ff]/50 p-4 border border-[#d8e7ff]/40">
+                          <Target className="h-4 w-4 text-[#2b5cff] shrink-0" />
+                          <p className="text-xs leading-relaxed text-[#234374] font-medium">
+                            This visualization takes your <strong>{formatCurrency(profile.monthly_investable_surplus_inr)}</strong> monthly contribution and your current corpus to map exactly how your wealth accelerates across three market conditions.
+                          </p>
+                        </div>
+                      </motion.article>
+
+
                     </div>
                   </div>
                 </motion.section>
@@ -2522,7 +2374,6 @@ export default function DashboardPage() {
                         </span>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-finance-text">NIFTY 50 — Live Chart</p>
                       </div>
-                      <p className="mt-1 text-[11px] text-finance-muted">Window: {selectedHorizonLabel}</p>
                       {niftyTrendSummary ? (
                         <div className="mt-1 flex items-center gap-2">
                           <p className="text-base font-bold text-finance-text">{formatIndexNumber(niftyTrendSummary.latest)}</p>
@@ -2612,7 +2463,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.18em] text-finance-text">SIP Calculator</p>
-                      <p className="mt-0.5 text-[11px] text-finance-muted">Projection — not financial advice</p>
+                      <p className="mt-0.5 text-[11px] text-finance-muted">Personalized with your surplus &amp; goal data</p>
                     </div>
                     <span className="inline-flex h-7 items-center rounded-full bg-[#eef3ff] px-2.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2b5cff]">Calculator</span>
                   </div>
@@ -2729,275 +2580,12 @@ export default function DashboardPage() {
                   </p>
                 </article>
                 ) : null}
-                {showAllocationMix ? (
-                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Allocation Mix</p>
-                    <p className="text-[10px] text-[#5a6f94]">{allocationDonutData.length} segments • {formatCompactCurrency(allocationTotalValue)}</p>
-                  </div>
-                  <p className="mt-1 text-[11px] text-finance-muted">{allocationSubtitle}</p>
-                  <div className="mt-3 h-[220px]">
-                    {allocationDonutData.length === 0 ? (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-white text-xs text-finance-muted">Upload holdings for allocation map.</div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={allocationDonutData} dataKey="value" innerRadius={50} outerRadius={82} paddingAngle={2}>
-                            {allocationDonutData.map((entry, index) => <Cell key={entry.name} fill={allocationPalette[index % allocationPalette.length]} />)}
-                          </Pie>
-                          <Tooltip
-                            formatter={(value) => [formatCompactCurrency(Number(value ?? 0)), "Allocated amount"]}
-                            labelFormatter={(label) => `Segment: ${String(label ?? "")}`}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                  {topAllocationSlices.length > 0 ? (
-                    <div className="mt-2 space-y-1.5">
-                      {topAllocationSlices.map((slice, index) => (
-                        <div key={slice.name} className="flex items-center justify-between text-[11px] text-finance-muted">
-                          <span className="inline-flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: allocationPalette[index % allocationPalette.length] }} />
-                            {slice.name}
-                          </span>
-                          <span>{slice.sharePct.toFixed(1)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </article>
-                ) : null}
+
 
               </section>
-
-              {showScenarioComparison ? (
-              <section className="grid gap-4 lg:grid-cols-1">
-                {showScenarioComparison ? (
-                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Scenario Comparison</p>
-                    <p className="text-[10px] text-[#5a6f94]">{selectedHorizonLabel} projection with monthly SIP continuity</p>
-                  </div>
-                  <p className="mt-1 text-[11px] text-finance-muted">
-                    Assumed annual returns: Conservative {SCENARIO_RETURN_PCT.conservative}% • Moderate {SCENARIO_RETURN_PCT.moderate}% • Aggressive {SCENARIO_RETURN_PCT.aggressive}%.
-                  </p>
-
-                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
-                      <span className="h-2 w-2 rounded-full bg-[#5a6d8f]" /> Conservative
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
-                      <span className="h-2 w-2 rounded-full bg-[#2b5cff]" /> Moderate
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
-                      <span className="h-2 w-2 rounded-full bg-[#69c8ad]" /> Aggressive
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-finance-border bg-finance-surface px-2.5 py-1 text-finance-muted">
-                      No-return baseline: {formatCompactCurrency(scenarioBaselineCorpus)}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 h-[250px]">
-                    {scenarioProjectionData.length === 0 ? (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-white text-xs text-finance-muted">Scenario model unavailable.</div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={scenarioProjectionData} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-                          <CartesianGrid stroke="rgba(130,147,177,0.16)" strokeDasharray="4 6" vertical={false} />
-                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} />
-                          <YAxis tickFormatter={(value: number) => formatCompactCurrency(value)} tick={{ fill: "#3f5680", fontSize: 10 }} width={78} />
-                          <Tooltip
-                            formatter={(value, name) => {
-                              const seriesName = String(name ?? "");
-                              const readable = seriesName === "conservative"
-                                ? `Conservative (${SCENARIO_RETURN_PCT.conservative}% p.a.)`
-                                : seriesName === "moderate"
-                                  ? `Moderate (${SCENARIO_RETURN_PCT.moderate}% p.a.)`
-                                  : seriesName === "aggressive"
-                                    ? `Aggressive (${SCENARIO_RETURN_PCT.aggressive}% p.a.)`
-                                    : seriesName;
-
-                              return [formatCompactCurrency(Number(value ?? 0)), readable];
-                            }}
-                            labelFormatter={(label) => `Checkpoint: ${String(label ?? "")}`}
-                          />
-                          <Area type="monotone" dataKey="conservative" stroke="#5a6d8f" fillOpacity={0.06} fill="#5a6d8f" />
-                          <Area type="monotone" dataKey="moderate" stroke="#2b5cff" fillOpacity={0.14} fill="#2b5cff" />
-                          <Area type="monotone" dataKey="aggressive" stroke="#69c8ad" fillOpacity={0.1} fill="#69c8ad" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-
-                  {scenarioOutcomeRows.length > 0 ? (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      {scenarioOutcomeRows.map((row) => (
-                        <div key={row.name} className="rounded-lg border border-finance-border bg-finance-surface/50 px-3 py-2.5">
-                          <p className="text-[10px] uppercase tracking-[0.1em] text-finance-muted">{row.name} ({row.annualReturn}% p.a.)</p>
-                          <p className="mt-1 text-sm font-semibold text-finance-text">{formatCompactCurrency(row.value)}</p>
-                          <p className={`mt-1 text-[11px] ${row.excess >= 0 ? "text-finance-green" : "text-finance-red"}`}>
-                            {row.excess >= 0 ? "+" : ""}{formatCompactCurrency(row.excess)} vs baseline
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </article>
-                ) : null}
-
-              </section>
-              ) : null}
 
               {/* ── Divider before advanced section ── */}
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-finance-border" />
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-muted">Advanced Intelligence</p>
-                <div className="h-px flex-1 bg-finance-border" />
-              </div>
 
-              <section className="rounded-2xl border border-finance-border bg-white/95 p-5 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-6">
-                <p className="text-sm font-bold text-finance-text">Profile Diagnostics &amp; Intelligence Layer</p>
-                <p className="mt-1 text-xs text-finance-muted">Deeper intelligence context, data quality checks, and model-backed focus ranking.</p>
-
-                <section className="mt-4 rounded-2xl border border-finance-border bg-white/95 p-4 shadow-[0_12px_28px_rgba(10,25,48,0.06)] sm:p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-finance-muted">Customer Intelligence Layer</p>
-                    <h2 className="mt-1 text-xl font-semibold text-finance-text sm:text-2xl">Personalized dashboard built from your Supabase profile</h2>
-                    <p className="mt-1 text-sm text-finance-muted">
-                      {profile.city || profile.state || profile.occupation_title
-                        ? `${[profile.occupation_title, profile.city || profile.state].filter(Boolean).join(" · ")} · Updated ${latestUpdatedAt}`
-                        : `Updated ${latestUpdatedAt}`}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <StatusBadge
-                      label={profile.kyc_status === "verified" ? "KYC verified" : `KYC ${profile.kyc_status}`}
-                      tone={
-                        profile.kyc_status === "verified"
-                          ? "success"
-                          : profile.kyc_status === "rejected"
-                            ? "critical"
-                            : "warning"
-                      }
-                    />
-                    <StatusBadge
-                      label={profile.tax_regime ? `Tax ${profile.tax_regime.toUpperCase()}` : "Tax not set"}
-                      tone={profile.tax_regime ? "info" : "warning"}
-                    />
-                    <StatusBadge
-                      label={profile.consent_to_contact ? "Contact enabled" : "Contact restricted"}
-                      tone={profile.consent_to_contact ? "success" : "neutral"}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                  {intelligence
-                    ? [
-                        {
-                          label: "Monthly income",
-                          value: formatCurrency(intelligence.monthlyIncome),
-                          hint: `${formatRisk(profile.risk_appetite)} risk profile`,
-                        },
-                        {
-                          label: "Living + EMI outflow",
-                          value: formatCurrency(intelligence.monthlyOutflow),
-                          hint: `${intelligence.expenseLoadPct.toFixed(1)}% of income`,
-                        },
-                        {
-                          label: "Investable surplus",
-                          value: formatCurrency(intelligence.investableSurplus),
-                          hint: `${intelligence.savingsRatePct.toFixed(1)}% savings rate`,
-                        },
-                        {
-                          label: "Emergency runway",
-                          value: `${intelligence.emergencyRunwayMonths.toFixed(1)} months`,
-                          hint: `Declared ${profile.emergency_fund_months.toFixed(1)} months`,
-                        },
-                        {
-                          label: "Goal coverage",
-                          value: `${intelligence.goalCoveragePct.toFixed(1)}%`,
-                          hint: `Gap ${formatCompactCurrency(targetGap)}`,
-                        },
-                        {
-                          label: "Visible corpus",
-                          value: formatCompactCurrency(intelligence.totalVisibleCorpus),
-                          hint: "Savings + holdings value",
-                        },
-                      ].map((item) => (
-                        <article key={item.label} className="rounded-xl border border-finance-border bg-finance-panel px-3.5 py-3">
-                          <p className="text-[11px] uppercase tracking-[0.12em] text-finance-muted">{item.label}</p>
-                          <p className="mt-1 text-base font-semibold text-finance-text">{item.value}</p>
-                          <p className="mt-1 text-xs text-finance-muted">{item.hint}</p>
-                        </article>
-                      ))
-                    : null}
-                </div>
-
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  <article className="rounded-xl border border-finance-border bg-finance-surface/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-muted">Strategic Pressure Map</p>
-                    <div className="mt-3 space-y-2.5 text-sm">
-                      <div className="flex items-center justify-between gap-3 rounded-lg border border-finance-border bg-white px-3 py-2.5">
-                        <span className="text-finance-text">Monthly target requirement</span>
-                        <span className="font-semibold text-finance-text">
-                          {intelligence ? formatCurrency(intelligence.requiredMonthlyToGoal) : "N/A"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 rounded-lg border border-finance-border bg-white px-3 py-2.5">
-                        <span className="text-finance-text">Funding pace status</span>
-                        <span
-                          className={`font-semibold ${
-                            intelligence && intelligence.goalFundingStress <= 0
-                              ? "text-finance-green"
-                              : "text-amber-700"
-                          }`}
-                        >
-                          {intelligence
-                            ? intelligence.goalFundingStress <= 0
-                              ? "On track"
-                              : `Need +${formatCompactCurrency(intelligence.goalFundingStress)}/mo`
-                            : "N/A"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 rounded-lg border border-finance-border bg-white px-3 py-2.5">
-                        <span className="text-finance-text">Concentration warnings</span>
-                        <span className="font-semibold text-finance-text">
-                          {holdingsAnalytics ? holdingsAnalytics.concentrationWarnings.length : 0}
-                        </span>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article className="rounded-xl border border-finance-border bg-finance-surface/60 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-muted">Data Completeness and Relevance</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {profileDataReadiness.map((item) => (
-                        <StatusBadge key={item.label} label={item.label} tone={item.tone} />
-                      ))}
-                    </div>
-                    <p className="mt-3 text-xs leading-relaxed text-finance-muted">
-                      Recommended focus right now: {intelligenceSnapshot ? intelligenceSnapshot.recommendedFocus.toUpperCase() : "N/A"}.
-                      This layer updates from the same live module APIs used below, ensuring consistency with your Pravix dashboard logic.
-                    </p>
-                  </article>
-                </div>
-                </section>
-
-                <div className="mt-4">
-                  <ExecutiveIntelligencePanel
-                    refreshKey={refreshTick}
-                    manualFocus={manualFocus}
-                    effectiveFocus={effectiveFocus}
-                    onFocusChange={setManualFocus}
-                    onRecommendedFocusChange={setRecommendedFocus}
-                  />
-                </div>
-              </section>
 
               {orderedModuleKeys.map((moduleKey) => (
                 <div key={moduleKey} className={getModuleContainerClassName(moduleKey)}>
