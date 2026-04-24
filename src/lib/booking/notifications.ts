@@ -111,20 +111,38 @@ export async function sendBookingConfirmationEmail(bookingRow: Record<string, un
 
   const extra = parseExtraRecipientsFromEnv();
   const normalizedLead = leadEmail.trim();
-  const bcc = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
-  const to = [normalizedLead];
 
-  const sendResult = await resend.emails.send({
+  // Send primary message to the lead
+  const leadSend = await resend.emails.send({
     from: getFromAddress(),
-    to,
+    to: [normalizedLead],
     subject,
     text,
     html,
-    ...(bcc.length > 0 ? { bcc } : {}),
   });
 
-  if (sendResult.error) {
-    throw new Error(`Booking confirmation email failed: ${JSON.stringify(sendResult.error)}`);
+  if (leadSend.error) {
+    throw new Error(`Booking confirmation email failed: ${JSON.stringify(leadSend.error)}`);
+  }
+
+  // Send separate copies to extra recipients (do not fail the whole flow if extras fail)
+  const extras = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
+  if (extras.length > 0) {
+    await Promise.allSettled(
+      extras.map((recipient) =>
+        resend.emails.send({
+          from: getFromAddress(),
+          to: [recipient],
+          subject,
+          text,
+          html,
+        }).then((res) => {
+          if (res.error) {
+            console.warn(`Extra booking confirmation send failed for ${recipient}: ${JSON.stringify(res.error)}`);
+          }
+        }),
+      ),
+    );
   }
 }
 
@@ -163,24 +181,44 @@ export async function scheduleBookingReminderEmail(bookingRow: Record<string, un
 
   const extra = parseExtraRecipientsFromEnv();
   const normalizedLead = leadEmail.trim();
-  const bcc = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
-  const to = [normalizedLead];
 
-  const sendResult = await resend.emails.send({
+  // Schedule primary reminder for the lead
+  const leadSend = await resend.emails.send({
     from: getFromAddress(),
-    to,
+    to: [normalizedLead],
     subject,
     text,
     html,
     scheduledAt: reminderScheduledAt,
-    ...(bcc.length > 0 ? { bcc } : {}),
   });
 
-  if (sendResult.error) {
-    throw new Error(`Booking reminder scheduling failed: ${JSON.stringify(sendResult.error)}`);
+  if (leadSend.error) {
+    throw new Error(`Booking reminder scheduling failed: ${JSON.stringify(leadSend.error)}`);
   }
 
-  const reminderEmailId = sendResult.data?.id;
+  const reminderEmailId = leadSend.data?.id;
+
+  // Schedule separate reminders for extra recipients (best-effort)
+  const extras = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
+  if (extras.length > 0) {
+    await Promise.allSettled(
+      extras.map((recipient) =>
+        resend.emails.send({
+          from: getFromAddress(),
+          to: [recipient],
+          subject,
+          text,
+          html,
+          scheduledAt: reminderScheduledAt,
+        }).then((res) => {
+          if (res.error) {
+            console.warn(`Extra booking reminder scheduling failed for ${recipient}: ${JSON.stringify(res.error)}`);
+          }
+        }),
+      ),
+    );
+  }
+
   return typeof reminderEmailId === "string" && reminderEmailId.trim().length > 0 ? reminderEmailId.trim() : null;
 }
 
