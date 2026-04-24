@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { mergeRecipients, parseExtraRecipientsFromEnv } from "./recipients";
 
 function getStringField(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
@@ -108,9 +109,12 @@ export async function sendBookingConfirmationEmail(bookingRow: Record<string, un
     `<p>Your discovery call is confirmed for <strong>${escapeHtml(startsAtLabel)}</strong>.</p>` +
     "<p>We will send a reminder email before your meeting.</p>";
 
+  const extra = parseExtraRecipientsFromEnv();
+  const to = mergeRecipients(leadEmail, extra);
+
   const sendResult = await resend.emails.send({
     from: getFromAddress(),
-    to: [leadEmail],
+    to,
     subject,
     text,
     html,
@@ -154,9 +158,12 @@ export async function scheduleBookingReminderEmail(bookingRow: Record<string, un
     `<p>Hi ${escapeHtml(leadName)},</p>` +
     `<p>This is a reminder for your Pravix meeting at <strong>${escapeHtml(startsAtLabel)}</strong>.</p>`;
 
+  const extra = parseExtraRecipientsFromEnv();
+  const to = mergeRecipients(leadEmail, extra);
+
   const sendResult = await resend.emails.send({
     from: getFromAddress(),
-    to: [leadEmail],
+    to,
     subject,
     text,
     html,
