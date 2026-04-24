@@ -245,7 +245,7 @@ export const ONBOARDING_QUESTIONNAIRE_FLOW: OnboardingScreen[] = [
         label: "Mobile Number",
         type: "phone",
         required: true,
-        placeholder: "+91XXXXXXXXXX",
+        placeholder: "98765 43210",
         mapsTo: { table: "profiles", column: "phone_e164" },
       },
       {

@@ -2332,70 +2332,72 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-6 h-[320px] rounded-[2rem] border border-finance-border bg-[#fcfdff] p-6 shadow-[inset_0_1px_4px_rgba(10,25,48,0.04)]">
-                       <ResponsiveContainer width="100%" height="100%">
-                         <AreaChart data={corpusProjection.graphData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                           <defs>
-                            <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.25}/>
-                              <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.05}/>
-                            </linearGradient>
-                            <linearGradient id="investedGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.15}/>
-                              <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.02}/>
-                            </linearGradient>
-                           </defs>
-                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(10,25,48,0.06)" />
-                           <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10 }} />
-                           <YAxis hide />
-                           <Tooltip 
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                  <div className="rounded-xl border border-[#d8e7ff] bg-white p-3 shadow-xl">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">{data.label}</p>
-                                    <div className="mt-2 space-y-1">
-                                      <div className="flex items-center justify-between gap-6">
-                                        <p className="text-xs text-[#5f7396]">Total Value</p>
-                                        <p className="text-sm font-bold text-[#0a1930]">{formatCurrency(data.totalValue)}</p>
-                                      </div>
-                                      <div className="flex items-center justify-between gap-6">
-                                        <p className="text-xs text-[#5f7396]">Invested</p>
-                                        <p className="text-sm font-semibold text-[#50607d]">{formatCurrency(data.invested)}</p>
-                                      </div>
-                                      <div className="flex items-center justify-between gap-6 border-t border-[#edf4ff] pt-1">
-                                        <p className="text-xs font-medium text-finance-accent">Net Profit</p>
-                                        <p className="text-sm font-bold text-finance-accent">+{formatCurrency(data.profit)}</p>
+                    <div className="mt-6 rounded-[2rem] border border-finance-border bg-[#fcfdff] p-6 shadow-[inset_0_1px_4px_rgba(10,25,48,0.04)]">
+                       <div className="h-[280px] w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                           <AreaChart data={corpusProjection.graphData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                             <defs>
+                              <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#2b5cff" stopOpacity={0.25}/>
+                                <stop offset="95%" stopColor="#2b5cff" stopOpacity={0.05}/>
+                              </linearGradient>
+                              <linearGradient id="investedGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.02}/>
+                              </linearGradient>
+                             </defs>
+                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(10,25,48,0.06)" />
+                             <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#5f7396", fontSize: 10 }} />
+                             <YAxis hide />
+                             <Tooltip 
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className="rounded-xl border border-[#d8e7ff] bg-white p-3 shadow-xl">
+                                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">{data.label}</p>
+                                      <div className="mt-2 space-y-1">
+                                        <div className="flex items-center justify-between gap-6">
+                                          <p className="text-xs text-[#5f7396]">Total Value</p>
+                                          <p className="text-sm font-bold text-[#0a1930]">{formatCurrency(data.totalValue)}</p>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-6">
+                                          <p className="text-xs text-[#5f7396]">Invested</p>
+                                          <p className="text-sm font-semibold text-[#50607d]">{formatCurrency(data.invested)}</p>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-6 border-t border-[#edf4ff] pt-1">
+                                          <p className="text-xs font-medium text-finance-accent">Net Profit</p>
+                                          <p className="text-sm font-bold text-finance-accent">+{formatCurrency(data.profit)}</p>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                           />
-                          <Area 
-                            type="monotone" 
-                            dataKey="totalValue" 
-                            stackId="1"
-                            stroke="#2b5cff" 
-                            strokeWidth={3} 
-                            fillOpacity={1} 
-                            fill="url(#profitGradient)" 
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="invested" 
-                            stackId="2"
-                            stroke="#94a3b8" 
-                            strokeWidth={1.5} 
-                            strokeDasharray="4 4"
-                            fill="url(#investedGradient)" 
-                          />
-                         </AreaChart>
-                       </ResponsiveContainer>
-                      <div className="mt-4 flex items-center justify-center gap-6">
+                                  );
+                                }
+                                return null;
+                              }}
+                             />
+                            <Area 
+                              type="monotone" 
+                              dataKey="totalValue" 
+                              stackId="1"
+                              stroke="#2b5cff" 
+                              strokeWidth={3} 
+                              fillOpacity={1} 
+                              fill="url(#profitGradient)" 
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="invested" 
+                              stackId="2"
+                              stroke="#94a3b8" 
+                              strokeWidth={1.5} 
+                              strokeDasharray="4 4"
+                              fill="url(#investedGradient)" 
+                            />
+                           </AreaChart>
+                         </ResponsiveContainer>
+                       </div>
+                      <div className="mt-8 flex items-center justify-center gap-6 border-t border-[#edf4ff] pt-5">
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full bg-finance-accent" />
                           <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted">Total Value (Compounded)</p>

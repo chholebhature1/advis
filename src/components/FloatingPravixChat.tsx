@@ -386,7 +386,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
             </a>
 
             <a
-              href="/#book-discovery-call"
+              href="/#send-inquiry"
               className="flex items-center gap-3 rounded-2xl border border-[#d8e7ff] bg-[#f8fbff] px-3 py-3 transition-all hover:-translate-y-0.5 hover:border-[#c1d4fb] hover:bg-white"
               onClick={() => setIsQuickMenuOpen(false)}
             >

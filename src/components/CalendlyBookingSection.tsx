@@ -2,7 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Calendar, CheckCircle2, Clock, Loader2, Mail, Phone, X } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, Loader2, Mail, Phone, X, Globe } from "lucide-react";
+
+const COUNTRY_CODES = [
+  { code: "+91", country: "India" },
+  { code: "+1", country: "USA/Canada" },
+  { code: "+44", country: "UK" },
+  { code: "+971", country: "UAE" },
+  { code: "+65", country: "Singapore" },
+  { code: "+61", country: "Australia" },
+  { code: "+49", country: "Germany" },
+  { code: "+33", country: "France" },
+  { code: "+81", country: "Japan" },
+];
 
 type AvailabilitySlot = {
   startsAt: string;
@@ -103,13 +115,15 @@ export default function CalendlyBookingSection() {
     name: "",
     email: "",
     phone: "",
+    countryCode: "+91",
+    isCustomCountry: false,
     subject: "General Inquiry",
     message: "",
   });
 
   const advisor = availability?.advisor ?? null;
   const advisorTimezone = advisor?.timezone ?? "Asia/Kolkata";
-  const contactEmail = advisor?.email ?? "info@pravix.in";
+  const contactEmail = "info@pravix.in";
   const dateItems = useMemo(() => availability?.dates ?? [], [availability]);
 
   const selectedDate = useMemo(
@@ -194,7 +208,7 @@ export default function CalendlyBookingSection() {
           endsAt: selectedSlot.endsAt,
           leadName: formData.name,
           leadEmail: formData.email,
-          leadPhoneE164: formData.phone,
+          leadPhoneE164: formData.countryCode + formData.phone,
           notes: formData.message,
           timezone: advisorTimezone,
           source: "website",
@@ -248,7 +262,7 @@ export default function CalendlyBookingSection() {
       const payload = {
         name: formData.name,
         email: formData.email,
-        phone: formData.phone,
+        phone: formData.countryCode + formData.phone,
         subject: formData.subject,
         message: formData.message,
         page: typeof window !== "undefined" ? window.location.pathname : "unknown",
@@ -267,7 +281,7 @@ export default function CalendlyBookingSection() {
 
       if (res.ok) {
         setIsSubmitted(true);
-        setFormData({ name: "", email: "", phone: "", subject: "General Inquiry", message: "" });
+        setFormData({ name: "", email: "", phone: "", countryCode: "+91", subject: "General Inquiry", message: "" });
       } else {
         throw new Error(json.error || json.message || "Submission failed. Try again later.");
       }
@@ -347,6 +361,7 @@ export default function CalendlyBookingSection() {
 
           {/* Right Column: Premium Form */}
           <motion.div
+            id="send-inquiry"
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
@@ -397,14 +412,72 @@ export default function CalendlyBookingSection() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="text-sm font-bold text-[#334155] ml-1">Phone Number</label>
-                        <input
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          type="tel"
-                          placeholder="+91 98765 43210"
-                          className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-                        />
+                        <label className="text-sm font-bold text-[#334155] ml-1 flex items-center gap-2">
+                          <Phone className="h-3 w-3 text-blue-500" />
+                          Mobile Number
+                        </label>
+                        <div className="flex gap-2">
+                          <div className="relative w-[100px] flex-shrink-0">
+                            {formData.isCustomCountry ? (
+                              <div className="relative">
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  value={formData.countryCode}
+                                  onChange={(e) => {
+                                    let val = e.target.value;
+                                    if (val && !val.startsWith("+")) val = "+" + val.replace(/[^\d]/g, "");
+                                    setFormData({ ...formData, countryCode: val });
+                                  }}
+                                  placeholder="+.."
+                                  className="w-full px-3 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm text-sm font-bold"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData({ ...formData, isCustomCountry: false, countryCode: "+91" })}
+                                  className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <select
+                                  value={formData.countryCode}
+                                  onChange={(e) => {
+                                    if (e.target.value === "custom") {
+                                      setFormData({ ...formData, isCustomCountry: true, countryCode: "+" });
+                                    } else {
+                                      setFormData({ ...formData, countryCode: e.target.value });
+                                    }
+                                  }}
+                                  className="w-full px-3 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm appearance-none text-sm font-bold cursor-pointer"
+                                >
+                                  {COUNTRY_CODES.map((c) => (
+                                    <option key={c.code} value={c.code}>
+                                      {c.code}
+                                    </option>
+                                  ))}
+                                  <option value="custom">Other...</option>
+                                </select>
+                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                                  <Globe className="h-3 w-3 text-slate-400" />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <input
+                            required
+                            value={formData.phone}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                              setFormData({ ...formData, phone: val });
+                            }}
+                            type="tel"
+                            placeholder="98765 43210"
+                            className="flex-1 px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-2">

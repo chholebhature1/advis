@@ -19,7 +19,22 @@ import {
   Trophy,
   UserRound,
   Wallet,
+  Phone,
+  Globe,
+  X,
 } from "lucide-react";
+
+const COUNTRY_CODES = [
+  { code: "+91", country: "India" },
+  { code: "+1", country: "USA/Canada" },
+  { code: "+44", country: "UK" },
+  { code: "+971", country: "UAE" },
+  { code: "+65", country: "Singapore" },
+  { code: "+61", country: "Australia" },
+  { code: "+49", country: "Germany" },
+  { code: "+33", country: "France" },
+  { code: "+81", country: "Japan" },
+];
 import type { LucideIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ONBOARDING_QUESTIONNAIRE_FLOW, type OnboardingField, type OnboardingScreen } from "@/lib/onboarding/questionnaire-flow";
@@ -329,6 +344,7 @@ export default function OnboardingForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [customCountryFields, setCustomCountryFields] = useState<Set<string>>(new Set());
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
@@ -1007,14 +1023,104 @@ export default function OnboardingForm() {
       );
     }
 
+    if (field.type === "phone") {
+      const fullValue = typeof value === "string" ? value : "";
+      const isCustom = customCountryFields.has(field.key);
+      // Find matching country code, or default to +91
+      const matchingCode = COUNTRY_CODES.find((c) => fullValue.startsWith(c.code))?.code || "+91";
+      const localPart = fullValue.startsWith(matchingCode) ? fullValue.slice(matchingCode.length) : fullValue;
+
+      return (
+        <div key={field.key} className="flex flex-col gap-2.5">
+          <label className="text-sm font-semibold text-finance-text">
+            {field.label}
+            {field.required ? " *" : ""}
+          </label>
+          <div className="flex gap-2">
+            <div className="relative w-[100px] flex-shrink-0">
+              {isCustom ? (
+                <div className="relative">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={matchingCode}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (val && !val.startsWith("+")) val = "+" + val.replace(/[^\d]/g, "");
+                      setFieldValue(field, val + localPart);
+                    }}
+                    placeholder="+.."
+                    className="h-12 w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3 text-sm font-bold text-finance-text outline-none focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomCountryFields((prev) => {
+                        const next = new Set(prev);
+                        next.delete(field.key);
+                        return next;
+                      });
+                      setFieldValue(field, "+91" + localPart);
+                    }}
+                    className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors shadow-sm"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={matchingCode}
+                    onChange={(e) => {
+                      if (e.target.value === "custom") {
+                        setCustomCountryFields((prev) => new Set(prev).add(field.key));
+                        setFieldValue(field, "+" + localPart);
+                      } else {
+                        setFieldValue(field, e.target.value + localPart);
+                      }
+                    }}
+                    className="h-12 w-full appearance-none rounded-2xl border border-[#d2dff7] bg-white/95 px-3 text-sm font-bold text-finance-text outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20 cursor-pointer"
+                  >
+                    {COUNTRY_CODES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code}
+                      </option>
+                    ))}
+                    <option value="custom">Other...</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <Globe className="h-3.5 w-3.5 text-slate-400" />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative flex-1">
+              <input
+                type="tel"
+                value={localPart}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setFieldValue(field, matchingCode + val);
+                }}
+                placeholder="98765 43210"
+                className={`h-12 w-full pr-10 ${sharedInputClass}`}
+              />
+              <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
+                <Phone className="h-4 w-4 text-[#2b5cff]/40" />
+              </div>
+            </div>
+          </div>
+          {field.helpText ? <span className="text-xs text-finance-muted">{field.helpText}</span> : null}
+        </div>
+      );
+    }
+
     const inputType =
       field.type === "currency" || field.type === "number"
         ? "number"
-        : field.type === "phone"
-          ? "tel"
-          : field.type === "email"
-            ? "email"
-            : "text";
+        : field.type === "email"
+          ? "email"
+          : "text";
 
     return (
       <label key={field.key} className="flex flex-col gap-2.5">
