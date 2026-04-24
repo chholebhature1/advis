@@ -737,6 +737,36 @@ export default function OnboardingForm() {
     setSubmitResult(responseBody.result ?? null);
   }
 
+  async function submitToFormspree(allAnswers: Record<string, any>) {
+    const FORMSPREE_ENDPOINT =
+      process.env.NEXT_PUBLIC_FORMSPREE_FORM_ENDPOINT ??
+      (process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID
+        ? `https://formspree.io/f/${process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID}`
+        : null);
+
+    if (!FORMSPREE_ENDPOINT) {
+      console.warn("Formspree not configured. Set NEXT_PUBLIC_FORMSPREE_FORM_ID or NEXT_PUBLIC_FORMSPREE_FORM_ENDPOINT.");
+      return;
+    }
+
+    try {
+      await fetch(FORMSPREE_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          subject: `New Onboarding: ${allAnswers.full_name || "Unknown"}`,
+          ...allAnswers,
+          source: "Onboarding Flow",
+        }),
+      });
+    } catch (err) {
+      console.error("Formspree submission error:", err);
+    }
+  }
+
   async function handleNext() {
     setSubmitError(null);
 
@@ -786,7 +816,12 @@ export default function OnboardingForm() {
           setSessionId(activeSessionId);
         }
 
-        await submitFinalPayload(activeSessionId);
+        const allAnswers = buildAllAnswersPayload();
+        await Promise.allSettled([
+          submitFinalPayload(activeSessionId),
+          submitToFormspree(allAnswers),
+        ]);
+
         setSubmitSuccess(true);
         setAuthRequired(false);
       } else {
