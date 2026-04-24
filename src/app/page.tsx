@@ -38,6 +38,7 @@ import {
   Landmark,
   Building2,
   ChevronRight,
+  Gem,
   PieChart as PieChartIcon,
 } from "lucide-react";
 const MiniSparkline = dynamic(() => import("@/components/charts/HomepageCharts").then((mod) => mod.MiniSparkline), {
@@ -1348,42 +1349,57 @@ export default function Home() {
               </div>
             </div>
 
-            <motion.div className="mt-10 grid gap-4 md:grid-cols-3" initial="hidden" whileInView="show" viewport={cardGridViewport}>
+            <motion.div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" initial="hidden" whileInView="show" viewport={cardGridViewport}>
               {[
                 {
+                  id: "hni",
+                  title: "HNI Services",
+                  icon: Gem,
+                  summary: "Dedicated wealth specialist for affluent families with quarterly strategy reviews.",
+                  metric: "Institutional grade",
+                },
+                {
+                  id: "mf-portfolio",
+                  title: "Mutual Fund Portfolio",
+                  icon: Landmark,
+                  summary: "Curated mutual fund portfolios built around risk profile and SIP capacity.",
+                  metric: "Goal-linked optimization",
+                },
+                {
+                  id: "corp-bonds",
+                  title: "Corporate Bonds",
+                  icon: Building2,
+                  summary: "Income-focused fixed income with transparent issuer evaluation.",
+                  metric: "Steady cash flows",
+                },
+                {
+                  id: "alts",
+                  title: "Alternative Products",
                   icon: Sparkles,
-                  title: "Monthly Goal Focus",
-                  detail:
-                    "Pravix highlights the one goal area where your action this week will matter most.",
-                  metric: "Prioritized weekly",
+                  summary: "Access to IPOs, Insurance, NFOs, and secure Corporate FDs.",
+                  metric: "Diversified returns",
                 },
-                {
-                  icon: BellRing,
-                  title: "Smart Alerts",
-                  detail:
-                    "Timely nudges help you avoid missed SIPs, drift, and last-minute tax pressure.",
-                  metric: "Timely alerts",
-                },
-                {
-                  icon: MessageCircle,
-                  title: "Pravix AI Buddy",
-                  detail:
-                    "Get practical next actions in plain language, with clear reasoning and risk context.",
-                  metric: "Action-ready guidance",
-                },
-              ].map((item, index) => (
+              ].map((service, index) => (
                 <motion.article
-                  key={item.title}
-                  className="group rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 hover:bg-white/14"
+                  key={service.title}
+                  className="group relative overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:bg-white/15 hover:shadow-[0_20px_40px_rgba(0,216,255,0.15)]"
                   variants={featureCardReveal}
                   custom={index}
                 >
-                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/30 bg-white/10">
-                    <item.icon className="h-5 w-5 text-[#00d8ff]" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#00d8ff]/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                  <div className="relative z-10">
+                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/30 bg-white/10 transition-transform duration-300 group-hover:scale-110 group-hover:bg-[#00d8ff]/20">
+                      <service.icon className="h-5 w-5 text-[#00d8ff]" />
+                    </div>
+                    <h4 className="mt-4 text-xl font-semibold text-white">{service.title}</h4>
+                    <p className="mt-2 text-sm leading-relaxed text-[#d9e6ff]">{service.summary}</p>
+                    <div className="mt-4 flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#00d8ff]">{service.metric}</p>
+                      <Link href="/services" className="opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 flex items-center gap-1 text-[11px] font-bold text-white">
+                        Explore <ChevronRight className="h-3 w-3" />
+                      </Link>
+                    </div>
                   </div>
-                  <h4 className="mt-4 text-xl font-semibold text-white">{item.title}</h4>
-                  <p className="mt-2 text-sm leading-relaxed text-[#d9e6ff]">{item.detail}</p>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#00d8ff]">{item.metric}</p>
                 </motion.article>
               ))}
             </motion.div>
