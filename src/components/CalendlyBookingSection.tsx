@@ -281,7 +281,15 @@ export default function CalendlyBookingSection() {
 
       if (res.ok) {
         setIsSubmitted(true);
-        setFormData({ name: "", email: "", phone: "", countryCode: "+91", subject: "General Inquiry", message: "" });
+        setFormData({
+          name: "",
+          email: "",
+          phone: "",
+          countryCode: "+91",
+          isCustomCountry: false,
+          subject: "General Inquiry",
+          message: "",
+        });
       } else {
         throw new Error(json.error || json.message || "Submission failed. Try again later.");
       }
