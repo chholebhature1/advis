@@ -127,22 +127,7 @@ type HoldingsApiPayload = {
   error?: string;
 };
 
-type AlertsSummarySnapshot = {
-  evaluatedUserCount: number;
-  triggeredCount: number;
-  readyCount: number;
-  deferredCount: number;
-  blockedCount: number;
-  suppressedCount: number;
-};
 
-type AlertsSubscriptionSnapshot = {
-  plan: "free" | "starter" | "pro";
-  status: "trialing" | "active" | "past_due" | "canceled" | "paused";
-  isPaidPlan: boolean;
-  canUseWhatsappChannel: boolean;
-  upgradeMessage: string | null;
-};
 
 type IntelligenceApiPayload = {
   ok?: boolean;
@@ -1071,10 +1056,7 @@ export default function DashboardPage() {
       return [] as Array<{ name: string; value: number; color: string }>;
     }
 
-    const highUrgencyTax = taxSummary?.checklist.filter((item) => item.urgency === "high").length ?? 0;
     const concentrationCount = holdingsAnalytics?.concentrationWarnings.length ?? 0;
-    const blockedAlerts = alertsSummary?.blockedCount ?? 0;
-    const deferredAlerts = alertsSummary?.deferredCount ?? 0;
 
     let profileGaps = 0;
     if (!profile.onboarding_completed_at) {
@@ -1094,10 +1076,7 @@ export default function DashboardPage() {
     }
 
     const base = [
-      { name: "Urgent tax", value: highUrgencyTax, color: "#f5cc73" },
       { name: "Concentration", value: concentrationCount, color: "#76a8ff" },
-      { name: "Blocked alerts", value: blockedAlerts, color: "#ff8a7b" },
-      { name: "Deferred alerts", value: deferredAlerts, color: "#69c8ad" },
       { name: "Profile gaps", value: profileGaps, color: "#58647d" },
     ].filter((entry) => entry.value > 0);
 
@@ -1106,7 +1085,7 @@ export default function DashboardPage() {
     }
 
     return base;
-  }, [alertsSummary, holdingsAnalytics?.concentrationWarnings.length, holdingsCount, profile, taxSummary]);
+  }, [holdingsAnalytics?.concentrationWarnings.length, holdingsCount, profile]);
 
   const topAttentionSignal = useMemo(() => {
     if (attentionMixData.length === 0) {
@@ -1167,17 +1146,12 @@ export default function DashboardPage() {
         hint: holdingsPnlPct !== null ? `${formatSignedPercent(holdingsPnlPct)} unrealized` : "Import holdings to unlock",
       },
       {
-        label: "80C runway",
-        value: taxSummary ? formatCompactCurrency(taxSummary.section80cRemainingInr) : "N/A",
-        hint: taxSummary ? `${taxSummary.daysToFinancialYearEnd} days to FY end` : "Refresh tax assistant",
-      },
-      {
         label: "Focus module",
         value: focusLabel,
         hint: intelligenceSnapshot ? `${intelligenceSnapshot.focusConfidence} confidence` : "Refresh intelligence",
       },
     ];
-  }, [holdingsAnalytics?.totalUnrealizedPnlInr, holdingsAnalytics?.totalUnrealizedPnlPct, intelligenceSnapshot, profile, targetGap, taxSummary]);
+  }, [holdingsAnalytics?.totalUnrealizedPnlInr, holdingsAnalytics?.totalUnrealizedPnlPct, intelligenceSnapshot, profile, targetGap]);
 
   const insightDigestItems = useMemo(() => {
     const advisorSummaryPlain = advisorSummary
@@ -1203,11 +1177,6 @@ export default function DashboardPage() {
         hint: intelligenceSnapshot ? `${intelligenceSnapshot.priorities.length} priorities ranked` : "Refresh intelligence panel",
       },
       {
-        title: "Smart Alerts",
-        value: alertsSummary ? `${alertsSummary.triggeredCount} triggered · ${alertsSummary.readyCount} ready` : "Not loaded",
-        hint: alertsSubscription ? `${alertsSubscription.plan.toUpperCase()} plan · ${alertsSubscription.status}` : "Refresh alerts panel",
-      },
-      {
         title: "Holdings Analyzer",
         value: holdingsAnalytics ? `${holdingsCount} holdings tracked` : "Not loaded",
         hint: holdingsAnalytics
@@ -1215,19 +1184,12 @@ export default function DashboardPage() {
           : "Refresh holdings panel",
       },
       {
-        title: "Tax Assistant",
-        value: taxSummary ? `${formatCompactCurrency(taxSummary.section80cRemainingInr)} remaining under 80C` : "Not loaded",
-        hint: taxSummary
-          ? `Suggested ${taxSummary.regimeHint.suggestedRegime.toUpperCase()} regime`
-          : "Refresh tax panel",
-      },
-      {
         title: "AI Copilot",
         value: advisorSummary ? "Action plan synchronized" : "Not loaded",
         hint: shortAdvisorSummary,
       },
     ];
-  }, [advisorSummary, alertsSubscription, alertsSummary, holdingsAnalytics, holdingsCount, intelligenceSnapshot, marketIndicators, marketStatus.label, taxSummary]);
+  }, [advisorSummary, holdingsAnalytics, holdingsCount, intelligenceSnapshot, marketIndicators, marketStatus.label]);
 
   const profileIntelligence = useMemo(() => {
     if (!profile) {
@@ -1302,12 +1264,8 @@ export default function DashboardPage() {
         label: holdingsCount > 0 ? `${holdingsCount} holdings synced` : "Holdings not synced",
         tone: holdingsCount > 0 ? "success" : "warning",
       },
-      {
-        label: alertsSummary ? `${alertsSummary.triggeredCount} alerts evaluated` : "Alerts not evaluated",
-        tone: alertsSummary ? "info" : "warning",
-      },
     ];
-  }, [alertsSummary, holdingsCount, profile]);
+  }, [holdingsCount, profile]);
 
   const aiAllocationBuckets = useMemo(() => {
     const parsedBuckets = (aiAllocation?.portfolioBuckets ?? []).filter((bucket) =>
@@ -1459,7 +1417,7 @@ export default function DashboardPage() {
         source: "Profiles + Market feed",
       },
     ];
-  }, [alertsSummary, holdingsAnalytics?.concentrationWarnings.length, holdingsAnalytics?.totalMarketValueInr, latestUpdatedAt, marketStatus.label, profile, profileFreshness.label, taxSummary]);
+  }, [holdingsAnalytics?.concentrationWarnings.length, holdingsAnalytics?.totalMarketValueInr, latestUpdatedAt, marketStatus.label, profile, profileFreshness.label]);
 
   const selectedKpi = useMemo(() => {
     return kpiStripItems.find((item) => item.id === selectedKpiId) ?? null;
@@ -1467,9 +1425,7 @@ export default function DashboardPage() {
 
   const showCashflowBridge = selectedLens === "cashflow";
   const showAllocationMix = selectedLens === "goal" || selectedLens === "cashflow";
-  const showAlertsFunnel = selectedLens === "risk";
   const showScenarioComparison = selectedLens === "goal";
-  const showRiskHeatmap = selectedLens === "risk";
   const focusedInsightsTitle = selectedLens === "goal"
     ? "Goal-focused analysis"
     : selectedLens === "cashflow"
@@ -1479,7 +1435,7 @@ export default function DashboardPage() {
     ? "Track growth path, allocation balance, and long-term compounding behavior."
     : selectedLens === "cashflow"
       ? "Keep monthly inflow, outflow, and deployable surplus in control."
-      : "Prioritize risk telemetry, delivery bottlenecks, and severity hotspots.";
+    : "Focus on risk telemetry and portfolio health hotspots.";
 
   const scenarioProjectionData = useMemo(() => {
     if (!profile) return [];
@@ -1541,19 +1497,7 @@ export default function DashboardPage() {
     });
   }, [holdingsAnalytics?.totalMarketValueInr, profile, selectedHorizonMonths]);
 
-  const riskHeatmapData = useMemo(() => {
-    const taxRisk = taxSummary && taxSummary.section80cRemainingInr > 0 ? 2 : 1;
-    const holdingsRisk = (holdingsAnalytics?.concentrationWarnings.length ?? 0) > 2 ? 3 : (holdingsAnalytics?.concentrationWarnings.length ?? 0) > 0 ? 2 : 1;
-    const alertsRisk = (alertsSummary?.blockedCount ?? 0) > 0 ? 3 : (alertsSummary?.deferredCount ?? 0) > 0 ? 2 : 1;
-    const profileRisk = profile && profile.kyc_status === "verified" ? 1 : profile && profile.kyc_status === "pending" ? 2 : 3;
-    const scoreMap = [0, profileRisk, holdingsRisk, taxRisk, alertsRisk];
-    const rows = ["Profile", "Holdings", "Tax", "Alerts"];
-    return rows.map((row, rowIndex) => ([
-      { row, col: "Low", value: scoreMap[rowIndex + 1] === 1 ? 1 : 0, intensity: scoreMap[rowIndex + 1] === 1 ? "high" : "low" },
-      { row, col: "Medium", value: scoreMap[rowIndex + 1] === 2 ? 1 : 0, intensity: scoreMap[rowIndex + 1] === 2 ? "high" : "low" },
-      { row, col: "High", value: scoreMap[rowIndex + 1] === 3 ? 1 : 0, intensity: scoreMap[rowIndex + 1] === 3 ? "high" : "low" },
-    ]));
-  }, [alertsSummary?.blockedCount, alertsSummary?.deferredCount, holdingsAnalytics?.concentrationWarnings.length, profile, taxSummary]);
+
 
   const cashflowBridgeData = useMemo(() => {
     if (!profile) return [];
@@ -1575,23 +1519,7 @@ export default function DashboardPage() {
     return cashflowBridgeData.find((entry) => entry.label === "Balance")?.value ?? 0;
   }, [cashflowBridgeData]);
 
-  const alertsFunnelData = useMemo(() => {
-    if (!alertsSummary) return [];
-    return [
-      { stage: "Triggered", value: alertsSummary.triggeredCount, fill: "#2b5cff" },
-      { stage: "Ready", value: alertsSummary.readyCount, fill: "#69c8ad" },
-      { stage: "Deferred", value: alertsSummary.deferredCount, fill: "#f5cc73" },
-      { stage: "Blocked", value: alertsSummary.blockedCount, fill: "#ff8a7b" },
-    ];
-  }, [alertsSummary]);
 
-  const alertsReadyRate = useMemo(() => {
-    if (!alertsSummary || alertsSummary.triggeredCount <= 0) {
-      return null;
-    }
-
-    return (alertsSummary.readyCount / alertsSummary.triggeredCount) * 100;
-  }, [alertsSummary]);
 
   const allocationDonutData = useMemo(() => {
     const rows = (holdingsAnalytics?.allocationByAssetClass ?? []).slice(0, 6).map((item) => ({ name: item.name, value: Math.max(item.marketValueInr, 0) }));
@@ -1670,22 +1598,16 @@ export default function DashboardPage() {
     const goalSeries = powerTrendData.map((point) => ({ label: point.label, value: point.actual }));
     const cashflowBase = profile ? Math.max(profile.monthly_investable_surplus_inr, 0) : 0;
     const cashflowSeries = Array.from({ length: 6 }, (_, index) => ({ label: `M-${5 - index}`, value: Math.max(Math.round(cashflowBase * (0.88 + index * 0.035)), 0) }));
-    const taxBase = taxSummary?.section80cRemainingInr ?? 0;
-    const taxSeries = Array.from({ length: 6 }, (_, index) => ({ label: `M-${5 - index}`, value: Math.max(Math.round(taxBase * (1 - index * 0.14)), 0) }));
-    const alertBase = alertsSummary?.triggeredCount ?? 0;
-    const alertSeries = Array.from({ length: 6 }, (_, index) => ({ label: `W${index + 1}`, value: Math.max(Math.round(alertBase * (0.95 - index * 0.1)), 0) }));
     const concentrationBase = holdingsAnalytics?.concentrationWarnings.length ?? 0;
     const concentrationSeries = Array.from({ length: 6 }, (_, index) => ({ label: `W${index + 1}`, value: Math.max(Math.round(concentrationBase + (index % 2 === 0 ? 0 : -1)), 0) }));
     const freshnessSeries = Array.from({ length: 6 }, (_, index) => ({ label: `D${index + 1}`, value: Math.max(100 - index * 6, 60) }));
     return {
       "goal-progress": goalSeries,
       "monthly-surplus": cashflowSeries,
-      "tax-runway": taxSeries,
-      "alert-sla": alertSeries,
       "concentration-risk": concentrationSeries,
       "data-freshness": freshnessSeries,
     };
-  }, [alertsSummary?.triggeredCount, holdingsAnalytics?.concentrationWarnings.length, powerTrendData, profile, taxSummary?.section80cRemainingInr]);
+  }, [holdingsAnalytics?.concentrationWarnings.length, powerTrendData, profile]);
 
   const selectedKpiTrend = useMemo(() => {
     if (!selectedKpi) return [];
@@ -2846,40 +2768,10 @@ export default function DashboardPage() {
                   ) : null}
                 </article>
                 ) : null}
-                {showAlertsFunnel ? (
-                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Alerts Funnel</p>
-                    <p className="text-[10px] text-[#5a6f94]">Triggered alerts split into Ready, Deferred, and Blocked</p>
-                  </div>
-                  <div className="mt-3 h-[220px]">
-                    {alertsFunnelData.length === 0 ? (
-                      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-finance-border bg-white text-xs text-finance-muted">Alert telemetry unavailable.</div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={alertsFunnelData} layout="vertical" margin={{ top: 8, right: 10, left: 4, bottom: 0 }}>
-                          <CartesianGrid stroke="rgba(130,147,177,0.16)" strokeDasharray="4 6" horizontal={false} />
-                          <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} />
-                          <YAxis type="category" dataKey="stage" axisLine={false} tickLine={false} tick={{ fill: "#3f5680", fontSize: 11 }} width={68} />
-                          <Tooltip
-                            formatter={(value) => [Number(value ?? 0), "Alert count"]}
-                            labelFormatter={(label) => `Stage: ${String(label ?? "")}`}
-                          />
-                          <Bar dataKey="value" radius={[0, 6, 6, 0]}>{alertsFunnelData.map((entry) => <Cell key={entry.stage} fill={entry.fill} />)}</Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                  {alertsReadyRate !== null ? (
-                    <p className="mt-2 text-[11px] text-finance-muted">
-                      Readiness rate: {alertsReadyRate.toFixed(1)}% of triggered alerts are ready for action.
-                    </p>
-                  ) : null}
-                </article>
-                ) : null}
+
               </section>
 
-              {showScenarioComparison || showRiskHeatmap ? (
+              {showScenarioComparison ? (
               <section className="grid gap-4 lg:grid-cols-1">
                 {showScenarioComparison ? (
                 <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
@@ -2953,31 +2845,7 @@ export default function DashboardPage() {
                   ) : null}
                 </article>
                 ) : null}
-                {showRiskHeatmap ? (
-                <article className="rounded-xl border border-finance-border bg-white p-4 shadow-[0_8px_20px_rgba(10,25,48,0.05)]">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-finance-text">Risk Heatmap</p>
-                    <p className="text-[10px] text-[#5a6f94]">Module severity matrix</p>
-                  </div>
-                  <div className="mt-3 overflow-x-auto rounded-lg border border-finance-border bg-white">
-                    <table className="w-full min-w-[320px] border-collapse text-xs">
-                      <thead><tr className="bg-finance-surface/75 text-finance-text"><th className="border-b border-finance-border px-3 py-2 text-left">Module</th><th className="border-b border-finance-border px-3 py-2 text-center">Low</th><th className="border-b border-finance-border px-3 py-2 text-center">Medium</th><th className="border-b border-finance-border px-3 py-2 text-center">High</th></tr></thead>
-                      <tbody>
-                        {riskHeatmapData.map((row) => (
-                          <tr key={row[0].row}>
-                            <td className="border-b border-finance-border px-3 py-2 font-semibold text-finance-text">{row[0].row}</td>
-                            {row.map((cell) => (
-                              <td key={`${cell.row}-${cell.col}`} className="border-b border-finance-border px-3 py-2 text-center">
-                                <span className={`inline-flex h-6 w-10 items-center justify-center rounded-md text-[10px] font-semibold ${cell.intensity === "high" ? cell.col === "High" ? "bg-finance-red/20 text-finance-red" : cell.col === "Medium" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-700" : "bg-[#eef3ff] text-[#3f5680]"}`}>{cell.value ? "1" : "-"}</span>
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </article>
-                ) : null}
+
               </section>
               ) : null}
 
@@ -3095,12 +2963,7 @@ export default function DashboardPage() {
                             : "N/A"}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between gap-3 rounded-lg border border-finance-border bg-white px-3 py-2.5">
-                        <span className="text-finance-text">Tax optimization runway</span>
-                        <span className="font-semibold text-finance-text">
-                          {taxSummary ? formatCompactCurrency(taxSummary.section80cRemainingInr) : "N/A"}
-                        </span>
-                      </div>
+
                       <div className="flex items-center justify-between gap-3 rounded-lg border border-finance-border bg-white px-3 py-2.5">
                         <span className="text-finance-text">Concentration warnings</span>
                         <span className="font-semibold text-finance-text">

@@ -1562,7 +1562,7 @@ function buildFallbackDashboardActionPlan(context: AgentContext, reason: string)
   const emergencyMonths = context.profile?.emergency_fund_months;
   const riskBucket = resolveRiskBucket(context);
   const plan = getAllocationPlan(riskBucket);
-  const eightyC = context.latestTaxProfile?.section_80c_used_inr;
+  const eightyC = null;
   const retryIn = extractRetrySeconds(reason);
 
   const actions: string[] = [];
@@ -1822,7 +1822,7 @@ function buildPersonalizationAnchor(context: AgentContext): string {
   const surplusBand =
     surplus === null ? "unknown" : surplus < 10000 ? "low_surplus" : surplus < 50000 ? "mid_surplus" : "high_surplus";
   const topGoal = context.goals[0]?.category ?? context.profile?.primary_financial_goal ?? "goal_unspecified";
-  const taxRegime = context.latestTaxProfile?.tax_regime ?? context.profile?.tax_regime ?? "tax_unknown";
+  const taxRegime = context.profile?.tax_regime ?? "tax_unknown";
   const holdingsBand =
     context.holdings.length === 0 ? "no_holdings" : context.holdings.length < 5 ? "focused_holdings" : "diversified_holdings";
   const investmentExperienceBand = context.profile?.has_existing_investments ? "has_existing_investments" : "no_existing_investments";
@@ -1838,7 +1838,7 @@ function contextKeywordsForValidation(context: AgentContext): string[] {
     keywords.add(riskBucket);
   }
 
-  const taxRegime = (context.latestTaxProfile?.tax_regime ?? context.profile?.tax_regime ?? "").toLowerCase();
+  const taxRegime = (context.profile?.tax_regime ?? "").toLowerCase();
   if (taxRegime) {
     keywords.add(taxRegime);
   }
@@ -1883,7 +1883,7 @@ function buildPersonalizationSnippet(context: AgentContext): string | null {
   const riskBucket = resolveRiskBucket(context);
   const surplus = resolveMonthlySurplus(context);
   const topGoal = context.goals[0]?.title ?? null;
-  const taxRegime = context.latestTaxProfile?.tax_regime ?? context.profile?.tax_regime ?? null;
+  const taxRegime = context.profile?.tax_regime ?? null;
   const primaryGoal = context.profile?.primary_financial_goal ?? null;
   const horizonBand = context.profile?.target_goal_horizon_band ?? null;
   const monthlyCapacityBand = context.profile?.monthly_investment_capacity_band ?? null;
@@ -1984,7 +1984,7 @@ function buildSystemInstruction(mode: "chat" | "dashboard"): string {
 export function buildContextBlock(context: AgentContext): string {
   const profile = context.profile;
   const risk = context.latestRiskAssessment;
-  const tax = context.latestTaxProfile;
+  const tax = null;
   const holdingsSummary = summarizeHoldings(context);
   const goalsSummary = summarizeGoals(context);
   const personalizationAnchor = buildPersonalizationAnchor(context);
@@ -2020,7 +2020,6 @@ export function buildContextBlock(context: AgentContext): string {
       tax,
       communicationPreferences: context.communicationPreferences,
       holdingsSummary,
-      enabledAlertsCount: context.enabledAlertsCount,
     },
   );
 }
