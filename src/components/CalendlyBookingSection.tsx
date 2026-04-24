@@ -392,7 +392,7 @@ export default function CalendlyBookingSection() {
                       </motion.div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-[#334155] ml-1">Full Name</label>
                         <input
@@ -401,7 +401,7 @@ export default function CalendlyBookingSection() {
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                           type="text"
                           placeholder="John Doe"
-                          className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                          className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm hover:border-blue-200"
                         />
                       </div>
 
@@ -413,19 +413,19 @@ export default function CalendlyBookingSection() {
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           type="email"
                           placeholder="john@example.com"
-                          className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                          className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm hover:border-blue-200"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-[#334155] ml-1 flex items-center gap-2">
                           <Phone className="h-3 w-3 text-blue-500" />
                           Mobile Number
                         </label>
-                        <div className="flex gap-2">
-                          <div className="relative w-[100px] flex-shrink-0">
+                        <div className="flex gap-2.5">
+                          <div className="relative w-[110px] flex-shrink-0">
                             {formData.isCustomCountry ? (
                               <div className="relative">
                                 <input
@@ -443,9 +443,9 @@ export default function CalendlyBookingSection() {
                                 <button
                                   type="button"
                                   onClick={() => setFormData({ ...formData, isCustomCountry: false, countryCode: "+91" })}
-                                  className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"
+                                  className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors shadow-sm"
                                 >
-                                  <X className="h-3 w-3" />
+                                  <X className="h-2.5 w-2.5" />
                                 </button>
                               </div>
                             ) : (
@@ -459,7 +459,7 @@ export default function CalendlyBookingSection() {
                                       setFormData({ ...formData, countryCode: e.target.value });
                                     }
                                   }}
-                                  className="w-full px-3 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm appearance-none text-sm font-bold cursor-pointer"
+                                  className="w-full px-3 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm appearance-none text-sm font-bold cursor-pointer hover:border-blue-200"
                                 >
                                   {COUNTRY_CODES.map((c) => (
                                     <option key={c.code} value={c.code}>
@@ -483,7 +483,7 @@ export default function CalendlyBookingSection() {
                             }}
                             type="tel"
                             placeholder="98765 43210"
-                            className="flex-1 px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                            className="flex-1 px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm hover:border-blue-200"
                           />
                         </div>
                       </div>
@@ -494,7 +494,7 @@ export default function CalendlyBookingSection() {
                           <select
                             value={formData.subject}
                             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                            className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm appearance-none"
+                            className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm appearance-none cursor-pointer hover:border-blue-200"
                           >
                             <option>Wealth Advisory</option>
                             <option>Portfolio Review</option>
