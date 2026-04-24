@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceSupabaseClient } from "@/lib/agent/server";
-import { mergeRecipients, parseExtraRecipientsFromEnv } from "./recipients";
+import { parseExtraRecipientsFromEnv } from "./recipients";
 
 type BookingAdvisorRow = {
   id: string;
@@ -427,11 +427,14 @@ async function dispatchReminder(
 
     const resend = new Resend(apiKey);
     const extra = parseExtraRecipientsFromEnv();
-    const to = mergeRecipients(booking.lead_email, extra);
+    const normalizedLead = booking.lead_email.trim();
+    const bcc = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
+    const to = [normalizedLead];
 
     const payload = await resend.emails.send({
       from,
       to,
+      ...(bcc.length > 0 ? { bcc } : {}),
       subject: message.subject,
       text: message.body,
       html: `<p>${message.body}</p>`,

@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { mergeRecipients, parseExtraRecipientsFromEnv } from "./recipients";
+import { parseExtraRecipientsFromEnv } from "./recipients";
 
 function getStringField(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
@@ -110,7 +110,9 @@ export async function sendBookingConfirmationEmail(bookingRow: Record<string, un
     "<p>We will send a reminder email before your meeting.</p>";
 
   const extra = parseExtraRecipientsFromEnv();
-  const to = mergeRecipients(leadEmail, extra);
+  const normalizedLead = leadEmail.trim();
+  const bcc = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
+  const to = [normalizedLead];
 
   const sendResult = await resend.emails.send({
     from: getFromAddress(),
@@ -118,6 +120,7 @@ export async function sendBookingConfirmationEmail(bookingRow: Record<string, un
     subject,
     text,
     html,
+    ...(bcc.length > 0 ? { bcc } : {}),
   });
 
   if (sendResult.error) {
@@ -159,7 +162,9 @@ export async function scheduleBookingReminderEmail(bookingRow: Record<string, un
     `<p>This is a reminder for your Pravix meeting at <strong>${escapeHtml(startsAtLabel)}</strong>.</p>`;
 
   const extra = parseExtraRecipientsFromEnv();
-  const to = mergeRecipients(leadEmail, extra);
+  const normalizedLead = leadEmail.trim();
+  const bcc = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
+  const to = [normalizedLead];
 
   const sendResult = await resend.emails.send({
     from: getFromAddress(),
@@ -168,6 +173,7 @@ export async function scheduleBookingReminderEmail(bookingRow: Record<string, un
     text,
     html,
     scheduledAt: reminderScheduledAt,
+    ...(bcc.length > 0 ? { bcc } : {}),
   });
 
   if (sendResult.error) {
