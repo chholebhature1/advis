@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/agent/server";
-import { cancelBookingReminderEmail, getBookingReminderEmailId } from "@/lib/booking/notifications";
+import { cancelBookingReminderEmail, getBookingReminderEmailId, getBookingReminderExtraEmailIds, cancelBookingReminderEmails } from "@/lib/booking/notifications";
 import { BookingValidationError, isRecord, parseEmail, parseOptionalString } from "@/lib/booking/validation";
 
 export const runtime = "nodejs";
@@ -65,13 +65,22 @@ export async function POST(
     }
 
     const bookingRow = (rpcResult.data ?? null) as Record<string, unknown> | null;
-    const reminderEmailId = getBookingReminderEmailId(bookingRow);
+    const leadReminderId = getBookingReminderEmailId(bookingRow);
+    const extraReminderIds = getBookingReminderExtraEmailIds(bookingRow);
 
-    if (reminderEmailId) {
+    if (leadReminderId) {
       try {
-        await cancelBookingReminderEmail(reminderEmailId);
+        await cancelBookingReminderEmail(leadReminderId);
       } catch (reminderError) {
-        console.error("Booking reminder cancel synchronization failed.", reminderError);
+        console.error("Booking reminder cancel synchronization failed for lead.", reminderError);
+      }
+    }
+
+    if (Array.isArray(extraReminderIds) && extraReminderIds.length > 0) {
+      try {
+        await cancelBookingReminderEmails(extraReminderIds);
+      } catch (extraCancelError) {
+        console.error("Booking reminder cancel synchronization failed for extras.", extraCancelError);
       }
     }
 

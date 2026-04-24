@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/agent/server";
 import {
   getBookingReminderEmailId,
+  getBookingReminderExtraEmailIds,
   rescheduleBookingReminderEmail,
+  rescheduleBookingReminderEmails,
   scheduleBookingReminderEmail,
 } from "@/lib/booking/notifications";
 import {
@@ -97,24 +99,64 @@ export async function POST(
     }
 
     let bookingRow = (rpcResult.data ?? null) as Record<string, unknown> | null;
-    const reminderEmailId = getBookingReminderEmailId(bookingRow);
+    const leadReminderId = getBookingReminderEmailId(bookingRow);
+    const extraReminderIds = getBookingReminderExtraEmailIds(bookingRow);
 
     try {
-      if (reminderEmailId) {
-        await rescheduleBookingReminderEmail(reminderEmailId, startsAtIso);
-      } else {
-        const scheduledReminderEmailId = await scheduleBookingReminderEmail(bookingRow);
-        if (scheduledReminderEmailId) {
-          const reminderRpcResult = await supabase.rpc("public_set_booking_reminder_email_id", {
-            p_booking_id: id,
-            p_lead_email: leadEmail,
-            p_reminder_email_id: scheduledReminderEmailId,
-          });
+      if (leadReminderId) {
+        // Reschedule lead reminder (throw on failure)
+        await rescheduleBookingReminderEmail(leadReminderId, startsAtIso);
 
-          if (reminderRpcResult.error) {
-            console.error("Failed to persist scheduled reminder email id on rescheduled booking metadata.", reminderRpcResult.error);
-          } else {
-            bookingRow = (reminderRpcResult.data ?? bookingRow) as Record<string, unknown> | null;
+        // Reschedule extras best-effort
+        if (Array.isArray(extraReminderIds) && extraReminderIds.length > 0) {
+          await rescheduleBookingReminderEmails(extraReminderIds, startsAtIso);
+        }
+      } else {
+        const scheduled = await scheduleBookingReminderEmail(bookingRow);
+        if (scheduled.leadReminderId || (scheduled.extraReminderIds && scheduled.extraReminderIds.length > 0)) {
+          const ids: string[] = [];
+          if (scheduled.leadReminderId) ids.push(scheduled.leadReminderId);
+          if (scheduled.extraReminderIds && scheduled.extraReminderIds.length > 0) ids.push(...scheduled.extraReminderIds);
+
+          try {
+            const reminderRpcResult = await supabase.rpc("public_set_booking_reminder_email_ids", {
+              p_booking_id: id,
+              p_lead_email: leadEmail,
+              p_reminder_email_ids: ids,
+            });
+
+            if (reminderRpcResult.error) {
+              console.error("Failed to persist scheduled reminder email ids on rescheduled booking metadata.", reminderRpcResult.error);
+              // fallback persist lead-only
+              if (scheduled.leadReminderId) {
+                const fallbackResult = await supabase.rpc("public_set_booking_reminder_email_id", {
+                  p_booking_id: id,
+                  p_lead_email: leadEmail,
+                  p_reminder_email_id: scheduled.leadReminderId,
+                });
+                if (fallbackResult.error) {
+                  console.error("Failed to persist lead reminder email id on rescheduled booking metadata (fallback).", fallbackResult.error);
+                } else {
+                  bookingRow = (fallbackResult.data ?? bookingRow) as Record<string, unknown> | null;
+                }
+              }
+            } else {
+              bookingRow = (reminderRpcResult.data ?? bookingRow) as Record<string, unknown> | null;
+            }
+          } catch (rpcError) {
+            console.error("Error while persisting scheduled reminder email ids on rescheduled booking metadata.", rpcError);
+            if (scheduled.leadReminderId) {
+              const fallbackResult = await supabase.rpc("public_set_booking_reminder_email_id", {
+                p_booking_id: id,
+                p_lead_email: leadEmail,
+                p_reminder_email_id: scheduled.leadReminderId,
+              });
+              if (fallbackResult.error) {
+                console.error("Failed to persist lead reminder email id on rescheduled booking metadata (fallback).", fallbackResult.error);
+              } else {
+                bookingRow = (fallbackResult.data ?? bookingRow) as Record<string, unknown> | null;
+              }
+            }
           }
         }
       }

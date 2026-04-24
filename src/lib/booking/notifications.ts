@@ -78,6 +78,25 @@ export function getBookingReminderEmailId(bookingRow: Record<string, unknown> | 
   return reminderEmailId.trim();
 }
 
+export function getBookingReminderExtraEmailIds(bookingRow: Record<string, unknown> | null): string[] {
+  if (!bookingRow) return [];
+
+  const metadata = bookingRow.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return [];
+
+  const meta = metadata as Record<string, unknown>;
+  const ids: string[] = [];
+
+  const maybeExtras = meta.resendReminderEmailIds;
+  if (Array.isArray(maybeExtras)) {
+    for (const v of maybeExtras) {
+      if (typeof v === "string" && v.trim().length > 0) ids.push(v.trim());
+    }
+  }
+
+  return ids;
+}
+
 export async function sendBookingConfirmationEmail(bookingRow: Record<string, unknown> | null): Promise<void> {
   if (!bookingRow) {
     return;
@@ -146,27 +165,34 @@ export async function sendBookingConfirmationEmail(bookingRow: Record<string, un
   }
 }
 
-export async function scheduleBookingReminderEmail(bookingRow: Record<string, unknown> | null): Promise<string | null> {
+export type ScheduledReminderIds = {
+  leadReminderId: string | null;
+  extraReminderIds: string[];
+};
+
+export async function scheduleBookingReminderEmail(
+  bookingRow: Record<string, unknown> | null,
+): Promise<ScheduledReminderIds> {
   if (!bookingRow) {
-    return null;
+    return { leadReminderId: null, extraReminderIds: [] };
   }
 
   const resend = getResendClient();
   if (!resend) {
     console.warn("Booking reminder scheduling skipped: missing RESEND_API_KEY environment variable.");
-    return null;
+    return { leadReminderId: null, extraReminderIds: [] };
   }
 
   const leadEmail = getStringField(bookingRow, ["lead_email", "leadEmail"]);
   const startsAt = getStringField(bookingRow, ["starts_at", "startsAt"]);
 
   if (!leadEmail || !startsAt) {
-    return null;
+    return { leadReminderId: null, extraReminderIds: [] };
   }
 
   const reminderScheduledAt = getReminderScheduledAt(startsAt);
   if (!reminderScheduledAt) {
-    return null;
+    return { leadReminderId: null, extraReminderIds: [] };
   }
 
   const leadName = getStringField(bookingRow, ["lead_name", "leadName"]) ?? "there";
@@ -196,30 +222,44 @@ export async function scheduleBookingReminderEmail(bookingRow: Record<string, un
     throw new Error(`Booking reminder scheduling failed: ${JSON.stringify(leadSend.error)}`);
   }
 
-  const reminderEmailId = leadSend.data?.id;
+  const leadReminderId = typeof leadSend.data?.id === "string" && leadSend.data.id.trim().length > 0 ? leadSend.data.id.trim() : null;
 
-  // Schedule separate reminders for extra recipients (best-effort)
+  // Schedule separate reminders for extra recipients (best-effort); capture their ids
   const extras = extra.filter((e) => e.toLowerCase() !== normalizedLead.toLowerCase());
+  const extraIds: string[] = [];
+
   if (extras.length > 0) {
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       extras.map((recipient) =>
-        resend.emails.send({
-          from: getFromAddress(),
-          to: [recipient],
-          subject,
-          text,
-          html,
-          scheduledAt: reminderScheduledAt,
-        }).then((res) => {
-          if (res.error) {
-            console.warn(`Extra booking reminder scheduling failed for ${recipient}: ${JSON.stringify(res.error)}`);
-          }
-        }),
+        resend
+          .emails
+          .send({
+            from: getFromAddress(),
+            to: [recipient],
+            subject,
+            text,
+            html,
+            scheduledAt: reminderScheduledAt,
+          })
+          .then((res) => ({ recipient, res })),
       ),
     );
+
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        const { recipient, res } = r.value as { recipient: string; res: any };
+        if (!res?.error && typeof res?.data?.id === "string" && res.data.id.trim().length > 0) {
+          extraIds.push(res.data.id.trim());
+        } else {
+          console.warn(`Extra booking reminder scheduling failed for ${recipient}: ${JSON.stringify(res?.error ?? res)}`);
+        }
+      } else {
+        console.warn(`Extra booking reminder scheduling threw for a recipient: ${String((r as PromiseRejectedResult).reason)}`);
+      }
+    }
   }
 
-  return typeof reminderEmailId === "string" && reminderEmailId.trim().length > 0 ? reminderEmailId.trim() : null;
+  return { leadReminderId, extraReminderIds: extraIds };
 }
 
 export async function rescheduleBookingReminderEmail(reminderEmailId: string, startsAtIso: string): Promise<void> {
@@ -244,6 +284,31 @@ export async function rescheduleBookingReminderEmail(reminderEmailId: string, st
   }
 }
 
+export async function rescheduleBookingReminderEmails(reminderEmailIds: string[], startsAtIso: string): Promise<void> {
+  if (!Array.isArray(reminderEmailIds) || reminderEmailIds.length === 0) return;
+
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn("Booking reminder reschedule skipped: missing RESEND_API_KEY environment variable.");
+    return;
+  }
+
+  const reminderScheduledAt = getReminderScheduledAt(startsAtIso);
+  if (!reminderScheduledAt) return;
+
+  const results = await Promise.allSettled(
+    reminderEmailIds.map((id) => resend.emails.update({ id, scheduledAt: reminderScheduledAt })),
+  );
+
+  for (const r of results) {
+    if ((r as PromiseRejectedResult).reason) {
+      console.warn(`Rescheduling extra reminder failed: ${String((r as PromiseRejectedResult).reason)}`);
+    } else if ((r as PromiseFulfilledResult<any>).value?.error) {
+      console.warn(`Rescheduling extra reminder returned error: ${JSON.stringify((r as PromiseFulfilledResult<any>).value.error)}`);
+    }
+  }
+}
+
 export async function cancelBookingReminderEmail(reminderEmailId: string): Promise<void> {
   const resend = getResendClient();
   if (!resend) {
@@ -255,5 +320,25 @@ export async function cancelBookingReminderEmail(reminderEmailId: string): Promi
 
   if (cancelResult.error) {
     throw new Error(`Booking reminder cancel failed: ${JSON.stringify(cancelResult.error)}`);
+  }
+}
+
+export async function cancelBookingReminderEmails(reminderEmailIds: string[]): Promise<void> {
+  if (!Array.isArray(reminderEmailIds) || reminderEmailIds.length === 0) return;
+
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn("Booking reminder cancel skipped: missing RESEND_API_KEY environment variable.");
+    return;
+  }
+
+  const results = await Promise.allSettled(reminderEmailIds.map((id) => resend.emails.cancel(id)));
+
+  for (const r of results) {
+    if ((r as PromiseRejectedResult).reason) {
+      console.warn(`Cancelling extra reminder failed: ${String((r as PromiseRejectedResult).reason)}`);
+    } else if ((r as PromiseFulfilledResult<any>).value?.error) {
+      console.warn(`Cancelling extra reminder returned error: ${JSON.stringify((r as PromiseFulfilledResult<any>).value.error)}`);
+    }
   }
 }
