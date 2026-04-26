@@ -154,12 +154,24 @@ type AgentChatReplyPayload = {
   ok?: boolean;
   reply?: string;
   error?: string;
+  isSimpleAnswer?: boolean;
+  structured?: {
+    recommendation?: string;
+    reason?: string;
+    nextAction?: string;
+    intro?: string;
+  };
 };
 
 type FollowUpQaItem = {
   id: string;
   question: string;
   answer: string;
+  isSimple: boolean;
+  recommendation: string;
+  reason: string;
+  nextAction: string;
+  intro: string;
 };
 
 type DashboardHorizon = "1y" | "2y" | "3y" | "custom";
@@ -1358,12 +1370,16 @@ export default function DashboardPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          message:
-            `Answer this user follow-up in very simple language with no jargon. Keep it short, practical, and easy to act on. User question: ${trimmedQuestion}. Current plan context: ${contextSummary || "N/A"}.`,
-          history: followUpThread.flatMap((item) => ([
-            { role: "user", content: item.question },
-            { role: "assistant", content: item.answer },
-          ])),
+          message: `${trimmedQuestion}`,
+          history: followUpThread.flatMap((item) => {
+            const assistantContent = item.recommendation && item.reason
+              ? `${item.recommendation}\n\n${item.reason}${item.nextAction ? '\n\nNext step: ' + item.nextAction : ''}`
+              : item.answer;
+            return [
+              { role: "user" as const, content: item.question },
+              { role: "assistant" as const, content: assistantContent },
+            ];
+          }),
         }),
       });
 
@@ -1374,12 +1390,19 @@ export default function DashboardPage() {
       }
 
       const answer = payload.reply ?? "I could not generate a reply right now. Please try again.";
+      const isSimple = payload.isSimpleAnswer ?? false;
+      const structured = payload.structured ?? {};
       setFollowUpThread((current) => [
         ...current,
         {
           id: `${Date.now()}-${current.length}`,
           question: trimmedQuestion,
           answer,
+          isSimple,
+          recommendation: structured.recommendation ?? "",
+          reason: structured.reason ?? "",
+          nextAction: structured.nextAction ?? "",
+          intro: structured.intro ?? "",
         },
       ]);
       setFollowUpQuestion("");
@@ -2128,12 +2151,30 @@ export default function DashboardPage() {
                       {followUpThread.length > 0 ? (
                         <div className="mt-3 space-y-2.5">
                           {followUpThread.map((item, index) => (
-                            <div key={item.id} className="rounded-xl border border-[#e1ebff] bg-[#f8fbff] px-3.5 py-3">
-                              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Question {index + 1}</p>
-                              <p className="mt-1 text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
-                              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Simple Answer</p>
-                              <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-[#1d355d]">{item.answer}</p>
-                            </div>
+                            item.isSimple ? (
+                              <div key={item.id} className="rounded-2xl border border-[#e1ebff] bg-gradient-to-br from-[#f8fbff] to-white px-5 py-4 shadow-[0_4px_16px_rgba(43,92,255,0.06)]">
+                                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Question {index + 1}</p>
+                                <p className="mt-1 text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
+                                <div className="mt-3 flex items-start gap-3">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-finance-accent/10">
+                                    <svg className="h-4 w-4 text-finance-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-[10px] font-semibold uppercase tracking-wide text-finance-accent">Simple Answer</p>
+                                    <p className="mt-1 text-sm leading-relaxed text-[#1d355d] whitespace-pre-line">{item.answer}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div key={item.id} className="rounded-xl border border-[#e1ebff] bg-[#f8fbff] px-3.5 py-3">
+                                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Question {index + 1}</p>
+                                <p className="mt-1 text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
+                                <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Simple Answer</p>
+                                <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-[#1d355d]">{item.answer}</p>
+                              </div>
+                            )
                           ))}
                         </div>
                       ) : null}

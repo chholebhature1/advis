@@ -63,8 +63,10 @@ Phase 1 introduces authenticated agent routes backed by Supabase context and NVI
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `NVIDIA_NIM_API_KEY`
-- `NVIDIA_NIM_MODEL` (optional, defaults to `meta/llama-3.1-8b-instruct`)
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL` (optional, defaults to `openai/gpt-4o-mini`)
+- `NVIDIA_API_KEY`
+- `NVIDIA_MODEL` (optional, defaults to `meta/llama-3.1-8b-instruct`)
 
 Optional for cron-style multi-user daily automation:
 

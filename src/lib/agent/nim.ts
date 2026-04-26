@@ -11,51 +11,14 @@ type NimChatCompletionsResponse = {
   choices?: Array<{
     message?: {
       content?:
-        | string
-        | Array<{
-            type?: string;
-            text?: string;
-          }>;
+      | string
+      | Array<{
+        type?: string;
+        text?: string;
+      }>;
     };
   }>;
 };
-
-type DeepSeekChatCompletionsResponse = {
-  choices?: Array<{
-    message?: {
-      content?:
-        | string
-        | Array<{
-            type?: string;
-            text?: string;
-          }>;
-    };
-  }>;
-};
-
-class NimApiError extends Error {
-  status: number;
-  retryAfterMs: number | null;
-
-  constructor(status: number, bodyPreview: string, retryAfterMs: number | null) {
-    super(`NVIDIA NIM API error (${status}): ${bodyPreview}`);
-    this.name = "NimApiError";
-    this.status = status;
-    this.retryAfterMs = retryAfterMs;
-  }
-}
-
-class DeepSeekApiError extends Error {
-  status: number;
-  retryAfterMs: number | null;
-
-  constructor(status: number, bodyPreview: string, retryAfterMs: number | null) {
-    super(`DeepSeek API error (${status}): ${bodyPreview}`);
-    this.name = "DeepSeekApiError";
-    this.status = status;
-    this.retryAfterMs = retryAfterMs;
-  }
-}
 
 class OpenRouterApiError extends Error {
   status: number;
@@ -70,9 +33,9 @@ class OpenRouterApiError extends Error {
 }
 
 class ProviderQualityError extends Error {
-  provider: "NIM" | "DeepSeek" | "OpenRouter";
+  provider: "OpenRouter";
 
-  constructor(provider: "NIM" | "DeepSeek" | "OpenRouter", reason: string) {
+  constructor(provider: "OpenRouter", reason: string) {
     super(`${provider} quality gate failed: ${reason}`);
     this.name = "ProviderQualityError";
     this.provider = provider;
@@ -90,6 +53,7 @@ type AllocationPlan = {
 type AdvisorChatReply = {
   reply: string;
   structured: AgentStructuredAdvice;
+  isSimpleAnswer: boolean;
 };
 
 const CHAT_PRIMARY_TIMEOUT_MS = 12_000;
@@ -114,7 +78,7 @@ const CIRCUIT_RATE_LIMIT_THRESHOLD = 0.3;
 const CIRCUIT_CONSECUTIVE_FAILURES = 5;
 const CIRCUIT_HALF_OPEN_PROBE_TARGET = 2;
 
-type ProviderName = "nim" | "deepseek" | "openrouter";
+type ProviderName = "openrouter" | "nvidia";
 type CircuitMode = "closed" | "open" | "half-open";
 
 type ProviderCircuit = {
@@ -148,36 +112,9 @@ function createProviderCircuit(): ProviderCircuit {
 }
 
 const providerCircuits: Record<ProviderName, ProviderCircuit> = {
-  nim: createProviderCircuit(),
-  deepseek: createProviderCircuit(),
   openrouter: createProviderCircuit(),
+  nvidia: createProviderCircuit(),
 };
-
-function getNimApiKey() {
-  const key = process.env.NVIDIA_NIM_API_KEY ?? process.env.NIM_API_KEY;
-  if (!key) {
-    throw new Error("Missing NVIDIA_NIM_API_KEY environment variable.");
-  }
-
-  return key;
-}
-
-function getNimModel() {
-  return process.env.NVIDIA_NIM_MODEL ?? "meta/llama-3.1-8b-instruct";
-}
-
-function getDeepSeekApiKey() {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) {
-    throw new Error("Missing DEEPSEEK_API_KEY environment variable.");
-  }
-
-  return key;
-}
-
-function getDeepSeekModel() {
-  return process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
-}
 
 function getOpenRouterApiKey() {
   const key = process.env.OPENROUTER_API_KEY;
@@ -192,15 +129,16 @@ function getOpenRouterModel() {
   return process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini";
 }
 
-function getNimTimeoutMs() {
-  const raw = process.env.NVIDIA_NIM_TIMEOUT_MS ?? process.env.NIM_TIMEOUT_MS;
-  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-
-  if (!Number.isFinite(parsed)) {
-    return 15_000;
+function getNvidiaApiKey() {
+  const key = process.env.NVIDIA_API_KEY;
+  if (!key) {
+    throw new Error("Missing NVIDIA_API_KEY environment variable.");
   }
+  return key;
+}
 
-  return Math.min(Math.max(parsed, 3_000), 60_000);
+function getNvidiaModel() {
+  return process.env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct";
 }
 
 function toNimRole(role: AgentChatHistoryItem["role"]): NimRole {
@@ -383,10 +321,11 @@ function parseStructuredAdviceRecord(value: unknown): AgentStructuredAdvice | nu
   }
 
   const record = value as Record<string, unknown>;
-  const recommendation = normalizeAdviceField(record.recommendation ?? record.advice);
-  const reason = normalizeAdviceField(record.reason ?? record.rationale);
-  const riskWarning = normalizeAdviceField(record.riskWarning ?? record.risk_warning ?? record.risk);
-  const nextAction = normalizeAdviceField(record.nextAction ?? record.next_action ?? record.action);
+  const recommendation = normalizeAdviceField(record.recommendation ?? record.advice) ?? normalizeAdviceField(record.reason ?? record.advice) ?? "Here's my recommendation based on your profile.";
+  const reason = normalizeAdviceField(record.reason ?? record.rationale) ?? normalizeAdviceField(record.recommendation ?? record.advice) ?? "This aligns with your financial goals and risk appetite.";
+  const riskWarning = normalizeAdviceField(record.riskWarning ?? record.risk_warning ?? record.risk) ?? "All investments carry risk. Validate before acting.";
+  const nextAction = normalizeAdviceField(record.nextAction ?? record.next_action ?? record.action) ?? "Review your plan and start investing systematically.";
+
   const intro = normalizeAdviceField(record.intro);
   const step1Title = normalizeAdviceField(record.step1Title ?? record.step_1_title);
   const assumptionBullets = normalizeAdviceList(record.assumptionBullets ?? record.assumptions, 4, 160);
@@ -397,10 +336,6 @@ function parseStructuredAdviceRecord(value: unknown): AgentStructuredAdvice | nu
   const portfolioBuckets = parsePortfolioBuckets(record.portfolioBuckets ?? record.portfolio_buckets);
   const step3Title = normalizeAdviceField(record.step3Title ?? record.step_3_title);
   const actionPlanRows = parseActionPlanRows(record.actionPlanRows ?? record.action_plan_rows);
-
-  if (!recommendation || !reason || !riskWarning || !nextAction) {
-    return null;
-  }
 
   return {
     recommendation,
@@ -480,6 +415,44 @@ function parseStructuredAdviceFromSections(raw: string): AgentStructuredAdvice |
 
 function parseStructuredAdviceStrict(raw: string): AgentStructuredAdvice | null {
   return parseStructuredAdviceFromJson(raw) ?? parseStructuredAdviceFromSections(raw);
+}
+
+function buildRawTextStructuredAdvice(rawText: string, userMessage: string): AgentStructuredAdvice {
+  const cleaned = rawText.replace(/```json\n?|```\n?/gi, "").trim();
+
+  const paragraphs = cleaned.split(/\n\n+/).filter((p) => p.trim().length > 0);
+  const firstPara = paragraphs[0]?.trim() ?? "Here's guidance based on your question.";
+  const remainingParas = paragraphs.slice(1);
+
+  let recommendation = firstPara;
+  let reason = "";
+  let nextAction = "";
+  let intro = firstPara;
+
+  for (const para of remainingParas) {
+    const lowerPara = para.toLowerCase();
+    if (lowerPara.includes("next step") || lowerPara.includes("action") || lowerPara.includes("should do")) {
+      if (!nextAction) nextAction = para.replace(/^[^:]+:?\s*/i, "").trim();
+    } else if (!reason) {
+      reason = para.replace(/^[^:]+:?\s*/i, "").trim();
+    }
+  }
+
+  if (!reason) {
+    reason = remainingParas.find((p) => p.length > 30) ?? "This recommendation fits your financial profile.";
+  }
+
+  if (!nextAction) {
+    nextAction = "Review this guidance and decide your next step based on your comfort level.";
+  }
+
+  return {
+    recommendation,
+    reason,
+    riskWarning: "All investment advice is educational only. Verify with a qualified advisor before investing.",
+    nextAction,
+    intro,
+  };
 }
 
 type GoalFeasibilitySnapshot = {
@@ -954,11 +927,11 @@ function enforceAdviceGuardrails(input: {
   const messageGoal = extractUserGoalIntent(input.userMessage);
   const feasibility = messageGoal
     ? computeFeasibilitySnapshot({
-        goalTitle: messageGoal.goalTitle,
-        targetAmountInr: messageGoal.targetAmountInr,
-        monthsToGoal: messageGoal.monthsToGoal,
-        context: input.context,
-      })
+      goalTitle: messageGoal.goalTitle,
+      targetAmountInr: messageGoal.targetAmountInr,
+      monthsToGoal: messageGoal.monthsToGoal,
+      context: input.context,
+    })
     : computeGoalFeasibility(input.context);
   const goalIntent = /\b(goal|target|retire|retirement|car|house|home|education|wedding|year|years|month|months)\b/i.test(
     input.userMessage,
@@ -1000,7 +973,7 @@ function enforceAdviceGuardrails(input: {
   const suspiciousClaims =
     hasSuspiciousCurrencyClaims(normalized, input.context, feasibility) || hasSuspiciousProfileClaims(normalized, input.context);
 
-  if (feasibility && (understatedContribution || infeasibleWithCurrentCapacity || materiallyUnderfunded)) {
+  if (feasibility && goalIntent && (understatedContribution || infeasibleWithCurrentCapacity || materiallyUnderfunded)) {
     const years = (feasibility.monthsToGoal / 12).toFixed(feasibility.monthsToGoal % 12 === 0 ? 0 : 1);
     const surplusLabel = feasibility.monthlySurplusInr ? formatInr(feasibility.monthlySurplusInr) : "not provided";
     const projectedLabel = formatInr(Math.round(feasibility.projectedCorpusAtSurplusInr));
@@ -1011,11 +984,11 @@ function enforceAdviceGuardrails(input: {
     const monthsNeededAtSurplus =
       feasibility.monthlySurplusInr && feasibility.monthlySurplusInr > 0
         ? estimateMonthsToTarget({
-            targetAmountInr: feasibility.targetAmountInr,
-            annualReturnPct: feasibility.annualReturnPct,
-            monthlyContributionInr: feasibility.monthlySurplusInr,
-            currentSavingsInr: currentSavings,
-          })
+          targetAmountInr: feasibility.targetAmountInr,
+          annualReturnPct: feasibility.annualReturnPct,
+          monthlyContributionInr: feasibility.monthlySurplusInr,
+          currentSavingsInr: currentSavings,
+        })
         : null;
     const yearsNeededAtSurplus = monthsNeededAtSurplus ? (monthsNeededAtSurplus / 12).toFixed(1) : null;
 
@@ -1153,7 +1126,15 @@ function enforceAdviceGuardrails(input: {
   return normalized;
 }
 
-function formatStructuredAdvice(advice: AgentStructuredAdvice): string {
+function formatStructuredAdvice(advice: AgentStructuredAdvice, isSimple = false): string {
+  if (isSimple) {
+    const parts: string[] = [];
+    if (advice.intro) parts.push(advice.intro);
+    if (advice.recommendation) parts.push(advice.recommendation);
+    if (advice.reason) parts.push(advice.reason);
+    return parts.filter(Boolean).join("\n\n");
+  }
+
   const step1Title = advice.step1Title ?? "\ud83c\udfaf Step 1: How much you need to invest";
   const assumptionBullets = advice.assumptionBullets ?? [];
   const monthlySipRange = advice.monthlySipRange;
@@ -1270,7 +1251,7 @@ function isRetryableStatus(status: number): boolean {
 }
 
 function isRetryableProviderError(error: unknown): boolean {
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
+  if (error instanceof OpenRouterApiError) {
     return isRetryableStatus(error.status);
   }
 
@@ -1289,7 +1270,7 @@ function isRetryableProviderError(error: unknown): boolean {
 }
 
 function getRetryAfterFromError(error: unknown): number | null {
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
+  if (error instanceof OpenRouterApiError) {
     return error.retryAfterMs;
   }
 
@@ -1359,7 +1340,7 @@ function openCircuit(circuit: ProviderCircuit, now: number) {
 }
 
 function getProviderErrorStatus(error: unknown): number | null {
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
+  if (error instanceof OpenRouterApiError) {
     return error.status;
   }
 
@@ -1459,7 +1440,7 @@ function isNimCapacityError(error: unknown): boolean {
     return true;
   }
 
-  if (error instanceof NimApiError || error instanceof DeepSeekApiError || error instanceof OpenRouterApiError) {
+  if (error instanceof OpenRouterApiError) {
     return isRetryableStatus(error.status) || error.status === 401;
   }
 
@@ -1469,15 +1450,9 @@ function isNimCapacityError(error: unknown): boolean {
 
   const message = error.message.toLowerCase();
   return (
-    message.includes("nvidia nim api error (429)") ||
-    message.includes("nvidia nim api error (401)") ||
-    message.includes("nvidia nim api error (5") ||
     message.includes("openrouter api error (429)") ||
     message.includes("openrouter api error (401)") ||
     message.includes("openrouter api error (5") ||
-    message.includes("deepseek api error (429)") ||
-    message.includes("deepseek api error (401)") ||
-    message.includes("deepseek api error (5") ||
     message.includes("bad gateway") ||
     message.includes("gateway timeout") ||
     message.includes("temporarily unavailable") ||
@@ -1487,26 +1462,15 @@ function isNimCapacityError(error: unknown): boolean {
     message.includes("resource_exhausted") ||
     message.includes("quota") ||
     message.includes("rate limit") ||
-    message.includes("missing nvidia_nim_api_key") ||
-    message.includes("missing nim_api_key") ||
-    message.includes("missing deepseek_api_key") ||
     message.includes("missing openrouter_api_key") ||
     message.includes("quality gate failed")
   );
 }
 
-function inferProviderFromErrorReason(reason: string): "OpenRouter" | "NIM" | "DeepSeek" | "provider" {
+function inferProviderFromErrorReason(reason: string): "OpenRouter" | "provider" {
   const normalized = reason.toLowerCase();
   if (normalized.includes("openrouter")) {
     return "OpenRouter";
-  }
-
-  if (normalized.includes("nvidia") || normalized.includes("nim")) {
-    return "NIM";
-  }
-
-  if (normalized.includes("deepseek")) {
-    return "DeepSeek";
   }
 
   return "provider";
@@ -1523,6 +1487,33 @@ function isSexualOrNonFinancialPrompt(message: string): boolean {
   const nonFinancialSmallTalk = /\b(joke|funny|sing|poem|love|flirt|date)\b/i.test(normalized);
 
   return nonFinancialSmallTalk && !financeSignals;
+}
+
+function isSimpleQuestion(message: string): boolean {
+  const normalized = message.toLowerCase().trim();
+  if (normalized.length === 0) return false;
+
+  const simplePatterns = [
+    /^hi$/, /^hey$/, /^hello$/, /^yo$/, /^sup$/, /^wassup$/, /^greetings$/,
+    /^hii?$/, /^helo$/, /^namaste$/, /^namaskar$/,
+    /^(hi|hey|hello),?\s*(how are you|how r u)?$/i,
+    /^(good morning|good evening|good afternoon|good night)$/i,
+    /^thanks?$/, /^thank you$/, /^thx$/, /^ty$/,
+    /^ok[.,]?$/, /^okay$/, /^sure$/, /^yes$/, /^no$/,
+    /^nice$/, /^cool$/, /^awesome$/, /^great$/, /^good$/,
+  ];
+
+  for (const pattern of simplePatterns) {
+    if (pattern.test(normalized)) return true;
+  }
+
+  if (normalized.split(/\s+/).length <= 3) {
+    const greetingWords = /\b(hi|hey|hello|thanks|thank|ok|okay|sure|yes|no|nice|cool|awesome|great|good|morning|evening|afternoon|night|namaste)\b/gi;
+    const nonGreetingWords = normalized.replace(greetingWords, "").trim();
+    if (nonGreetingWords.length === 0) return true;
+  }
+
+  return false;
 }
 
 function buildOutOfScopeStructuredAdvice(): AgentStructuredAdvice {
@@ -1593,7 +1584,7 @@ function buildFallbackDashboardActionPlan(context: AgentContext, reason: string)
   }
 
   const cautionLines = [
-    `CAUTION: AI model is temporarily unavailable due to NVIDIA NIM limits/availability${retryIn ? ` (retry after ~${retryIn})` : ""}.`,
+    `CAUTION: AI model is temporarily unavailable due to OpenRouter limits/availability${retryIn ? ` (retry after ~${retryIn})` : ""}.`,
     "This is a rules-based fallback summary; verify suitability before execution.",
     `Risk note: ${plan.note}`,
   ];
@@ -1965,20 +1956,23 @@ function buildSystemInstruction(mode: "chat" | "dashboard"): string {
     ].join(" ");
   }
 
-  return [
-    ...common,
-    "Sound warm, human, and engaging. Use natural conversation style and avoid robotic phrasing.",
-    "Open with one short empathetic sentence and maintain a confident but friendly tone.",
-    "Personalize every answer by referencing at least two concrete user facts from the provided context.",
-    "When available, ground advice on primary goal, target amount, time horizon, monthly investment capacity, risk preference, monthly income band, and existing investments.",
-    "Never invent numbers. Mention currency values only if present in context or clearly derived from context math.",
-    "Run feasibility math before giving SIP suggestions. If required monthly SIP exceeds user surplus or implies unrealistic growth, explicitly say the goal is not feasible under current assumptions.",
-    "Respond in valid JSON only using these keys: recommendation, reason, riskWarning, nextAction, intro, step1Title, assumptionBullets, bestAssumption, monthlySipRange, monthlySipBreakdown, step2Title, portfolioBuckets, step3Title, actionPlanRows.",
-    "Use the exact 3-step structure: step1Title for feasibility math, step2Title for allocation, step3Title for this-month actions.",
-    "Keep text concise and practical. For portfolioBuckets include heading, expectedReturn, instruments (array), and allocationHint.",
-    "For actionPlanRows include category, amount, whereToInvest with 3 to 4 rows.",
-    "Do not add markdown code fences.",
-  ].join(" ");
+return [
+      ...common,
+      "IMPORTANT: If the user is just greeting you (like 'hi', 'hello') or asking a very simple non-financial question, provide a short, friendly response in the 'recommendation' and 'reason' fields, and keep the others brief. Do NOT force a full 3-step wealth plan unless the user asks for strategy or shows specific financial intent.",
+      "Speak like a helpful older sibling or trusted uncle — never robotic, never textbook-ish. Use plain Hindi-English mix if it fits naturally.",
+      "No jargon. No buzzwords. No corporate speak. If a financial term is needed, explain it in one simple sentence.",
+      "Be direct. Give the most useful answer first, then a short explanation. No fluff, no padding.",
+      "Personalize by referencing user facts (goal, income, risk) only when it adds value — don't force it in.",
+      "Never invent numbers. Only mention INR values if they come from context or simple math.",
+      "Keep every answer tight. If the answer can be 2 lines, make it 2 lines. Respect the user's time.",
+      "Explain concepts using fresh analogies and real examples — avoid repeating the same phrasing.",
+      "Vary your opening: sometimes start with the answer, sometimes with a question, sometimes with a relatable example.",
+      "Respond in valid JSON only using these keys: recommendation, reason, riskWarning, nextAction, intro, step1Title, assumptionBullets, bestAssumption, monthlySipRange, monthlySipBreakdown, step2Title, portfolioBuckets, step3Title, actionPlanRows.",
+      "Use the exact 3-step structure ONLY for strategy queries: step1Title for feasibility math, step2Title for allocation, step3Title for this-month actions.",
+      "For portfolioBuckets include heading, expectedReturn, instruments (array), and allocationHint.",
+      "For actionPlanRows include category, amount, whereToInvest with 3 to 4 rows.",
+      "Do not add markdown code fences.",
+    ].join(" ");
 }
 
 export function buildContextBlock(context: AgentContext): string {
@@ -1990,23 +1984,23 @@ export function buildContextBlock(context: AgentContext): string {
   const personalizationAnchor = buildPersonalizationAnchor(context);
   const onboardingAnswers = profile
     ? {
-        primaryFinancialGoal: profile.primary_financial_goal ?? null,
-        targetGoalAmountInr: context.goals[0]?.target_amount_inr ?? null,
-        targetHorizonBand: profile.target_goal_horizon_band ?? null,
-        monthlyInvestmentCapacityBand: profile.monthly_investment_capacity_band ?? null,
-        monthlyIncomeBand: profile.monthly_income_band ?? null,
-        riskPreference: profile.risk_appetite ?? null,
-        hasExistingInvestments: profile.has_existing_investments ?? null,
-        existingInvestmentTypes: profile.existing_investment_types ?? [],
-      }
+      primaryFinancialGoal: profile.primary_financial_goal ?? null,
+      targetGoalAmountInr: context.goals[0]?.target_amount_inr ?? null,
+      targetHorizonBand: profile.target_goal_horizon_band ?? null,
+      monthlyInvestmentCapacityBand: profile.monthly_investment_capacity_band ?? null,
+      monthlyIncomeBand: profile.monthly_income_band ?? null,
+      riskPreference: profile.risk_appetite ?? null,
+      hasExistingInvestments: profile.has_existing_investments ?? null,
+      existingInvestmentTypes: profile.existing_investment_types ?? [],
+    }
     : null;
 
   const onboardingProfile = profile
     ? {
-        ...profile,
-        age_years: computeAgeYears(profile.date_of_birth),
-        liquidity_needs_notes: truncateText(profile.liquidity_needs_notes, 220),
-      }
+      ...profile,
+      age_years: computeAgeYears(profile.date_of_birth),
+      liquidity_needs_notes: truncateText(profile.liquidity_needs_notes, 220),
+    }
     : null;
 
   return JSON.stringify(
@@ -2022,141 +2016,6 @@ export function buildContextBlock(context: AgentContext): string {
       holdingsSummary,
     },
   );
-}
-
-async function callNim(
-  messages: NimMessage[],
-  generationConfig: { temperature: number; maxOutputTokens: number },
-  timeoutMs: number,
-): Promise<string> {
-  const apiKey = getNimApiKey();
-  const effectiveTimeoutMs = timeoutMs > 0 ? timeoutMs : getNimTimeoutMs();
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), effectiveTimeoutMs);
-
-  let response: Response;
-
-  try {
-    response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: getNimModel(),
-        messages,
-        temperature: generationConfig.temperature,
-        max_tokens: generationConfig.maxOutputTokens,
-        top_p: 0.9,
-      }),
-      signal: abortController.signal,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(`NVIDIA NIM API timeout after ${effectiveTimeoutMs}ms.`);
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  const rawBody = await response.text();
-
-  if (!response.ok) {
-    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
-    throw new NimApiError(response.status, summarizeNimErrorBody(rawBody), retryAfterMs);
-  }
-
-  let data: NimChatCompletionsResponse;
-
-  try {
-    data = JSON.parse(rawBody) as NimChatCompletionsResponse;
-  } catch {
-    throw new Error("NVIDIA NIM returned a malformed JSON payload.");
-  }
-
-  const content = data.choices?.[0]?.message?.content;
-  const text =
-    typeof content === "string"
-      ? content.trim()
-      : Array.isArray(content)
-        ? content.map((part) => part.text ?? "").join("\n").trim()
-        : "";
-
-  if (!text) {
-    throw new Error("NVIDIA NIM returned an empty response.");
-  }
-
-  return text;
-}
-
-async function callDeepSeek(
-  messages: NimMessage[],
-  generationConfig: { temperature: number; maxOutputTokens: number },
-  timeoutMs: number,
-): Promise<string> {
-  const apiKey = getDeepSeekApiKey();
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
-
-  let response: Response;
-
-  try {
-    response = await fetch("https://api.deepseek.com/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: getDeepSeekModel(),
-        messages,
-        temperature: generationConfig.temperature,
-        max_tokens: generationConfig.maxOutputTokens,
-        top_p: 0.9,
-      }),
-      signal: abortController.signal,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(`DeepSeek API timeout after ${timeoutMs}ms.`);
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  const rawBody = await response.text();
-
-  if (!response.ok) {
-    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
-    throw new DeepSeekApiError(response.status, summarizeNimErrorBody(rawBody), retryAfterMs);
-  }
-
-  let data: DeepSeekChatCompletionsResponse;
-
-  try {
-    data = JSON.parse(rawBody) as DeepSeekChatCompletionsResponse;
-  } catch {
-    throw new Error("DeepSeek returned a malformed JSON payload.");
-  }
-
-  const content = data.choices?.[0]?.message?.content;
-  const text =
-    typeof content === "string"
-      ? content.trim()
-      : Array.isArray(content)
-        ? content.map((part) => part.text ?? "").join("\n").trim()
-        : "";
-
-  if (!text) {
-    throw new Error("DeepSeek returned an empty response.");
-  }
-
-  return text;
 }
 
 async function callOpenRouter(
@@ -2226,6 +2085,71 @@ async function callOpenRouter(
   return text;
 }
 
+async function callNvidia(
+  messages: NimMessage[],
+  generationConfig: { temperature: number; maxOutputTokens: number },
+  timeoutMs: number,
+): Promise<string> {
+  const apiKey = getNvidiaApiKey();
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+
+  let response: Response;
+
+  try {
+    response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: getNvidiaModel(),
+        messages,
+        temperature: generationConfig.temperature,
+        max_tokens: generationConfig.maxOutputTokens,
+        top_p: 0.9,
+      }),
+      signal: abortController.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Nvidia NIM API timeout after ${timeoutMs}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const rawBody = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Nvidia NIM API error (${response.status}): ${rawBody.slice(0, 200)}`);
+  }
+
+  let data: NimChatCompletionsResponse;
+
+  try {
+    data = JSON.parse(rawBody) as NimChatCompletionsResponse;
+  } catch {
+    throw new Error("Nvidia NIM returned a malformed JSON payload.");
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  const text =
+    typeof content === "string"
+      ? content.trim()
+      : Array.isArray(content)
+        ? content.map((part) => part.text ?? "").join("\n").trim()
+        : "";
+
+  if (!text) {
+    throw new Error("Nvidia NIM returned an empty response.");
+  }
+
+  return text;
+}
+
 async function callProviderWithRetry(input: {
   provider: ProviderName;
   attempt: (timeoutMs: number) => Promise<string>;
@@ -2277,6 +2201,7 @@ export async function generateAdvisorChatReply(input: {
     return {
       reply: "Sorry, I can't assist with that.",
       structured,
+      isSimpleAnswer: false,
     };
   }
 
@@ -2311,8 +2236,8 @@ export async function generateAdvisorChatReply(input: {
         callOpenRouter(
           messages,
           {
-            temperature: 0.35,
-            maxOutputTokens: 420,
+            temperature: 0.7,
+            maxOutputTokens: 800,
           },
           timeoutMs,
         ),
@@ -2323,7 +2248,50 @@ export async function generateAdvisorChatReply(input: {
 
     const strictStructured = parseStructuredAdviceStrict(raw);
     if (!strictStructured) {
-      throw new ProviderQualityError("OpenRouter", "Response missing required structured fields.");
+      console.error("[generateAdvisorChatReply] OpenRouter returned non-JSON response. Trying NIM...");
+      const nimDeadlineAt = Date.now() + 20000;
+      try {
+        const nimRaw = await callProviderWithRetry({
+          provider: "nvidia",
+          attempt: (timeoutMs) =>
+            callNvidia(messages, { temperature: 0.7, maxOutputTokens: 800 }, timeoutMs),
+          preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
+          maxRetries: CHAT_PRIMARY_MAX_RETRIES,
+          deadlineAt: nimDeadlineAt,
+        });
+
+        recordProviderSuccess("nvidia");
+        const nimStructured = parseStructuredAdviceStrict(nimRaw);
+        if (nimStructured) {
+          const structured = enforceAdviceGuardrails({
+            advice: ensurePersonalizedAdvice(nimStructured, input.context),
+            context: input.context,
+            userMessage: input.message,
+          });
+          const isSimple = isSimpleQuestion(input.message);
+          return {
+            reply: formatStructuredAdvice(structured, isSimple),
+            structured,
+            isSimpleAnswer: isSimple,
+          };
+        }
+      } catch (nimError) {
+        const nimReason = nimError instanceof Error ? nimError.message : "Unknown NIM error";
+        console.error("[generateAdvisorChatReply] NIM also failed or returned non-JSON:", nimReason);
+      }
+
+      const rawStructured = buildRawTextStructuredAdvice(raw, input.message);
+      const structured = enforceAdviceGuardrails({
+        advice: ensurePersonalizedAdvice(rawStructured, input.context),
+        context: input.context,
+        userMessage: input.message,
+      });
+      const isSimple = isSimpleQuestion(input.message);
+      return {
+        reply: formatStructuredAdvice(structured, isSimple),
+        structured,
+        isSimpleAnswer: isSimple,
+      };
     }
 
     const structured = enforceAdviceGuardrails({
@@ -2331,29 +2299,73 @@ export async function generateAdvisorChatReply(input: {
       context: input.context,
       userMessage: input.message,
     });
+    const isSimple = isSimpleQuestion(input.message);
     return {
-      reply: formatStructuredAdvice(structured),
+      reply: formatStructuredAdvice(structured, isSimple),
       structured,
+      isSimpleAnswer: isSimple,
     };
   } catch (error) {
     if (isNimCapacityError(error)) {
       const reason = normalizeErrorMessage(error);
-      const structured = enforceAdviceGuardrails({
-        advice: ensurePersonalizedAdvice(
-          buildFallbackChatStructuredAdvice({
-            message: input.message,
+      console.error("[generateAdvisorChatReply] OpenRouter failed. Error:", reason, ". Trying NIM...");
+
+      const nimDeadlineAt = Date.now() + 20000;
+      try {
+        const raw = await callProviderWithRetry({
+          provider: "nvidia",
+          attempt: (timeoutMs) =>
+            callNvidia(messages, { temperature: 0.7, maxOutputTokens: 800 }, timeoutMs),
+          preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
+          maxRetries: CHAT_PRIMARY_MAX_RETRIES,
+          deadlineAt: nimDeadlineAt,
+        });
+
+        recordProviderSuccess("nvidia");
+        const nimStructured = parseStructuredAdviceStrict(raw);
+        if (nimStructured) {
+          const structured = enforceAdviceGuardrails({
+            advice: ensurePersonalizedAdvice(nimStructured, input.context),
             context: input.context,
-            reason,
-          }),
-          input.context,
-        ),
+            userMessage: input.message,
+          });
+          const isSimple = isSimpleQuestion(input.message);
+          return {
+            reply: formatStructuredAdvice(structured, isSimple),
+            structured,
+            isSimpleAnswer: isSimple,
+          };
+        } else {
+          console.error("[generateAdvisorChatReply] NIM returned non-JSON. Using raw text fallback.");
+          const rawStructured = buildRawTextStructuredAdvice(raw, input.message);
+          const structured = enforceAdviceGuardrails({
+            advice: ensurePersonalizedAdvice(rawStructured, input.context),
+            context: input.context,
+            userMessage: input.message,
+          });
+          const isSimple = isSimpleQuestion(input.message);
+          return {
+            reply: formatStructuredAdvice(structured, isSimple),
+            structured,
+            isSimpleAnswer: isSimple,
+          };
+        }
+      } catch (nimError) {
+        const nimReason = nimError instanceof Error ? nimError.message : "Unknown NIM error";
+        console.error("[generateAdvisorChatReply] NIM call failed:", nimReason);
+      }
+
+      const rawStructured = buildRawTextStructuredAdvice("", input.message);
+      const structured = enforceAdviceGuardrails({
+        advice: ensurePersonalizedAdvice(rawStructured, input.context),
         context: input.context,
         userMessage: input.message,
       });
-
+      const isSimple = isSimpleQuestion(input.message);
       return {
-        reply: formatStructuredAdvice(structured),
+        reply: formatStructuredAdvice(structured, isSimple),
         structured,
+        isSimpleAnswer: isSimple,
       };
     }
 

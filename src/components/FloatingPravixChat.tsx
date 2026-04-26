@@ -21,6 +21,7 @@ type ChatPayload = {
   reply?: string;
   structured?: AgentStructuredAdvice;
   error?: string;
+  isSimpleAnswer?: boolean;
 };
 
 type ChatMessage = {
@@ -28,6 +29,7 @@ type ChatMessage = {
   content: string;
   sentAt: string;
   structured?: AgentStructuredAdvice;
+  isSimple?: boolean;
 };
 
 const CONTACT_PHONE_NUMBER = "+91 89369 82996";
@@ -195,10 +197,19 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
 
     try {
       const token = await getAccessToken();
-      const history = messages
-        .slice(-10)
-        .map((item) => ({ role: item.role, content: item.content }))
-        .concat({ role: "user" as const, content: next });
+      const historyItems: { role: "user" | "assistant"; content: string }[] = [];
+      for (const item of messages.slice(-10)) {
+        if (item.role === "user") {
+          historyItems.push({ role: "user", content: item.content });
+        } else {
+          const assistantContent =
+            item.structured?.recommendation && item.structured?.reason
+              ? `${item.structured.recommendation}\n\n${item.structured.reason}${item.structured.nextAction ? "\n\nNext step: " + item.structured.nextAction : ""}`
+              : item.content;
+          historyItems.push({ role: "assistant", content: assistantContent });
+        }
+      }
+      historyItems.push({ role: "user", content: next });
 
       const response = await fetch("/api/agent/chat", {
         method: "POST",
@@ -208,7 +219,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
         },
         body: JSON.stringify({
           message: next,
-          history,
+          history: historyItems,
         }),
       });
 
@@ -224,6 +235,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
           content: payload.reply ?? "I could not generate a response right now.",
           sentAt: new Date().toISOString(),
           structured: payload.structured,
+          isSimple: payload.isSimpleAnswer ?? false,
         },
       ]);
     } catch (chatError) {
@@ -271,26 +283,40 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
                   {messages.length === 0 ? (
                     <p className="text-xs text-finance-muted">Start with a quick prompt below.</p>
                   ) : (
-                    messages.map((message, index) => (
-                      <article
-                        key={`${message.role}-${index}-${message.sentAt}`}
-                        className={`rounded-xl px-3 py-2.5 text-sm ${
-                          message.role === "assistant"
-                            ? "bg-finance-surface/70 text-finance-text"
-                            : "ml-auto max-w-[85%] bg-finance-accent text-white"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                        {message.role === "assistant" && message.structured ? (
-                          <div className="mt-2 rounded-lg border border-finance-border bg-white px-2.5 py-2 text-xs text-finance-text">
-                            <p><span className="font-semibold">Next:</span> {message.structured.nextAction}</p>
-                          </div>
-                        ) : null}
-                        <p className={`mt-1 text-[10px] ${message.role === "assistant" ? "text-finance-muted" : "text-white/80"}`}>
-                          {formatTime(message.sentAt)}
-                        </p>
-                      </article>
-                    ))
+                    messages.map((message, index) =>
+                      message.role === "assistant" ? (
+                        message.isSimple ? (
+                          <article
+                            key={`${message.role}-${index}-${message.sentAt}`}
+                            className="rounded-xl border border-finance-accent/20 bg-gradient-to-br from-finance-accent/5 to-white px-3 py-2.5 text-sm text-finance-text"
+                          >
+                            <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                            <p className="mt-1 text-[10px] text-finance-muted">{formatTime(message.sentAt)}</p>
+                          </article>
+                        ) : (
+                          <article
+                            key={`${message.role}-${index}-${message.sentAt}`}
+                            className="rounded-xl bg-finance-surface/70 px-3 py-2.5 text-sm text-finance-text"
+                          >
+                            <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                            {message.structured?.nextAction ? (
+                              <div className="mt-2 rounded-lg border border-finance-border bg-white px-2.5 py-2 text-xs text-finance-text">
+                                <p><span className="font-semibold">Next:</span> {message.structured.nextAction}</p>
+                              </div>
+                            ) : null}
+                            <p className="mt-1 text-[10px] text-finance-muted">{formatTime(message.sentAt)}</p>
+                          </article>
+                        )
+                      ) : (
+                        <article
+                          key={`${message.role}-${index}-${message.sentAt}`}
+                          className="ml-auto max-w-[85%] rounded-xl bg-finance-accent px-3 py-2.5 text-sm text-white"
+                        >
+                          <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                          <p className="mt-1 text-[10px] text-white/80">{formatTime(message.sentAt)}</p>
+                        </article>
+                      )
+                    )
                   )}
                 </div>
 

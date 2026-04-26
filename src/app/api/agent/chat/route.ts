@@ -56,6 +56,7 @@ export async function POST(request: Request) {
         ok: true,
         reply: advisorReply.reply,
         structured: advisorReply.structured,
+        isSimpleAnswer: advisorReply.isSimpleAnswer,
         disclaimer:
           "Educational guidance only. This is not guaranteed return advice. Validate suitability before investing.",
       },
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected chat error.";
+    console.error("[agent/chat] Error:", message, "Stack:", error instanceof Error ? error.stack : "");
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
