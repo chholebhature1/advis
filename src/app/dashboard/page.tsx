@@ -1393,7 +1393,6 @@ export default function DashboardPage() {
       const isSimple = payload.isSimpleAnswer ?? false;
       const structured = payload.structured ?? {};
       setFollowUpThread((current) => [
-        ...current,
         {
           id: `${Date.now()}-${current.length}`,
           question: trimmedQuestion,
@@ -1404,6 +1403,7 @@ export default function DashboardPage() {
           nextAction: structured.nextAction ?? "",
           intro: structured.intro ?? "",
         },
+        ...current,
       ]);
       setFollowUpQuestion("");
     } catch (submitError) {
@@ -2120,27 +2120,70 @@ export default function DashboardPage() {
                       </p>
 
                       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-start">
-                        <textarea
-                          id="ai-follow-up-question"
-                          value={followUpQuestion}
-                          onChange={(event) => {
-                            setFollowUpQuestion(event.target.value);
-                            if (followUpError) {
-                              setFollowUpError(null);
-                            }
-                          }}
-                          placeholder="Example: If I can invest INR 8,000 monthly, which option should I pick first?"
-                          className="min-h-24 w-full rounded-xl border border-[#dce8ff] bg-[#f8fbff] px-3.5 py-2.5 text-sm text-[#0a1930] outline-none transition focus:border-[#2b5cff] focus:bg-white focus:ring-2 focus:ring-[#2b5cff]/20"
-                        />
+                        <div className="relative">
+                          <textarea
+                            id="ai-follow-up-question"
+                            value={followUpQuestion}
+                            onChange={(event) => {
+                              setFollowUpQuestion(event.target.value);
+                              if (followUpError) {
+                                setFollowUpError(null);
+                              }
+                            }}
+                            placeholder="Example: If I can invest INR 8,000 monthly, which option should I pick first?"
+                            disabled={isFollowUpLoading}
+                            className="min-h-24 w-full rounded-xl border border-[#dce8ff] bg-[#f8fbff] px-3.5 py-2.5 text-sm text-[#0a1930] outline-none transition focus:border-[#2b5cff] focus:bg-white focus:ring-2 focus:ring-[#2b5cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          />
+                          {isFollowUpLoading && (
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[1px]">
+                              <div className="relative flex h-14 w-14 items-center justify-center">
+                                <div className="absolute inset-0 animate-[ping_1.5s_ease-in-out_infinite] rounded-full border-2 border-[#2b5cff]/30" style={{ animationDelay: "0ms" }} />
+                                <div className="absolute inset-0 animate-[ping_1.5s_ease-in-out_infinite] rounded-full border-2 border-[#2b5cff]/20" style={{ animationDelay: "300ms" }} />
+                                <div className="absolute inset-0 animate-[ping_1.5s_ease-in-out_infinite] rounded-full border-2 border-[#2b5cff]/10" style={{ animationDelay: "600ms" }} />
+                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2b5cff] shadow-[0_4px_14px_rgba(43,92,255,0.35)]">
+                                  <div className="flex gap-1">
+                                    <span className="h-1.5 w-1.5 animate-[bounce_1.2s_ease-in-out_infinite] rounded-full bg-white" style={{ animationDelay: "0ms" }} />
+                                    <span className="h-1.5 w-1.5 animate-[bounce_1.2s_ease-in-out_infinite] rounded-full bg-white" style={{ animationDelay: "160ms" }} />
+                                    <span className="h-1.5 w-1.5 animate-[bounce_1.2s_ease-in-out_infinite] rounded-full bg-white" style={{ animationDelay: "320ms" }} />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => void handleFollowUpSubmit()}
-                          disabled={isFollowUpLoading}
-                          className="inline-flex h-10 items-center justify-center rounded-full bg-[#2b5cff] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={isFollowUpLoading || !followUpQuestion.trim()}
+                          className="group relative inline-flex h-10 items-center justify-center rounded-full bg-[#2b5cff] px-4 text-sm font-semibold text-white transition-all duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {isFollowUpLoading ? "Answering..." : "Get Answer"}
+                          {isFollowUpLoading ? (
+                            <div className="relative flex h-5 items-center gap-2 overflow-hidden">
+                              <div className="flex gap-1">
+                                <span className="h-1.5 w-1.5 animate-[bounce_1s_ease-in-out_infinite] rounded-full bg-white/90" style={{ animationDelay: "0ms" }} />
+                                <span className="h-1.5 w-1.5 animate-[bounce_1s_ease-in-out_infinite] rounded-full bg-white/90" style={{ animationDelay: "150ms" }} />
+                                <span className="h-1.5 w-1.5 animate-[bounce_1s_ease-in-out_infinite] rounded-full bg-white/90" style={{ animationDelay: "300ms" }} />
+                              </div>
+                              <span className="relative animate-[slideLeft_1s_ease-in-out_infinite] text-[11px] font-medium tracking-wide text-white/90">Thinking</span>
+                            </div>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              Get Answer
+                              <svg className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                              </svg>
+                            </span>
+                          )}
                         </button>
                       </div>
+                      {isFollowUpLoading && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#e8f0ff]">
+                            <div className="h-full w-2/3 animate-[shimmer_2s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-[#2b5cff] via-[#7af5ff] to-[#2b5cff] bg-[length:200%_100%]" />
+                          </div>
+                          <span className="text-[10px] font-medium text-[#7a8fc4]">Crafting your answer</span>
+                        </div>
+                      )}
 
                       {followUpError ? (
                         <p className="mt-3 rounded-lg border border-finance-red/25 bg-finance-red/10 px-3 py-2 text-xs text-finance-red">
@@ -2150,11 +2193,10 @@ export default function DashboardPage() {
 
                       {followUpThread.length > 0 ? (
                         <div className="mt-3 space-y-2.5">
-                          {followUpThread.map((item, index) => (
+                          {followUpThread.map((item) => (
                             item.isSimple ? (
-                              <div key={item.id} className="rounded-2xl border border-[#e1ebff] bg-gradient-to-br from-[#f8fbff] to-white px-5 py-4 shadow-[0_4px_16px_rgba(43,92,255,0.06)]">
-                                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Question {index + 1}</p>
-                                <p className="mt-1 text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
+                              <div key={item.id} className="animate-[fadeInScale_0.4s_ease-out_forwards] rounded-2xl border border-[#e1ebff] bg-gradient-to-br from-[#f8fbff] to-white px-5 py-4 shadow-[0_4px_16px_rgba(43,92,255,0.06)]">
+                                <p className="text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
                                 <div className="mt-3 flex items-start gap-3">
                                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-finance-accent/10">
                                     <svg className="h-4 w-4 text-finance-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2168,9 +2210,8 @@ export default function DashboardPage() {
                                 </div>
                               </div>
                             ) : (
-                              <div key={item.id} className="rounded-xl border border-[#e1ebff] bg-[#f8fbff] px-3.5 py-3">
-                                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Question {index + 1}</p>
-                                <p className="mt-1 text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
+                              <div key={item.id} className="animate-[fadeInScale_0.4s_ease-out_forwards] rounded-xl border border-[#e1ebff] bg-[#f8fbff] px-3.5 py-3">
+                                <p className="text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
                                 <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Simple Answer</p>
                                 <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-[#1d355d]">{item.answer}</p>
                               </div>
