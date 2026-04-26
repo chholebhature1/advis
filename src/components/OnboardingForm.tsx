@@ -879,7 +879,7 @@ export default function OnboardingForm() {
   function renderField(field: OnboardingField) {
     const value = getFieldValue(field);
     const sharedInputClass =
-      "w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3.5 text-finance-text shadow-[0_6px_16px_rgba(18,42,90,0.06)] outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20";
+      "w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3.5 text-sm text-finance-text shadow-[0_6px_16px_rgba(18,42,90,0.06)] outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20";
 
     if (field.key === "email") {
       return (
@@ -1037,7 +1037,7 @@ export default function OnboardingForm() {
             {field.required ? " *" : ""}
           </label>
           <div className="flex gap-2">
-            <div className="relative w-[100px] flex-shrink-0">
+            <div className="relative w-[80px] flex-shrink-0">
               {isCustom ? (
                 <div className="relative">
                   <input
@@ -1079,7 +1079,7 @@ export default function OnboardingForm() {
                         setFieldValue(field, e.target.value + localPart);
                       }
                     }}
-                    className="h-12 w-full appearance-none rounded-2xl border border-[#d2dff7] bg-white/95 px-3 text-sm font-bold text-finance-text outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20 cursor-pointer"
+                    className="h-11 w-full appearance-none rounded-2xl border border-[#d2dff7] bg-white/95 px-2.5 text-xs font-bold text-finance-text outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20 cursor-pointer"
                   >
                     {COUNTRY_CODES.map((c) => (
                       <option key={c.code} value={c.code}>
@@ -1103,7 +1103,7 @@ export default function OnboardingForm() {
                   setFieldValue(field, matchingCode + val);
                 }}
                 placeholder="98765 43210"
-                className={`h-12 w-full pr-10 ${sharedInputClass}`}
+                className={`h-11 w-full pr-10 ${sharedInputClass}`}
               />
               <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
                 <Phone className="h-4 w-4 text-[#2b5cff]/40" />

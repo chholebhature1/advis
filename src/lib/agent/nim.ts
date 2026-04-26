@@ -35,381 +35,234 @@ class OpenRouterApiError extends Error {
 class ProviderQualityError extends Error {
   provider: "OpenRouter";
 
-  constructor(provider: "OpenRouter", reason: string) {
-    super(`${provider} quality gate failed: ${reason}`);
+  constructor(provider: "OpenRouter", message: string) {
+    super(message);
     this.name = "ProviderQualityError";
     this.provider = provider;
   }
 }
 
-type AllocationPlan = {
-  equityPct: number;
-  debtPct: number;
-  goldPct: number;
-  cashPct: number;
-  note: string;
+const CHAT_PRIMARY_TIMEOUT_MS = 25000;
+const CHAT_PRIMARY_MAX_RETRIES = 2;
+const DASHBOARD_PRIMARY_TIMEOUT_MS = 15000;
+const DASHBOARD_PRIMARY_MAX_RETRIES = 1;
+const DASHBOARD_REQUEST_DEADLINE_MS = 30000;
+
+let providerSuccessCount = {
+  openrouter: 0,
+  nvidia: 0,
 };
-
-type AdvisorChatReply = {
-  reply: string;
-  structured: AgentStructuredAdvice;
-  isSimpleAnswer: boolean;
-};
-
-const CHAT_PRIMARY_TIMEOUT_MS = 12_000;
-const CHAT_SECONDARY_TIMEOUT_MS = 9_000;
-const CHAT_PRIMARY_MAX_RETRIES = 1;
-const CHAT_SECONDARY_MAX_RETRIES = 1;
-const CHAT_REQUEST_DEADLINE_MS = 18_000;
-
-const DASHBOARD_PRIMARY_TIMEOUT_MS = 6_000;
-const DASHBOARD_SECONDARY_TIMEOUT_MS = 4_500;
-const DASHBOARD_PRIMARY_MAX_RETRIES = 0;
-const DASHBOARD_SECONDARY_MAX_RETRIES = 0;
-const DASHBOARD_REQUEST_DEADLINE_MS = 8_000;
-
-const RETRY_BASE_DELAY_MS = 300;
-const RETRY_JITTER_MS = 150;
-const RETRY_AFTER_MAX_MS = 2_000;
-
-const CIRCUIT_OPEN_MS = 90_000;
-const CIRCUIT_SAMPLE_SIZE = 20;
-const CIRCUIT_RATE_LIMIT_THRESHOLD = 0.3;
-const CIRCUIT_CONSECUTIVE_FAILURES = 5;
-const CIRCUIT_HALF_OPEN_PROBE_TARGET = 2;
-
-type ProviderName = "openrouter" | "nvidia";
-type CircuitMode = "closed" | "open" | "half-open";
-
-type ProviderCircuit = {
-  mode: CircuitMode;
-  openUntil: number;
-  consecutiveRetryableFailures: number;
-  recentStatuses: number[];
-  halfOpenProbeAttempts: number;
-  halfOpenProbeSuccesses: number;
-};
-
-class ProviderCircuitOpenError extends Error {
-  provider: ProviderName;
-
-  constructor(provider: ProviderName, retryAfterMs: number) {
-    super(`Provider circuit open for ${provider}. Retry after ${Math.ceil(retryAfterMs / 1000)}s.`);
-    this.name = "ProviderCircuitOpenError";
-    this.provider = provider;
-  }
-}
-
-function createProviderCircuit(): ProviderCircuit {
-  return {
-    mode: "closed",
-    openUntil: 0,
-    consecutiveRetryableFailures: 0,
-    recentStatuses: [],
-    halfOpenProbeAttempts: 0,
-    halfOpenProbeSuccesses: 0,
-  };
-}
-
-const providerCircuits: Record<ProviderName, ProviderCircuit> = {
-  openrouter: createProviderCircuit(),
-  nvidia: createProviderCircuit(),
-};
-
-function getOpenRouterApiKey() {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) {
-    throw new Error("Missing OPENROUTER_API_KEY environment variable.");
-  }
-
-  return key;
-}
 
 function getOpenRouterModel() {
-  return process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini";
+  return process.env.OPENROUTER_MODEL ?? "google/gemini-flash-1.5";
 }
 
-function getNvidiaApiKey() {
-  const key = process.env.NVIDIA_API_KEY;
-  if (!key) {
-    throw new Error("Missing NVIDIA_API_KEY environment variable.");
+function getOpenRouterApiKey() {
+  return process.env.OPENROUTER_API_KEY;
+}
+
+function recordProviderSuccess(provider: "openrouter" | "nvidia") {
+  providerSuccessCount[provider]++;
+}
+
+function inferProviderFromErrorReason(reason: string): string {
+  if (reason.toLowerCase().includes("nvidia") || reason.toLowerCase().includes("nim")) return "NVIDIA NIM";
+  if (reason.toLowerCase().includes("openrouter")) return "OpenRouter";
+  return "AI Provider";
+}
+
+function isNimCapacityError(error: unknown): boolean {
+  if (error instanceof OpenRouterApiError) {
+    return error.status === 429 || error.status === 503 || error.status === 504 || error.status >= 500;
   }
-  return key;
+  const msg = error instanceof Error ? error.message.toLowerCase() : "";
+  return (
+    msg.includes("429") ||
+    msg.includes("too many requests") ||
+    msg.includes("503") ||
+    msg.includes("504") ||
+    msg.includes("timeout") ||
+    msg.includes("deadline") ||
+    msg.includes("capacity")
+  );
 }
 
-function getNvidiaModel() {
-  return process.env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct";
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
-function toNimRole(role: AgentChatHistoryItem["role"]): NimRole {
-  return role === "assistant" ? "assistant" : "user";
-}
+async function callOpenRouter(
+  messages: NimMessage[],
+  options: { temperature: number; maxOutputTokens: number },
+  timeoutMs: number,
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-function trimHistory(history: AgentChatHistoryItem[]): AgentChatHistoryItem[] {
-  return history.slice(-8);
-}
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://pravix.in",
+        "X-Title": "Pravix Advisor",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: getOpenRouterModel(),
+        messages,
+        temperature: options.temperature,
+        max_tokens: options.maxOutputTokens,
+      }),
+    });
 
-function formatInr(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "not provided";
+    if (!response.ok) {
+      const body = await response.text();
+      const retryAfter = response.headers.get("Retry-After");
+      throw new OpenRouterApiError(response.status, summarizeNimErrorBody(body), parseRetryAfterMs(retryAfter));
+    }
+
+    const data = (await response.json()) as NimChatCompletionsResponse;
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("Empty response from OpenRouter");
+    }
+
+    if (Array.isArray(content)) {
+      return content.find((c) => c.type === "text")?.text || "";
+    }
+
+    return content;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return `INR ${Math.round(value).toLocaleString("en-IN")}`;
 }
 
-function resolveRiskBucket(context: AgentContext): string {
-  const risk = context.latestRiskAssessment?.risk_bucket ?? context.profile?.risk_appetite ?? "moderate";
-  return risk.toLowerCase();
+async function callNvidia(
+  messages: NimMessage[],
+  options: { temperature: number; maxOutputTokens: number },
+  timeoutMs: number,
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NVIDIA_NIM_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: "meta/llama-3.1-70b-instruct",
+        messages,
+        temperature: options.temperature,
+        max_tokens: options.maxOutputTokens,
+        top_p: 1,
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`NVIDIA NIM API error (${response.status}): ${summarizeNimErrorBody(body)}`);
+    }
+
+    const data = (await response.json()) as NimChatCompletionsResponse;
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("Empty response from NVIDIA NIM");
+    }
+
+    if (Array.isArray(content)) {
+      return content.find((c) => c.type === "text")?.text || "";
+    }
+
+    return content;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
-function resolveMonthlySurplus(context: AgentContext): number | null {
-  const direct = context.profile?.monthly_investable_surplus_inr;
-  if (typeof direct === "number" && Number.isFinite(direct) && direct > 0) {
-    return direct;
-  }
+async function callProviderWithRetry(params: {
+  provider: "openrouter" | "nvidia";
+  attempt: (timeoutMs: number) => Promise<string>;
+  preferredTimeoutMs: number;
+  maxRetries: number;
+  deadlineAt: number;
+}): Promise<string> {
+  let lastError: unknown;
 
-  const income = context.profile?.monthly_income_inr;
-  const expenses = context.profile?.monthly_expenses_inr;
-  if (
-    typeof income === "number" &&
-    Number.isFinite(income) &&
-    typeof expenses === "number" &&
-    Number.isFinite(expenses)
-  ) {
-    const computed = income - expenses;
-    return computed > 0 ? computed : null;
-  }
+  for (let i = 0; i < params.maxRetries; i++) {
+    const timeLeft = params.deadlineAt - Date.now();
+    if (timeLeft <= 1000) break;
 
-  return null;
-}
+    const currentTimeout = Math.min(params.preferredTimeoutMs + i * 5000, timeLeft);
 
-function getAllocationPlan(riskBucket: string): AllocationPlan {
-  if (riskBucket.includes("aggressive") || riskBucket.includes("high")) {
-    return {
-      equityPct: 75,
-      debtPct: 15,
-      goldPct: 10,
-      cashPct: 0,
-      note: "Higher equity mix can be volatile; keep a long horizon and avoid panic exits.",
-    };
-  }
-
-  if (riskBucket.includes("conservative") || riskBucket.includes("low")) {
-    return {
-      equityPct: 30,
-      debtPct: 55,
-      goldPct: 10,
-      cashPct: 5,
-      note: "Conservative allocation prioritizes stability and smoother drawdowns over max growth.",
-    };
-  }
-
-  return {
-    equityPct: 55,
-    debtPct: 30,
-    goldPct: 10,
-    cashPct: 5,
-    note: "Balanced allocation targets growth with risk control through debt and gold diversification.",
-  };
-}
-
-function formatAllocationLine(monthlyAmount: number, plan: AllocationPlan): string {
-  const equity = Math.round((monthlyAmount * plan.equityPct) / 100);
-  const debt = Math.round((monthlyAmount * plan.debtPct) / 100);
-  const gold = Math.round((monthlyAmount * plan.goldPct) / 100);
-  const cash = Math.round((monthlyAmount * plan.cashPct) / 100);
-
-  const parts = [
-    `${plan.equityPct}% equity index funds (${formatInr(equity)})`,
-    `${plan.debtPct}% short/medium debt funds (${formatInr(debt)})`,
-    `${plan.goldPct}% gold ETF/fund (${formatInr(gold)})`,
-  ];
-
-  if (plan.cashPct > 0) {
-    parts.push(`${plan.cashPct}% liquid reserve (${formatInr(cash)})`);
-  }
-
-  return parts.join(", ");
-}
-
-function normalizeAdviceField(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized.length > 0 ? normalized : null;
-}
-
-function normalizeAdviceList(value: unknown, maxItems: number, maxLength = 180): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => normalizeAdviceField(entry))
-    .filter((entry): entry is string => entry !== null)
-    .slice(0, maxItems)
-    .map((entry) => entry.slice(0, maxLength));
-}
-
-function parsePortfolioBuckets(value: unknown): NonNullable<AgentStructuredAdvice["portfolioBuckets"]> {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => {
-      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-        return null;
-      }
-
-      const record = entry as Record<string, unknown>;
-      const heading = normalizeAdviceField(record.heading ?? record.name ?? record.bucket);
-      const expectedReturn = normalizeAdviceField(record.expectedReturn ?? record.expected_return ?? record.returnRange);
-      const allocationHint = normalizeAdviceField(record.allocationHint ?? record.allocation_hint ?? record.allocation);
-      const instruments = normalizeAdviceList(record.instruments, 5, 90);
-
-      if (!heading || !expectedReturn || !allocationHint || instruments.length === 0) {
-        return null;
-      }
-
-      return {
-        heading,
-        expectedReturn,
-        instruments,
-        allocationHint,
-      };
-    })
-    .filter((bucket): bucket is NonNullable<AgentStructuredAdvice["portfolioBuckets"]>[number] => bucket !== null)
-    .slice(0, 5);
-}
-
-function parseActionPlanRows(value: unknown): NonNullable<AgentStructuredAdvice["actionPlanRows"]> {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => {
-      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-        return null;
-      }
-
-      const record = entry as Record<string, unknown>;
-      const category = normalizeAdviceField(record.category);
-      const amount = normalizeAdviceField(record.amount ?? record.amountInr ?? record.amount_inr);
-      const whereToInvest = normalizeAdviceField(record.whereToInvest ?? record.where_to_invest ?? record.instrument);
-
-      if (!category || !amount || !whereToInvest) {
-        return null;
-      }
-
-      return {
-        category,
-        amount,
-        whereToInvest,
-      };
-    })
-    .filter((row): row is NonNullable<AgentStructuredAdvice["actionPlanRows"]>[number] => row !== null)
-    .slice(0, 6);
-}
-
-function parseStructuredAdviceRecord(value: unknown): AgentStructuredAdvice | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const recommendation = normalizeAdviceField(record.recommendation ?? record.advice) ?? normalizeAdviceField(record.reason ?? record.advice) ?? "Here's my recommendation based on your profile.";
-  const reason = normalizeAdviceField(record.reason ?? record.rationale) ?? normalizeAdviceField(record.recommendation ?? record.advice) ?? "This aligns with your financial goals and risk appetite.";
-  const riskWarning = normalizeAdviceField(record.riskWarning ?? record.risk_warning ?? record.risk) ?? "All investments carry risk. Validate before acting.";
-  const nextAction = normalizeAdviceField(record.nextAction ?? record.next_action ?? record.action) ?? "Review your plan and start investing systematically.";
-
-  const intro = normalizeAdviceField(record.intro);
-  const step1Title = normalizeAdviceField(record.step1Title ?? record.step_1_title);
-  const assumptionBullets = normalizeAdviceList(record.assumptionBullets ?? record.assumptions, 4, 160);
-  const bestAssumption = normalizeAdviceField(record.bestAssumption ?? record.best_assumption);
-  const monthlySipRange = normalizeAdviceField(record.monthlySipRange ?? record.monthly_sip_range);
-  const monthlySipBreakdown = normalizeAdviceList(record.monthlySipBreakdown ?? record.monthly_sip_breakdown, 4, 180);
-  const step2Title = normalizeAdviceField(record.step2Title ?? record.step_2_title);
-  const portfolioBuckets = parsePortfolioBuckets(record.portfolioBuckets ?? record.portfolio_buckets);
-  const step3Title = normalizeAdviceField(record.step3Title ?? record.step_3_title);
-  const actionPlanRows = parseActionPlanRows(record.actionPlanRows ?? record.action_plan_rows);
-
-  return {
-    recommendation,
-    reason,
-    riskWarning,
-    nextAction,
-    ...(intro ? { intro } : {}),
-    ...(step1Title ? { step1Title } : {}),
-    ...(assumptionBullets.length > 0 ? { assumptionBullets } : {}),
-    ...(bestAssumption ? { bestAssumption } : {}),
-    ...(monthlySipRange ? { monthlySipRange } : {}),
-    ...(monthlySipBreakdown.length > 0 ? { monthlySipBreakdown } : {}),
-    ...(step2Title ? { step2Title } : {}),
-    ...(portfolioBuckets.length > 0 ? { portfolioBuckets } : {}),
-    ...(step3Title ? { step3Title } : {}),
-    ...(actionPlanRows.length > 0 ? { actionPlanRows } : {}),
-  };
-}
-
-function stripCodeFence(raw: string): string {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return fenced?.[1]?.trim() ?? trimmed;
-}
-
-function parseStructuredAdviceFromJson(raw: string): AgentStructuredAdvice | null {
-  const normalized = stripCodeFence(raw);
-  const candidates = [normalized];
-  const firstBrace = normalized.indexOf("{");
-  const lastBrace = normalized.lastIndexOf("}");
-
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    candidates.push(normalized.slice(firstBrace, lastBrace + 1));
-  }
-
-  for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(candidate) as unknown;
-      const structured = parseStructuredAdviceRecord(parsed);
-      if (structured) {
-        return structured;
+      return await params.attempt(currentTimeout);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof Error && error.name === "AbortError") {
+        console.warn(`[callProviderWithRetry] ${params.provider} timeout on attempt ${i + 1}`);
+        continue;
       }
-    } catch {
-      continue;
+      if (error instanceof OpenRouterApiError && error.status === 429) {
+        const wait = error.retryAfterMs || 2000;
+        console.warn(`[callProviderWithRetry] ${params.provider} rate limit. Waiting ${wait}ms...`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      throw error;
     }
   }
 
-  return null;
+  throw lastError || new Error(`Failed ${params.provider} after ${params.maxRetries} attempts`);
+}
+
+function parseStructuredAdviceFromJson(raw: string): AgentStructuredAdvice | null {
+  try {
+    const cleaned = raw.replace(/```json\n?|```\n?/gi, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed && typeof parsed === "object") {
+      return parsed as AgentStructuredAdvice;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAdviceField(text: string | undefined): string | null {
+  if (!text) return null;
+  return text.replace(/[*_#~]/g, "").trim();
 }
 
 function parseStructuredAdviceFromSections(raw: string): AgentStructuredAdvice | null {
-  const normalized = raw.replace(/\r\n/g, "\n").trim();
-  const match = normalized.match(
-    /recommendation\s*:?\s*([\s\S]*?)\n+\s*reason\s*:?\s*([\s\S]*?)\n+\s*risk(?:\s*warning)?\s*:?\s*([\s\S]*?)\n+\s*next\s*action\s*:?\s*([\s\S]*)$/i,
-  );
+  const recommendationMatch = raw.match(/RECOMMENDATION:?\s*([\s\S]+?)(?=REASON:?|RISK:?|ACTION:?|$)/i);
+  const reasonMatch = raw.match(/REASON:?\s*([\s\S]+?)(?=RISK:?|ACTION:?|$)/i);
+  const riskMatch = raw.match(/(?:RISK|WARNING):?\s*([\s\S]+?)(?=ACTION:?|NEXT:?|$)/i);
+  const actionMatch = raw.match(/(?:ACTION|NEXT):?\s*([\s\S]+?)$/i);
 
-  if (!match) {
-    return null;
-  }
+  if (!recommendationMatch) return null;
 
-  const recommendation = normalizeAdviceField(match[1]);
-  const reason = normalizeAdviceField(match[2]);
-  const riskWarning = normalizeAdviceField(match[3]);
-  const nextAction = normalizeAdviceField(match[4]);
+  const recommendation = normalizeAdviceField(recommendationMatch[1]);
+  const reason = normalizeAdviceField(reasonMatch?.[1]);
+  const riskWarning = normalizeAdviceField(riskMatch?.[1]);
+  const nextAction = normalizeAdviceField(actionMatch?.[1]);
 
-  if (!recommendation || !reason || !riskWarning || !nextAction) {
-    return null;
-  }
+  if (!recommendation) return null;
 
   return {
     recommendation,
-    reason,
-    riskWarning,
-    nextAction,
+    reason: reason || "Based on your financial profile and goals.",
+    riskWarning: riskWarning || "Returns are market-linked and not guaranteed.",
+    nextAction: nextAction || "Start a monthly SIP and review quarterly.",
   };
 }
 
@@ -419,503 +272,431 @@ function parseStructuredAdviceStrict(raw: string): AgentStructuredAdvice | null 
 
 function buildRawTextStructuredAdvice(rawText: string, userMessage: string): AgentStructuredAdvice {
   const cleaned = rawText.replace(/```json\n?|```\n?/gi, "").trim();
+  const lines = cleaned.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  const paragraphs = cleaned.split(/\n\n+/).filter((p) => p.trim().length > 0);
-  const firstPara = paragraphs[0]?.trim() ?? "Here's guidance based on your question.";
-  const remainingParas = paragraphs.slice(1);
+  let recommendation = "";
+  let currentSection = "";
+  const sections: Record<string, string[]> = {};
 
-  let recommendation = firstPara;
-  let reason = "";
-  let nextAction = "";
-  let intro = firstPara;
-
-  for (const para of remainingParas) {
-    const lowerPara = para.toLowerCase();
-    if (lowerPara.includes("next step") || lowerPara.includes("action") || lowerPara.includes("should do")) {
-      if (!nextAction) nextAction = para.replace(/^[^:]+:?\s*/i, "").trim();
-    } else if (!reason) {
-      reason = para.replace(/^[^:]+:?\s*/i, "").trim();
-    }
-  }
-
-  if (!reason) {
-    reason = remainingParas.find((p) => p.length > 30) ?? "This recommendation fits your financial profile.";
-  }
-
-  if (!nextAction) {
-    nextAction = "Review this guidance and decide your next step based on your comfort level.";
-  }
-
-  return {
-    recommendation,
-    reason,
-    riskWarning: "All investment advice is educational only. Verify with a qualified advisor before investing.",
-    nextAction,
-    intro,
-  };
-}
-
-type GoalFeasibilitySnapshot = {
-  goalTitle: string;
-  targetAmountInr: number;
-  monthsToGoal: number;
-  annualReturnPct: number;
-  requiredSipInr: number;
-  monthlySurplusInr: number | null;
-  projectedCorpusAtSurplusInr: number;
-  feasibleAtCurrentSurplus: boolean;
-};
-
-type MessageGoalIntent = {
-  goalTitle: string;
-  targetAmountInr: number;
-  monthsToGoal: number;
-};
-
-function priorityRank(priority: string | null | undefined): number {
-  const normalized = (priority ?? "medium").toLowerCase();
-  if (normalized === "high") {
-    return 0;
-  }
-
-  if (normalized === "low") {
-    return 2;
-  }
-
-  return 1;
-}
-
-function selectPrimaryGoal(context: AgentContext): AgentContext["goals"][number] | null {
-  if (context.goals.length === 0) {
-    return null;
-  }
-
-  return context.goals
-    .slice()
-    .sort((left, right) => {
-      const rankDiff = priorityRank(left.priority) - priorityRank(right.priority);
-      if (rankDiff !== 0) {
-        return rankDiff;
-      }
-
-      const leftDate = left.target_date ? Date.parse(left.target_date) : Number.POSITIVE_INFINITY;
-      const rightDate = right.target_date ? Date.parse(right.target_date) : Number.POSITIVE_INFINITY;
-      return leftDate - rightDate;
-    })[0] ?? null;
-}
-
-function resolveGoalMonths(goal: AgentContext["goals"][number], context: AgentContext): number | null {
-  if (goal.target_date) {
-    const targetDate = new Date(goal.target_date);
-    if (!Number.isNaN(targetDate.getTime())) {
-      const diffMs = targetDate.getTime() - Date.now();
-      if (diffMs > 0) {
-        return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24 * 30.4375)));
-      }
-    }
-  }
-
-  const profileYears = context.profile?.target_horizon_years;
-  if (typeof profileYears === "number" && Number.isFinite(profileYears) && profileYears > 0) {
-    return Math.max(1, Math.round(profileYears * 12));
-  }
-
-  const riskYears = context.latestRiskAssessment?.time_horizon_years;
-  if (typeof riskYears === "number" && Number.isFinite(riskYears) && riskYears > 0) {
-    return Math.max(1, Math.round(riskYears * 12));
-  }
-
-  return null;
-}
-
-function expectedAnnualReturnPctForFeasibility(riskBucket: string): number {
-  if (riskBucket.includes("aggressive") || riskBucket.includes("high")) {
-    return 12;
-  }
-
-  if (riskBucket.includes("conservative") || riskBucket.includes("low")) {
-    return 8;
-  }
-
-  return 10;
-}
-
-function normalizeAmountTokenToInr(amountToken: string, unitToken: string | null): number | null {
-  const raw = Number.parseFloat(amountToken.replace(/,/g, ""));
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return null;
-  }
-
-  const unit = (unitToken ?? "").toLowerCase();
-  if (["lakh", "lakhs", "lac", "lacs"].includes(unit)) {
-    return raw * 100_000;
-  }
-
-  if (["crore", "crores", "cr"].includes(unit)) {
-    return raw * 10_000_000;
-  }
-
-  if (["k", "thousand"].includes(unit)) {
-    return raw * 1_000;
-  }
-
-  if (["m", "million"].includes(unit)) {
-    return raw * 1_000_000;
-  }
-
-  return raw;
-}
-
-function extractUserGoalIntent(message: string): MessageGoalIntent | null {
-  const normalized = message.toLowerCase();
-  const horizonMatch = normalized.match(
-    /(?:in|within|next)\s+([0-9]+(?:\.[0-9]+)?)\s*(year|years|yr|yrs|month|months|mo|mos)\b/i,
-  );
-
-  if (!horizonMatch?.[1] || !horizonMatch?.[2]) {
-    return null;
-  }
-
-  const horizonValue = Number.parseFloat(horizonMatch[1]);
-  if (!Number.isFinite(horizonValue) || horizonValue <= 0) {
-    return null;
-  }
-
-  const horizonUnit = horizonMatch[2].toLowerCase();
-  const monthsToGoal = horizonUnit.startsWith("year") || horizonUnit.startsWith("yr")
-    ? Math.max(1, Math.round(horizonValue * 12))
-    : Math.max(1, Math.round(horizonValue));
-
-  const amountMatches = Array.from(
-    normalized.matchAll(/(?:₹|inr\s*)?([0-9][0-9,]*(?:\.[0-9]+)?)\s*(lakh|lakhs|lac|lacs|crore|crores|cr|k|thousand|m|million)?/gi),
-  );
-
-  const amountCandidates = amountMatches
-    .map((match) => normalizeAmountTokenToInr(match[1] ?? "", match[2] ?? null))
-    .filter((value): value is number => value !== null)
-    .filter((value) => value >= 50_000);
-
-  if (amountCandidates.length === 0) {
-    return null;
-  }
-
-  const targetAmountInr = Math.max(...amountCandidates);
-  const goalTitle =
-    normalized.includes("car")
-      ? "car goal"
-      : normalized.includes("house") || normalized.includes("home")
-        ? "home goal"
-        : normalized.includes("retire")
-          ? "retirement goal"
-          : "stated goal";
-
-  return {
-    goalTitle,
-    targetAmountInr,
-    monthsToGoal,
-  };
-}
-
-function futureValueFromSip(monthlySip: number, monthlyRate: number, months: number): number {
-  if (months <= 0 || monthlySip <= 0) {
-    return 0;
-  }
-
-  if (monthlyRate <= 0) {
-    return monthlySip * months;
-  }
-
-  return monthlySip * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
-}
-
-function computeFeasibilitySnapshot(input: {
-  goalTitle: string;
-  targetAmountInr: number;
-  monthsToGoal: number;
-  context: AgentContext;
-}): GoalFeasibilitySnapshot | null {
-  if (!Number.isFinite(input.targetAmountInr) || input.targetAmountInr <= 0 || input.monthsToGoal <= 0) {
-    return null;
-  }
-
-  const riskBucket = resolveRiskBucket(input.context);
-  const annualReturnPct = expectedAnnualReturnPctForFeasibility(riskBucket);
-  const monthlyRate = annualReturnPct / 1200;
-
-  const currentSavingsRaw = input.context.profile?.current_savings_inr;
-  const currentSavingsInr =
-    typeof currentSavingsRaw === "number" && Number.isFinite(currentSavingsRaw) && currentSavingsRaw > 0
-      ? currentSavingsRaw
-      : 0;
-
-  const futureSavings = monthlyRate <= 0 ? currentSavingsInr : currentSavingsInr * Math.pow(1 + monthlyRate, input.monthsToGoal);
-  const sipGrowthFactor =
-    monthlyRate <= 0 ? input.monthsToGoal : (Math.pow(1 + monthlyRate, input.monthsToGoal) - 1) / monthlyRate;
-
-  const requiredSipRaw =
-    sipGrowthFactor > 0
-      ? (input.targetAmountInr - futureSavings) / sipGrowthFactor
-      : input.targetAmountInr / input.monthsToGoal;
-  const requiredSipInr = Math.max(0, Math.ceil(requiredSipRaw));
-
-  const monthlySurplusInr = resolveMonthlySurplus(input.context);
-  const projectedCorpusAtSurplusInr =
-    monthlySurplusInr && monthlySurplusInr > 0
-      ? futureSavings + futureValueFromSip(monthlySurplusInr, monthlyRate, input.monthsToGoal)
-      : futureSavings;
-
-  return {
-    goalTitle: input.goalTitle,
-    targetAmountInr: input.targetAmountInr,
-    monthsToGoal: input.monthsToGoal,
-    annualReturnPct,
-    requiredSipInr,
-    monthlySurplusInr,
-    projectedCorpusAtSurplusInr,
-    feasibleAtCurrentSurplus: monthlySurplusInr !== null && monthlySurplusInr >= requiredSipInr,
-  };
-}
-
-function computeGoalFeasibility(context: AgentContext): GoalFeasibilitySnapshot | null {
-  const goal = selectPrimaryGoal(context);
-  if (!goal || !Number.isFinite(goal.target_amount_inr) || goal.target_amount_inr <= 0) {
-    return null;
-  }
-
-  const monthsToGoal = resolveGoalMonths(goal, context);
-  if (!monthsToGoal) {
-    return null;
-  }
-
-  return computeFeasibilitySnapshot({
-    goalTitle: goal.title,
-    targetAmountInr: goal.target_amount_inr,
-    monthsToGoal,
-    context,
-  });
-}
-
-function estimateMonthsToTarget(input: {
-  targetAmountInr: number;
-  annualReturnPct: number;
-  monthlyContributionInr: number;
-  currentSavingsInr: number;
-}): number | null {
-  if (input.monthlyContributionInr <= 0 || input.targetAmountInr <= 0) {
-    return null;
-  }
-
-  const monthlyRate = input.annualReturnPct / 1200;
-  for (let months = 1; months <= 600; months += 1) {
-    const futureSavings = monthlyRate <= 0
-      ? input.currentSavingsInr
-      : input.currentSavingsInr * Math.pow(1 + monthlyRate, months);
-
-    const corpus = futureSavings + futureValueFromSip(input.monthlyContributionInr, monthlyRate, months);
-    if (corpus >= input.targetAmountInr) {
-      return months;
-    }
-  }
-
-  return null;
-}
-
-function dedupeSentences(value: string): string {
-  const parts = value
-    .match(/[^.!?]+[.!?]?/g)
-    ?.map((item) => item.trim())
-    .filter(Boolean) ?? [value.trim()];
-
-  const seen = new Set<string>();
-  const deduped: string[] = [];
-
-  for (const part of parts) {
-    const key = part.toLowerCase();
-    if (seen.has(key)) {
+  for (const line of lines) {
+    if (!recommendation) {
+      recommendation = line;
       continue;
     }
-
-    seen.add(key);
-    deduped.push(part);
+    // Detect CAPS section titles
+    if (
+      /^[A-Z][A-Z\s]{4,}$/.test(line) &&
+      !line.startsWith("–") &&
+      !line.startsWith("-") &&
+      !line.startsWith("📌")
+    ) {
+      currentSection = line;
+      sections[currentSection] = [];
+      continue;
+    }
+    if (currentSection) {
+      sections[currentSection] = sections[currentSection] ?? [];
+      (sections[currentSection] as string[]).push(line);
+    }
   }
 
-  return deduped.join(" ").trim();
-}
+  const takeawayKey = Object.keys(sections).find(
+    (k) => k.includes("TAKEAWAY") || k.includes("KEY")
+  );
+  const takeaway = takeawayKey
+    ? (sections[takeawayKey] ?? []).join(" ")
+    : "";
 
-function normalizeNextAction(value: string): string {
-  const stripped = value.replace(/^(next(\s*action)?\s*:?\s*)+/i, "").trim();
-  return stripped.length > 0 ? stripped : value.trim();
-}
-
-function normalizeAdviceShape(advice: AgentStructuredAdvice): AgentStructuredAdvice {
-  const portfolioBuckets = (advice.portfolioBuckets ?? [])
-    .map((bucket) => ({
-      heading: dedupeSentences(bucket.heading),
-      expectedReturn: dedupeSentences(bucket.expectedReturn),
-      instruments: bucket.instruments.map((item) => dedupeSentences(item)).slice(0, 5),
-      allocationHint: dedupeSentences(bucket.allocationHint),
-    }))
-    .filter((bucket) => bucket.heading && bucket.expectedReturn && bucket.instruments.length > 0 && bucket.allocationHint)
-    .slice(0, 5);
-
-  const actionPlanRows = (advice.actionPlanRows ?? [])
-    .map((row) => ({
-      category: dedupeSentences(row.category),
-      amount: dedupeSentences(row.amount),
-      whereToInvest: dedupeSentences(row.whereToInvest),
-    }))
-    .filter((row) => row.category && row.amount && row.whereToInvest)
+  const actionKey = Object.keys(sections).find((k) => k.includes("ACTION"));
+  const actionLines = actionKey ? (sections[actionKey] ?? []) : [];
+  const actionPlanRows = actionLines
+    .filter((l) => l.startsWith("–") || l.startsWith("-"))
+    .map((l) => {
+      const clean = l.replace(/^[–\-]\s*/, "");
+      const arrowParts = clean.split("→");
+      const colonMatch = clean.match(/^([^:]+):(.*)$/);
+      const colonParts = colonMatch ? [colonMatch[1], colonMatch[2]] : [clean];
+      if (arrowParts.length >= 2) {
+        return {
+          category: arrowParts[0]?.trim() ?? clean,
+          amount: "—",
+          whereToInvest: arrowParts[1]?.trim() ?? "—",
+        };
+      }
+      if (colonParts.length >= 2) {
+        return {
+          category: colonParts[0]?.trim() ?? clean,
+          amount: "—",
+          whereToInvest: colonParts[1]?.trim() ?? "—",
+        };
+      }
+      return { category: clean, amount: "—", whereToInvest: "—" };
+    })
+    .filter((r) => r.category.length > 0)
     .slice(0, 6);
 
+  const allocKey = Object.keys(sections).find(
+    (k) => k.includes("ALLOCAT") || k.includes("SIP")
+  );
+  const allocLines = allocKey ? (sections[allocKey] ?? []) : [];
+  const portfolioBuckets: NonNullable<AgentStructuredAdvice["portfolioBuckets"]> = [];
+  let currentBucket: { heading: string; lines: string[] } | null = null;
+
+  for (const line of allocLines) {
+    if (/^\d+\./.test(line)) {
+      if (currentBucket) {
+        portfolioBuckets.push({
+          heading: currentBucket.heading,
+          expectedReturn:
+            currentBucket.lines.find(
+              (l) => l.toLowerCase().includes("return") || l.includes("%")
+            ) ?? "10–12% p.a.",
+          instruments: currentBucket.lines
+            .filter((l) => l.toLowerCase().includes("invest in"))
+            .map((l) => l.replace(/^.*invest in:\s*/i, "").trim()),
+          allocationHint:
+            currentBucket.lines.find(
+              (l) =>
+                !l.toLowerCase().includes("return") &&
+                !l.toLowerCase().includes("invest")
+            ) ?? "",
+        });
+      }
+      currentBucket = {
+        heading: line.replace(/^\d+\.\s*/, ""),
+        lines: [],
+      };
+    } else if (currentBucket) {
+      currentBucket.lines.push(line.replace(/^[-–]\s*/, ""));
+    }
+  }
+  if (currentBucket) {
+    portfolioBuckets.push({
+      heading: currentBucket.heading,
+      expectedReturn:
+        currentBucket.lines.find(
+          (l) => l.toLowerCase().includes("return") || l.includes("%")
+        ) ?? "10–12% p.a.",
+      instruments: currentBucket.lines
+        .filter((l) => l.toLowerCase().includes("invest in"))
+        .map((l) => l.replace(/^.*invest in:\s*/i, "").trim()),
+      allocationHint:
+        currentBucket.lines.find(
+          (l) =>
+            !l.toLowerCase().includes("return") &&
+            !l.toLowerCase().includes("invest")
+        ) ?? "",
+    });
+  }
+
+  const howMuchKey = Object.keys(sections).find(
+    (k) => k.includes("HOW MUCH") || k.includes("INVEST")
+  );
+  const howMuchLines = howMuchKey ? (sections[howMuchKey] ?? []) : [];
+  const sipRangeLine = howMuchLines.find(
+    (l) => l.toLowerCase().includes("range") || l.includes("to ₹")
+  );
+
   return {
-    recommendation: dedupeSentences(advice.recommendation),
-    reason: dedupeSentences(advice.reason),
-    riskWarning: dedupeSentences(advice.riskWarning),
-    nextAction: dedupeSentences(normalizeNextAction(advice.nextAction)),
-    ...(advice.intro ? { intro: dedupeSentences(advice.intro) } : {}),
-    ...(advice.step1Title ? { step1Title: dedupeSentences(advice.step1Title) } : {}),
-    ...(advice.assumptionBullets && advice.assumptionBullets.length > 0
-      ? { assumptionBullets: advice.assumptionBullets.map((item) => dedupeSentences(item)).slice(0, 4) }
-      : {}),
-    ...(advice.bestAssumption ? { bestAssumption: dedupeSentences(advice.bestAssumption) } : {}),
-    ...(advice.monthlySipRange ? { monthlySipRange: dedupeSentences(advice.monthlySipRange) } : {}),
-    ...(advice.monthlySipBreakdown && advice.monthlySipBreakdown.length > 0
-      ? { monthlySipBreakdown: advice.monthlySipBreakdown.map((item) => dedupeSentences(item)).slice(0, 4) }
-      : {}),
-    ...(advice.step2Title ? { step2Title: dedupeSentences(advice.step2Title) } : {}),
+    recommendation: recommendation || "I'm ready to help with your wealth goals.",
+    reason: takeaway && takeaway.trim() !== recommendation.trim() ? takeaway : "",
+    riskWarning:
+      "Returns are market-linked and not guaranteed. Verify before investing.",
+    nextAction:
+      actionLines
+        .find((l) => l.startsWith("–") || l.startsWith("-"))
+        ?.replace(/^[–\-]\s*/, "") ??
+      "Start a monthly SIP and review your allocation every quarter.",
+    intro: "",
+    step1Title: "HOW MUCH TO INVEST",
+    assumptionBullets: howMuchLines
+      .filter((l) => l.startsWith("–") || l.startsWith("-"))
+      .map((l) => l.replace(/^[–\-]\s*/, ""))
+      .slice(0, 4),
+    ...(sipRangeLine ? { monthlySipRange: sipRangeLine } : {}),
+    step2Title: "HOW TO ALLOCATE YOUR SIP",
     ...(portfolioBuckets.length > 0 ? { portfolioBuckets } : {}),
-    ...(advice.step3Title ? { step3Title: dedupeSentences(advice.step3Title) } : {}),
+    step3Title: "YOUR ACTION PLAN",
     ...(actionPlanRows.length > 0 ? { actionPlanRows } : {}),
   };
 }
 
-function flattenAdviceText(advice: AgentStructuredAdvice): string {
-  return [
-    advice.recommendation,
-    advice.reason,
-    advice.riskWarning,
-    advice.nextAction,
-    advice.intro,
-    advice.step1Title,
-    ...(advice.assumptionBullets ?? []),
-    advice.bestAssumption,
-    advice.monthlySipRange,
-    ...(advice.monthlySipBreakdown ?? []),
-    advice.step2Title,
-    ...(advice.portfolioBuckets ?? []).flatMap((bucket) => [bucket.heading, bucket.expectedReturn, ...bucket.instruments, bucket.allocationHint]),
-    advice.step3Title,
-    ...(advice.actionPlanRows ?? []).flatMap((row) => [row.category, row.amount, row.whereToInvest]),
-  ]
-    .filter((item): item is string => typeof item === "string" && item.length > 0)
-    .join(" ");
+function formatInr(value: number | null | undefined): string {
+  if (value == null) return "₹0";
+  if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)}Cr`;
+  if (value >= 100000) return `₹${(value / 100000).toFixed(2)}L`;
+  return `₹${Math.round(value).toLocaleString("en-IN")}`;
 }
 
-function extractCurrencyValues(text: string): number[] {
-  const matches = Array.from(text.matchAll(/(?:₹|INR)\s*([0-9][0-9,]*(?:\.\d+)?)/gi));
-  return matches
-    .map((match) => Number.parseFloat((match[1] ?? "").replace(/,/g, "")))
-    .filter((value) => Number.isFinite(value) && value > 0);
+function resolveMonthlySurplus(context: AgentContext): number | null {
+  const income = context.profile?.monthly_income_inr || 0;
+  const expenses = context.profile?.monthly_expenses_inr || 0;
+  const surplus = income - expenses;
+  return surplus > 0 ? surplus : null;
 }
 
-function extractMonthlyInvestmentHintInr(text: string): number | null {
-  const monthlyPattern = /(?:₹|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*(?:per\s*month|\/\s*month|monthly)/i;
-  const match = text.match(monthlyPattern);
-  if (!match?.[1]) {
+function resolveRiskBucket(context: AgentContext): "Aggressive" | "Moderate" | "Conservative" {
+  const tolerance = (context.profile?.risk_appetite || "moderate").toLowerCase();
+  if (tolerance.includes("high") || tolerance.includes("aggressive")) return "Aggressive";
+  if (tolerance.includes("low") || tolerance.includes("conservative")) return "Conservative";
+  return "Moderate";
+}
+
+type AllocationPlan = {
+  equityPct: number;
+  debtPct: number;
+  goldPct: number;
+  liquidPct: number;
+  note: string;
+};
+
+function getAllocationPlan(bucket: "Aggressive" | "Moderate" | "Conservative"): AllocationPlan {
+  if (bucket === "Aggressive") {
+    return {
+      equityPct: 75,
+      debtPct: 15,
+      goldPct: 5,
+      liquidPct: 5,
+      note: "High equity exposure for long-term wealth creation.",
+    };
+  }
+  if (bucket === "Conservative") {
+    return {
+      equityPct: 30,
+      debtPct: 55,
+      goldPct: 5,
+      liquidPct: 10,
+      note: "Higher debt allocation to protect capital and reduce volatility.",
+    };
+  }
+  return {
+    equityPct: 55,
+    debtPct: 30,
+    goldPct: 10,
+    liquidPct: 5,
+    note: "Balanced approach for steady growth and risk management.",
+  };
+}
+
+function formatAllocationLine(surplus: number, plan: AllocationPlan): string {
+  const parts: string[] = [];
+  if (plan.equityPct > 0) parts.push(`${plan.equityPct}% Equity (${formatInr((surplus * plan.equityPct) / 100)})`);
+  if (plan.debtPct > 0) parts.push(`${plan.debtPct}% Debt (${formatInr((surplus * plan.debtPct) / 100)})`);
+  if (plan.goldPct > 0) parts.push(`${plan.goldPct}% Gold (${formatInr((surplus * plan.goldPct) / 100)})`);
+  return parts.join(", ");
+}
+
+function isSimpleQuestion(message: string): boolean {
+  const msg = message.toLowerCase().trim();
+  const exactGreetings = [
+    "hi", "hi!", "hello", "hello!", "hey", "hey!",
+    "thanks", "thank you", "ok", "okay", "bye",
+    "good morning", "good night", "good evening"
+  ];
+  const isExactGreeting = exactGreetings.includes(msg);
+  const wordCount = msg.split(/\s+/).length;
+  const isVeryShort = wordCount <= 2 && msg.length < 10;
+  const hasFinanceKeyword = /invest|sip|mutual|fund|stock|goal|tax|retire|emi|loan|wealth|portfolio|elss|nifty|equity|debt|gold|₹|inr|car|house|home|crore|lakh|return|saving|budget|income|expense|insurance|fd|ppf|nps/.test(msg);
+  return (isExactGreeting || isVeryShort) && !hasFinanceKeyword;
+}
+
+async function fetchMarketIndicators(): Promise<{ nifty: number; bankNifty: number; sensex: number; trend: string } | null> {
+  try {
+    const response = await fetch("http://localhost:3000/api/market/indices", { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data.indices || data.indices.length < 3) return null;
+    return {
+      nifty: data.indices.find((i: { id: string }) => i.id === "NIFTY50")?.value ?? 0,
+      bankNifty: data.indices.find((i: { id: string }) => i.id === "BANKNIFTY")?.value ?? 0,
+      sensex: data.indices.find((i: { id: string }) => i.id === "SENSEX")?.value ?? 0,
+      trend: data.indices.find((i: { id: string }) => i.id === "NIFTY50")?.trend ?? "flat",
+    };
+  } catch {
     return null;
   }
-
-  const value = Number.parseFloat(match[1].replace(/,/g, ""));
-  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-function isCloseToKnownValue(candidate: number, knownValues: number[]): boolean {
-  return knownValues.some((known) => {
-    const tolerance = Math.max(500, known * 0.05);
-    return Math.abs(candidate - known) <= tolerance;
-  });
+function buildContextBlock(context: AgentContext): string {
+  const p = context.profile;
+  const r = context.latestRiskAssessment;
+  
+  // Calculate key metrics
+  const income = p?.monthly_income_inr || 0;
+  const expenses = p?.monthly_expenses_inr || 0;
+  const emi = p?.monthly_emi_inr || 0;
+  const storedSurplus = p?.monthly_investable_surplus_inr || 0;
+  const calculatedSurplus = income - expenses - emi;
+  const effectiveSurplus = storedSurplus > 0 ? storedSurplus : Math.max(0, calculatedSurplus);
+  const savings = p?.current_savings_inr || 0;
+  
+  // Portfolio analysis
+  const totalHoldingsValue = context.holdings.reduce((sum, h) => 
+    sum + (h.quantity * h.current_price_inr), 0);
+  const holdingsByAsset = context.holdings.reduce((acc, h) => {
+    acc[h.asset_class] = (acc[h.asset_class] || 0) + (h.quantity * h.current_price_inr);
+    return acc;
+  }, {} as Record<string, number>);
+  
+  // Goal analysis
+  const totalGoalsValue = context.goals.reduce((sum, g) => sum + g.target_amount_inr, 0);
+  const earliestGoal = context.goals.length > 0 
+    ? context.goals.reduce((min, g) => {
+        const d = g.target_date ? new Date(g.target_date).getTime() : Infinity;
+        return d < min.date ? { date: d, goal: g } : min;
+      }, { date: Infinity, goal: context.goals[0] }).goal
+    : null;
+  
+  const lines = [
+    "=== COMPLETE FINANCIAL PROFILE ===",
+    "",
+    "-- INCOME & EXPENSES --",
+    `Monthly Income: ${formatInr(income)}/month`,
+    `Monthly Expenses: ${formatInr(expenses)}/month`,
+    `Monthly EMIs: ${formatInr(emi)}/month`,
+    `Net Available for Investment: ${formatInr(effectiveSurplus)}/month`,
+    `Current Savings: ${formatInr(savings)}`,
+    `Total Invested Holdings: ${formatInr(totalHoldingsValue)}`,
+    `Net Worth (Liquid + Invested): ${formatInr(savings + totalHoldingsValue)}`,
+    "",
+    "-- RISK PROFILE --",
+    `Risk Appetite: ${p?.risk_appetite || "Not assessed"}`,
+    `Risk Bucket: ${r?.risk_bucket || p?.risk_appetite || "Moderate"}`,
+    `Risk Score: ${r?.risk_score ?? "N/A"}/100`,
+    `Drawdown Tolerance: ${r?.drawdown_tolerance_pct ?? p?.loss_tolerance_pct ?? "N/A"}%`,
+    `Investment Time Horizon: ${r?.time_horizon_years ?? p?.target_horizon_years ?? "N/A"} years`,
+    `Emergency Fund: ${p?.emergency_fund_months || 0} months of expenses`,
+    "",
+    "-- GOALS ANALYSIS --",
+    `Total Goals: ${context.goals.length}`,
+    `Total Target Amount: ${formatInr(totalGoalsValue)}`,
+    context.goals.length > 1 
+      ? `Goal Conflict Check: Multiple goals requiring prioritization`
+      : "Primary Goal Only",
+    earliestGoal ? `Most Urgent Goal: ${earliestGoal.title} by ${earliestGoal.target_date}` : "No timeline set",
+    ...context.goals.map((g, i) => 
+      `  ${i + 1}. ${g.title} (${g.category}) - ${formatInr(g.target_amount_inr)} by ${g.target_date || "unspecified"} [Priority: ${g.priority}]`
+    ),
+    "",
+    "-- EXISTING INVESTMENTS --",
+    `Has Prior Investments: ${p?.has_existing_investments ? "Yes" : "No"}`,
+    p?.existing_investment_types?.length 
+      ? `Existing Types: ${p.existing_investment_types.join(", ")}` 
+      : "",
+    `Current Holdings: ${context.holdings.length} instruments`,
+    ...Object.entries(holdingsByAsset).map(([asset, value]) => 
+      `  - ${asset}: ${formatInr(value)}`
+    ),
+    totalHoldingsValue > 0 ? `  Total Holdings Value: ${formatInr(totalHoldingsValue)}` : "",
+    "",
+    "-- TAX & KYC STATUS --",
+    `Tax Regime: ${p?.tax_regime || "Not specified"}`,
+    `KYC Status: ${p?.kyc_status || "Not verified"}`,
+    `Onboarding: ${p?.onboarding_completed_at ? "Completed" : "Incomplete"}`,
+    "",
+    "-- DEMOGRAPHICS --",
+    `Occupation: ${p?.occupation_title || "Not specified"} (${p?.employment_type || "Unknown type"})`,
+    `Location: ${p?.city || "Unknown"}, ${p?.state || "Unknown"}`,
+    `Age Context: ${p?.date_of_birth ? `Born ${p.date_of_birth}` : "Not provided"}`,
+    "",
+    "=== END PROFILE ===",
+  ];
+  
+  return lines.filter(Boolean).join("\n");
 }
 
-function collectKnownCurrencyValues(context: AgentContext, feasibility: GoalFeasibilitySnapshot | null): number[] {
-  const values: number[] = [];
-
-  const profileNumbers = [
-    context.profile?.monthly_income_inr,
-    context.profile?.monthly_expenses_inr,
-    context.profile?.monthly_emi_inr,
-    context.profile?.monthly_investable_surplus_inr,
-    context.profile?.current_savings_inr,
+function buildSystemInstruction(mode: "chat" | "dashboard"): string {
+  const base = [
+    "You are Pravix AI, a high-quality financial advisor focused on real-world decision making.",
+    "Your goal: Give clear, detailed, and context-aware financial advice that feels like a human expert, not a template or generic blog.",
+    "",
+    "CRITICAL BEHAVIOR RULES:",
+    "",
+    "1. ALWAYS use the user's full financial context:",
+    "- Income, Expenses, Monthly surplus, Risk level, All active goals",
+    "",
+    "2. NEVER treat questions in isolation.",
+    "If multiple goals exist, you MUST:",
+    "- Compare them, Identify conflicts, Explain trade-offs, Suggest prioritization",
+    "",
+    "3. ALWAYS check feasibility:",
+    "- If a goal is unrealistic → clearly say it",
+    "- Quantify the gap",
+    "- Suggest 2–3 realistic alternatives: increase income, extend timeline, reduce goal",
+    "",
+    "4. NEVER recommend amounts beyond user capacity.",
+    "If required investment > user's surplus:",
+    "- Explicitly highlight the mismatch",
+    "- Provide a practical path instead",
+    "",
+    "5. RESPONSE STYLE:",
+    "- Start with a direct answer (1–2 lines)",
+    "- Then explain reasoning clearly",
+    "- Then give a structured action plan",
+    "- Then highlight trade-offs",
+    "",
+    "6. AVOID:",
+    "- Repetition, Generic advice, Empty phrases like 'invest wisely'",
+    "- Overuse of disclaimers",
+    "",
+    "7. STOCK RULE:",
+    "If user asks for specific stocks:",
+    "- Do NOT give direct stock picks",
+    "- Redirect to diversified strategy (index funds)",
+    "",
+    "8. TIME HORIZON LOGIC:",
+    "- <5 years → avoid aggressive equity-heavy advice",
+    "- 5–10 years → balanced approach",
+    "- 10+ years → equity-heavy allowed",
+    "",
+    "9. OUTPUT FORMAT:",
+    "- Write in clean paragraphs and bullet points",
+    "- Do NOT force rigid templates or repeated structure",
+    "- Do NOT repeat the same sentence",
+    "- NEVER USE MARKDOWN. No **, ##, __, tables, or dividers",
+    "- Use '–' for bullet points",
+    "",
+    "10. TONE:",
+    "Confident, practical, slightly sharp.",
+    "Like a smart financial advisor who tells the truth, not what the user wants to hear.",
+    "",
+    "CURRENCY: Always use ₹ symbol. Format as ₹1L, ₹10L, ₹1Cr.",
+    "LANGUAGE: Simple English. No jargon without immediate explanation.",
+    "SILENT PERSONALIZATION: Use user profile data naturally without exposing field names.",
+    "",
+    "GUARDRAILS:",
+    "- NEVER pick specific stocks. Pivot to Index Funds.",
+    "- NEVER promise returns > 18%. Stop projections if asked.",
+    "- If providing numeric projections, include: 'Note: Projections assume market benchmarks. Actual returns may vary.'",
   ];
 
-  for (const value of profileNumbers) {
-    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-      values.push(value);
-    }
+  if (mode === "chat") {
+    base.push("");
+    base.push("CHAT MODE: Respond to follow-up questions about investments, goals, and tax planning.");
+    base.push("LENGTH RULE: Be comprehensive and detailed. Use ALL available context.");
+    base.push("Simple greetings: 2-3 sentences. All financial questions: 300-600 words minimum.");
+    base.push("Multi-goal questions: 500-800 words with full analysis.");
+    base.push("ALWAYS show calculations, not just conclusions.");
+    base.push("Output plain text only.");
+  } else {
+    base.push("");
+    base.push("DASHBOARD MODE: Provide a high-level actionable wealth review.");
+    base.push("Output plain text only.");
   }
 
-  for (const goal of context.goals) {
-    if (Number.isFinite(goal.target_amount_inr) && goal.target_amount_inr > 0) {
-      values.push(goal.target_amount_inr);
-    }
-  }
-
-  if (feasibility) {
-    values.push(feasibility.targetAmountInr, feasibility.requiredSipInr, feasibility.projectedCorpusAtSurplusInr);
-    if (feasibility.monthlySurplusInr) {
-      values.push(feasibility.monthlySurplusInr);
-
-      const plan = getAllocationPlan(resolveRiskBucket(context));
-      values.push(
-        Math.round((feasibility.monthlySurplusInr * plan.equityPct) / 100),
-        Math.round((feasibility.monthlySurplusInr * plan.debtPct) / 100),
-        Math.round((feasibility.monthlySurplusInr * plan.goldPct) / 100),
-        Math.round((feasibility.monthlySurplusInr * plan.cashPct) / 100),
-      );
-    }
-  }
-
-  return values;
+  return base.join("\n");
 }
 
-function hasSuspiciousCurrencyClaims(advice: AgentStructuredAdvice, context: AgentContext, feasibility: GoalFeasibilitySnapshot | null): boolean {
-  const claims = extractCurrencyValues(flattenAdviceText(advice));
+function ensurePersonalizedAdvice(advice: AgentStructuredAdvice, context: AgentContext): AgentStructuredAdvice {
+  const income = context.profile?.monthly_income_inr || 0;
+  const expenses = context.profile?.monthly_expenses_inr || 0;
+  const surplus = income - expenses;
 
-  if (claims.length === 0) {
-    return false;
+  if (surplus > 0 && !advice.recommendation?.includes("₹")) {
+    advice.recommendation = `${advice.recommendation} Given your monthly surplus of ${formatInr(surplus)}, you can comfortably start this strategy today.`;
   }
 
-  const knownValues = collectKnownCurrencyValues(context, feasibility);
-  if (knownValues.length === 0) {
-    return false;
-  }
-
-  const suspicious = claims.filter((claim) => !isCloseToKnownValue(claim, knownValues));
-  return suspicious.length >= 1;
-}
-
-function hasSuspiciousProfileClaims(advice: AgentStructuredAdvice, context: AgentContext): boolean {
-  const text = flattenAdviceText(advice);
-
-  const riskClaim = text.match(/risk\s*score\s*[:(]?\s*([0-9]+(?:\.[0-9]+)?)/i);
-  if (riskClaim?.[1]) {
-    const claimed = Number.parseFloat(riskClaim[1]);
-    const known = context.latestRiskAssessment?.risk_score;
-
-    if (!Number.isFinite(claimed) || typeof known !== "number" || Math.abs(claimed - known) > 2) {
-      return true;
-    }
-  }
-
-  const savingsClaim = text.match(/current\s*savings\s*(?:is|of|:)?\s*(?:₹|INR)?\s*([0-9][0-9,]*(?:\.[0-9]+)?)/i);
-  if (savingsClaim?.[1]) {
-    const claimed = Number.parseFloat(savingsClaim[1].replace(/,/g, ""));
-    const known = context.profile?.current_savings_inr;
-
-    if (!Number.isFinite(claimed) || typeof known !== "number" || !isCloseToKnownValue(claimed, [known])) {
-      return true;
-    }
-  }
-
-  return false;
+  return advice;
 }
 
 function enforceAdviceGuardrails(input: {
@@ -923,204 +704,21 @@ function enforceAdviceGuardrails(input: {
   context: AgentContext;
   userMessage: string;
 }): AgentStructuredAdvice {
-  const normalized = normalizeAdviceShape(input.advice);
-  const messageGoal = extractUserGoalIntent(input.userMessage);
-  const feasibility = messageGoal
-    ? computeFeasibilitySnapshot({
-      goalTitle: messageGoal.goalTitle,
-      targetAmountInr: messageGoal.targetAmountInr,
-      monthsToGoal: messageGoal.monthsToGoal,
-      context: input.context,
-    })
-    : computeGoalFeasibility(input.context);
-  const goalIntent = /\b(goal|target|retire|retirement|car|house|home|education|wedding|year|years|month|months)\b/i.test(
-    input.userMessage,
-  ) || messageGoal !== null;
+  const normalized = { ...input.advice };
+  const msg = input.userMessage.toLowerCase();
 
-  const monthlyHint = extractMonthlyInvestmentHintInr(`${normalized.recommendation} ${normalized.nextAction}`);
-  const understatedContribution =
-    feasibility !== null &&
-    goalIntent &&
-    monthlyHint !== null &&
-    feasibility.requiredSipInr > 0 &&
-    monthlyHint < feasibility.requiredSipInr * 0.85;
-
-  const infeasibleWithCurrentCapacity =
-    feasibility !== null &&
-    goalIntent &&
-    feasibility.requiredSipInr > 0 &&
-    feasibility.monthlySurplusInr !== null &&
-    feasibility.requiredSipInr > feasibility.monthlySurplusInr * 1.05;
-
-  const incomeStrategyMode =
-    feasibility !== null &&
-    goalIntent &&
-    feasibility.requiredSipInr > 0 &&
-    feasibility.monthlySurplusInr !== null &&
-    feasibility.requiredSipInr > feasibility.monthlySurplusInr * 3;
-
-  const targetFundingRatio =
-    feasibility !== null && feasibility.targetAmountInr > 0
-      ? feasibility.projectedCorpusAtSurplusInr / feasibility.targetAmountInr
-      : null;
-
-  const materiallyUnderfunded =
-    feasibility !== null &&
-    goalIntent &&
-    targetFundingRatio !== null &&
-    targetFundingRatio < 0.8;
-
-  const suspiciousClaims =
-    hasSuspiciousCurrencyClaims(normalized, input.context, feasibility) || hasSuspiciousProfileClaims(normalized, input.context);
-
-  if (feasibility && goalIntent && (understatedContribution || infeasibleWithCurrentCapacity || materiallyUnderfunded)) {
-    const years = (feasibility.monthsToGoal / 12).toFixed(feasibility.monthsToGoal % 12 === 0 ? 0 : 1);
-    const surplusLabel = feasibility.monthlySurplusInr ? formatInr(feasibility.monthlySurplusInr) : "not provided";
-    const projectedLabel = formatInr(Math.round(feasibility.projectedCorpusAtSurplusInr));
-    const currentSavings =
-      typeof input.context.profile?.current_savings_inr === "number" && Number.isFinite(input.context.profile.current_savings_inr)
-        ? input.context.profile.current_savings_inr
-        : 0;
-    const monthsNeededAtSurplus =
-      feasibility.monthlySurplusInr && feasibility.monthlySurplusInr > 0
-        ? estimateMonthsToTarget({
-          targetAmountInr: feasibility.targetAmountInr,
-          annualReturnPct: feasibility.annualReturnPct,
-          monthlyContributionInr: feasibility.monthlySurplusInr,
-          currentSavingsInr: currentSavings,
-        })
-        : null;
-    const yearsNeededAtSurplus = monthsNeededAtSurplus ? (monthsNeededAtSurplus / 12).toFixed(1) : null;
-
-    const feasibilityMessage = infeasibleWithCurrentCapacity || materiallyUnderfunded
-      ? `At current inputs, ${feasibility.goalTitle} (${formatInr(feasibility.targetAmountInr)} in about ${years} years) is not feasible with current monthly capacity. It needs roughly ${formatInr(feasibility.requiredSipInr)} per month at about ${feasibility.annualReturnPct}% expected annual return.`
-      : `To target ${formatInr(feasibility.targetAmountInr)} for ${feasibility.goalTitle} in about ${years} years, plan around ${formatInr(feasibility.requiredSipInr)} monthly at about ${feasibility.annualReturnPct}% expected annual return.`;
-
-    const timelineHint = yearsNeededAtSurplus
-      ? ` At current surplus (${surplusLabel}), expected timeline is closer to about ${yearsNeededAtSurplus} years.`
-      : "";
-
-    if (incomeStrategyMode) {
-      const surplus = feasibility.monthlySurplusInr ?? 0;
-      const required = feasibility.requiredSipInr;
-      const gap = Math.max(required - surplus, 0);
-      const gapPerWeek = Math.max(Math.round(gap / 4.33), 0);
-      const sideIncomeTarget = Math.max(Math.round(gap * 0.4), 3000);
-
-      const incomeModeMessage = `This goal requires income growth first: ${feasibility.goalTitle} needs about ${formatInr(required)} per month, which is more than 3x your current monthly capacity of ${formatInr(surplus)}.`;
-
-      return {
-        recommendation: `${incomeModeMessage} Focus first on closing the cashflow gap before optimizing portfolio splits.${timelineHint}`,
-        reason: `Current monthly gap is about ${formatInr(gap)} (around ${formatInr(gapPerWeek)} per week). Allocation tweaks alone cannot bridge this gap fast enough.`,
-        riskWarning:
-          "Do not chase very high-risk products to force unrealistic returns. Prioritize steady income growth, expense control, and realistic timeline resets.",
-        nextAction:
-          "Pick one lever today: increase monthly investable surplus, extend timeline, or lower target amount. Recompute SIP only after updating one lever.",
-        intro: incomeModeMessage,
-        step1Title: "🎯 Step 1: Reality check on goal math",
-        assumptionBullets: [
-          `Required SIP: about ${formatInr(required)} per month at ${feasibility.annualReturnPct}% expected return.`,
-          `Current monthly capacity: about ${formatInr(surplus)} per month.`,
-          `Monthly gap to close: about ${formatInr(gap)}.`,
-        ],
-        bestAssumption: "Allocation optimization is secondary until the monthly cashflow gap narrows.",
-        monthlySipRange: `${formatInr(Math.max(Math.round(required * 0.9), 1000))} to ${formatInr(Math.round(required * 1.1))}`,
-        monthlySipBreakdown: [
-          `Gap per week: about ${formatInr(gapPerWeek)}`,
-          `Projected corpus at current capacity: ${projectedLabel}`,
-        ],
-        step2Title: "💼 Step 2: Income growth strategy",
-        portfolioBuckets: [
-          {
-            heading: "💰 Surplus expansion bucket",
-            expectedReturn: "Target: increase investable surplus over next 90 days.",
-            instruments: ["Salary raise plan", "Side income stream", "Discretionary spend cuts"],
-            allocationHint: `Aim to add at least ${formatInr(sideIncomeTarget)} monthly through income actions first.`,
-          },
-          {
-            heading: "🛡️ Stability bucket",
-            expectedReturn: "Preserve liquidity while strategy transitions.",
-            instruments: ["Emergency fund top-up", "Low-volatility debt allocation"],
-            allocationHint: "Avoid concentration risk until contribution capacity improves.",
-          },
-        ],
-        step3Title: "🧠 Step 3: 30-day execution plan",
-        actionPlanRows: [
-          {
-            category: "Income growth",
-            amount: `+${formatInr(sideIncomeTarget)} monthly target`,
-            whereToInvest: "Upskilling, role switch prep, freelance/consulting lead funnel",
-          },
-          {
-            category: "Expense control",
-            amount: `Cut ${formatInr(Math.max(Math.round(gap * 0.2), 1500))} monthly`,
-            whereToInvest: "Non-essential subscriptions, discretionary lifestyle line-items",
-          },
-          {
-            category: "Re-plan goal",
-            amount: "Recompute in 4 weeks",
-            whereToInvest: "Adjust timeline or target until required SIP <= 1.5x capacity",
-          },
-        ],
-      };
-    }
-
-    return {
-      recommendation: `${feasibilityMessage}${timelineHint}`,
-      reason: `Your available monthly surplus is ${surplusLabel}. At that contribution level, projected corpus is about ${projectedLabel} for this timeline, so assumptions must stay realistic and math-consistent.`,
-      riskWarning:
-        "Avoid relying on outsized return assumptions to close a funding gap. Use realistic return ranges, maintain emergency liquidity, and rebalance based on your risk profile.",
-      nextAction:
-        "Choose one now: increase monthly contribution, extend timeline, or reduce target amount. Then re-run the plan with your exact target amount and date before investing.",
-      intro: feasibilityMessage,
-      step1Title: "\ud83c\udfaf Step 1: How much you need to invest",
-      assumptionBullets: [
-        `Moderate return assumption around ${feasibility.annualReturnPct}% p.a.`,
-        `Target corpus: ${formatInr(feasibility.targetAmountInr)}`,
-      ],
-      bestAssumption: `Best assumption SIP requirement: ${formatInr(feasibility.requiredSipInr)} per month.`,
-      monthlySipRange: `${formatInr(Math.max(Math.round(feasibility.requiredSipInr * 0.9), 1000))} to ${formatInr(Math.round(feasibility.requiredSipInr * 1.1))}`,
-      monthlySipBreakdown: [
-        `Projected corpus at current surplus: ${projectedLabel}`,
-        `Current monthly surplus: ${surplusLabel}`,
-      ],
-      step2Title: "\ud83d\udcbc Step 2: How to allocate your SIP",
-      portfolioBuckets: [
-        {
-          heading: "\ud83d\udcc8 Equity Index Funds",
-          expectedReturn: "Expected return: about 10% to 12% p.a.",
-          instruments: ["Nifty 50 or Nifty Next 50 index funds"],
-          allocationHint: "Use as growth engine for long-horizon goals.",
-        },
-        {
-          heading: "\ud83d\udcc9 Debt Mutual Funds",
-          expectedReturn: "Expected return: about 6% to 7.5% p.a.",
-          instruments: ["Short Duration Debt Funds", "Banking and PSU Debt Funds"],
-          allocationHint: "Use for stability and drawdown control.",
-        },
-      ],
-      step3Title: "\ud83e\udde0 Step 3: Action plan for this month",
-      actionPlanRows: [
-        {
-          category: "Emergency fund",
-          amount: "Build to 6 months expenses",
-          whereToInvest: "Liquid fund or high-yield savings account",
-        },
-        {
-          category: "Monthly SIP",
-          amount: `${formatInr(feasibility.requiredSipInr)} target`,
-          whereToInvest: "Split across equity and debt as per risk profile",
-        },
-      ],
-    };
+  // Stock picking guardrail
+  if (msg.includes("which stock") || msg.includes("stock to buy") || msg.includes("best stock")) {
+    normalized.recommendation = "Picking individual stocks is high risk. The SAFER APPROACH is to use low-cost Index Funds for long-term wealth.";
+    normalized.reason = "Individual stocks require deep research and timing. Index funds give you instant diversification across India's top companies.";
+    normalized.nextAction = "Start with a Nifty 50 Index Fund for large-cap stability.";
   }
 
-  if (suspiciousClaims) {
-    return {
-      ...normalized,
-      reason:
-        "Some numeric claims could not be verified against your stored profile/goal inputs and were removed. Use only explicit profile values and feasibility math before acting.",
-    };
+  // Guaranteed returns guardrail
+  if (msg.includes("guaranteed") || msg.includes("fix return") || msg.includes("safe 20%")) {
+    normalized.recommendation = "No market investment can guarantee high double-digit returns.";
+    normalized.reason = "Returns are market-linked. While equity can give 12-15% over long periods, claiming a guarantee is inaccurate and risky.";
+    normalized.riskWarning = "Returns are market-linked and not guaranteed. Verify before investing.";
   }
 
   return normalized;
@@ -1128,468 +726,183 @@ function enforceAdviceGuardrails(input: {
 
 function formatStructuredAdvice(advice: AgentStructuredAdvice, isSimple = false): string {
   if (isSimple) {
+    const seen = new Set();
     const parts: string[] = [];
-    if (advice.intro) parts.push(advice.intro);
-    if (advice.recommendation) parts.push(advice.recommendation);
-    if (advice.reason) parts.push(advice.reason);
-    return parts.filter(Boolean).join("\n\n");
+    for (const field of [advice.recommendation, advice.reason]) {
+      const val = field?.trim();
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        parts.push(val);
+      }
+    }
+    return parts.join("\n\n") || advice.recommendation || "";
   }
 
-  const step1Title = advice.step1Title ?? "\ud83c\udfaf Step 1: How much you need to invest";
-  const assumptionBullets = advice.assumptionBullets ?? [];
-  const monthlySipRange = advice.monthlySipRange;
-  const sipBreakdown = advice.monthlySipBreakdown ?? [];
+  const hasRichRecommendation =
+    advice.recommendation && (advice.recommendation.includes("\n") || advice.recommendation.length > 200);
+  const hasRichReason = advice.reason && (advice.reason.includes("\n") || advice.reason.length > 200);
 
-  const step2Title = advice.step2Title ?? "\ud83d\udcbc Step 2: How to allocate your SIP";
   const portfolioBuckets = advice.portfolioBuckets ?? [];
-
-  const step3Title = advice.step3Title ?? "\ud83e\udde0 Step 3: Action plan for this month";
   const actionPlanRows = advice.actionPlanRows ?? [];
+  const hasSipStructure = portfolioBuckets.length > 0 || actionPlanRows.length > 0;
 
-  const lines: string[] = [advice.intro ?? advice.recommendation, "", "\u2e3b", "", step1Title, ""];
-
-  if (assumptionBullets.length > 0) {
-    lines.push("Assuming realistic returns:");
-    lines.push("");
-    for (const bullet of assumptionBullets) {
-      lines.push(`- ${bullet}`);
-    }
-  }
-
-  if (advice.bestAssumption) {
-    lines.push("");
-    lines.push(`Best assumption: ${advice.bestAssumption}`);
-  }
-
-  if (monthlySipRange) {
-    lines.push(`Recommended SIP range: ${monthlySipRange}`);
-  }
-
-  if (sipBreakdown.length > 0) {
-    lines.push("");
-    for (const entry of sipBreakdown) {
-      lines.push(`- ${entry}`);
-    }
-  }
-
-  lines.push("", "\u2e3b", "", step2Title, "", "You should not put all your money in one place.", "", "Ideal Portfolio Mix:", "");
-
-  if (portfolioBuckets.length > 0) {
-    for (const [index, bucket] of portfolioBuckets.entries()) {
-      lines.push(`${index + 1}. ${bucket.heading}`);
-      lines.push(`   - ${bucket.expectedReturn}`);
-      lines.push(`   - Invest in: ${bucket.instruments.join(", ")}`);
-      lines.push(`   - ${bucket.allocationHint}`);
-      lines.push("");
-    }
-  } else {
-    lines.push(`- ${advice.reason}`);
-    lines.push("");
-  }
-
-  lines.push("\u2e3b", "", step3Title, "", "Category | Amount | Where to Invest", "--- | --- | ---");
-
-  if (actionPlanRows.length > 0) {
-    for (const row of actionPlanRows) {
-      lines.push(`${row.category} | ${row.amount} | ${row.whereToInvest}`);
-    }
-  } else {
-    lines.push(`Next action | ${advice.nextAction} | Use suitable low-cost diversified funds`);
-  }
-
-  lines.push("", `Risk warning: ${advice.riskWarning}`);
-
-  return lines.join("\n");
-}
-
-function extractRetrySeconds(message: string): string | null {
-  const match = message.match(/retry in\s+([0-9]+(?:\.[0-9]+)?)s/i);
-  if (!match?.[1]) {
-    return null;
-  }
-
-  const retry = Number.parseFloat(match[1]);
-  if (!Number.isFinite(retry) || retry <= 0) {
-    return null;
-  }
-
-  return `${Math.ceil(retry)}s`;
-}
-
-function summarizeNimErrorBody(raw: string): string {
-  const withoutTags = raw.replace(/<[^>]+>/g, " ");
-  const compact = withoutTags.replace(/\s+/g, " ").trim();
-
-  if (!compact) {
-    return "No response body";
-  }
-
-  return compact.length > 320 ? `${compact.slice(0, 317)}...` : compact;
-}
-
-function parseRetryAfterMs(value: string | null): number | null {
-  if (!value) {
-    return null;
-  }
-
-  const seconds = Number.parseFloat(value);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.round(seconds * 1000);
-  }
-
-  const asDate = Date.parse(value);
-  if (!Number.isNaN(asDate)) {
-    const delay = asDate - Date.now();
-    return delay > 0 ? delay : 0;
-  }
-
-  return null;
-}
-
-function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
-}
-
-function isRetryableProviderError(error: unknown): boolean {
-  if (error instanceof OpenRouterApiError) {
-    return isRetryableStatus(error.status);
-  }
-
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("timeout") ||
-    message.includes("fetch failed") ||
-    message.includes("network") ||
-    message.includes("socket") ||
-    message.includes("econn")
-  );
-}
-
-function getRetryAfterFromError(error: unknown): number | null {
-  if (error instanceof OpenRouterApiError) {
-    return error.retryAfterMs;
-  }
-
-  return null;
-}
-
-function resolveRetryDelayMs(error: unknown, deadlineAt: number): number | null {
-  const remaining = deadlineAt - Date.now();
-  if (remaining <= 0) {
-    return null;
-  }
-
-  const retryAfterMs = getRetryAfterFromError(error);
-  if (retryAfterMs !== null) {
-    if (retryAfterMs > RETRY_AFTER_MAX_MS) {
-      return null;
-    }
-
-    return Math.min(retryAfterMs, remaining);
-  }
-
-  const jitter = Math.floor(Math.random() * (RETRY_JITTER_MS + 1));
-  const delay = RETRY_BASE_DELAY_MS + jitter;
-  return delay <= remaining ? delay : null;
-}
-
-function resolveAttemptTimeoutMs(preferredTimeoutMs: number, deadlineAt: number): number {
-  const remaining = deadlineAt - Date.now();
-  if (remaining <= 0) {
-    return 0;
-  }
-
-  return Math.min(preferredTimeoutMs, remaining);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function normalizeErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown provider error.";
-}
-
-function pushProviderStatus(circuit: ProviderCircuit, status: number) {
-  circuit.recentStatuses.push(status);
-  if (circuit.recentStatuses.length > CIRCUIT_SAMPLE_SIZE) {
-    circuit.recentStatuses.shift();
-  }
-}
-
-function closeCircuit(circuit: ProviderCircuit) {
-  circuit.mode = "closed";
-  circuit.openUntil = 0;
-  circuit.consecutiveRetryableFailures = 0;
-  circuit.halfOpenProbeAttempts = 0;
-  circuit.halfOpenProbeSuccesses = 0;
-}
-
-function openCircuit(circuit: ProviderCircuit, now: number) {
-  circuit.mode = "open";
-  circuit.openUntil = now + CIRCUIT_OPEN_MS;
-  circuit.consecutiveRetryableFailures = 0;
-  circuit.halfOpenProbeAttempts = 0;
-  circuit.halfOpenProbeSuccesses = 0;
-}
-
-function getProviderErrorStatus(error: unknown): number | null {
-  if (error instanceof OpenRouterApiError) {
-    return error.status;
-  }
-
-  return null;
-}
-
-function shouldTripCircuit(circuit: ProviderCircuit): boolean {
-  if (circuit.consecutiveRetryableFailures >= CIRCUIT_CONSECUTIVE_FAILURES) {
-    return true;
-  }
-
-  if (circuit.recentStatuses.length < CIRCUIT_SAMPLE_SIZE) {
-    return false;
-  }
-
-  const rateLimitedCount = circuit.recentStatuses.filter((status) => status === 429).length;
-  const rateLimitedRatio = rateLimitedCount / circuit.recentStatuses.length;
-  return rateLimitedRatio >= CIRCUIT_RATE_LIMIT_THRESHOLD;
-}
-
-function prepareProviderCall(provider: ProviderName) {
-  const circuit = providerCircuits[provider];
-  const now = Date.now();
-
-  if (circuit.mode === "open") {
-    if (now < circuit.openUntil) {
-      throw new ProviderCircuitOpenError(provider, circuit.openUntil - now);
-    }
-
-    circuit.mode = "half-open";
-    circuit.halfOpenProbeAttempts = 0;
-    circuit.halfOpenProbeSuccesses = 0;
-  }
-
-  if (circuit.mode === "half-open") {
-    if (circuit.halfOpenProbeAttempts >= CIRCUIT_HALF_OPEN_PROBE_TARGET) {
-      if (circuit.halfOpenProbeSuccesses >= CIRCUIT_HALF_OPEN_PROBE_TARGET) {
-        closeCircuit(circuit);
-      } else {
-        openCircuit(circuit, now);
-        throw new ProviderCircuitOpenError(provider, CIRCUIT_OPEN_MS);
+  if (!hasSipStructure && (hasRichRecommendation || hasRichReason)) {
+    const seen = new Set();
+    const lines: string[] = [];
+    for (const field of [advice.recommendation, advice.intro, advice.reason]) {
+      const val = field?.trim();
+      if (val && !seen.has(val)) {
+        seen.add(val);
+        lines.push(val, "");
       }
     }
 
-    if (circuit.mode === "half-open") {
-      circuit.halfOpenProbeAttempts += 1;
+    if (advice.recommendation?.includes("₹") || advice.recommendation?.includes("%")) {
+      lines.push("Note: Projections assume market benchmarks. Actual returns may vary.");
     }
+    return lines.join("\n").trim();
   }
-}
 
-function recordProviderSuccess(provider: ProviderName) {
-  const circuit = providerCircuits[provider];
-  pushProviderStatus(circuit, 200);
+  const step1Title = advice.step1Title ?? "HOW MUCH TO INVEST";
+  const step2Title = advice.step2Title ?? "HOW TO ALLOCATE YOUR SIP";
+  const step3Title = advice.step3Title ?? "YOUR ACTION PLAN";
 
-  if (circuit.mode === "half-open") {
-    circuit.halfOpenProbeSuccesses += 1;
-    if (circuit.halfOpenProbeSuccesses >= CIRCUIT_HALF_OPEN_PROBE_TARGET) {
-      closeCircuit(circuit);
+  const lines: string[] = [];
+  const opening = advice.intro && advice.intro.trim() !== advice.recommendation?.trim()
+    ? advice.intro
+    : advice.recommendation;
+  if (opening) lines.push(opening.trim(), "");
+
+  lines.push(step1Title, "");
+  if ((advice.assumptionBullets ?? []).length > 0) {
+    lines.push("Assuming realistic returns:", "");
+    for (const bullet of advice.assumptionBullets!) lines.push(`- ${bullet}`);
+    lines.push("");
+  }
+
+  if (advice.bestAssumption) lines.push(`Best assumption: ${advice.bestAssumption}`, "");
+  if (advice.monthlySipRange) lines.push(`Recommended SIP range: ${advice.monthlySipRange}`, "");
+
+  if ((advice.monthlySipBreakdown ?? []).length > 0) {
+    for (const entry of advice.monthlySipBreakdown!) lines.push(`- ${entry}`);
+    lines.push("");
+  }
+
+  lines.push(step2Title, "");
+  if (portfolioBuckets.length > 0) {
+    for (const [idx, b] of portfolioBuckets.entries()) {
+      lines.push(`${idx + 1}. ${b.heading}`);
+      lines.push(`   - Expected return: ${b.expectedReturn}`);
+      lines.push(`   - Invest in: ${b.instruments.join(", ")}`);
+      lines.push(`   - ${b.allocationHint}`, "");
     }
-    return;
+  } else if (advice.reason) {
+    lines.push(advice.reason, "");
   }
 
-  circuit.consecutiveRetryableFailures = 0;
+  lines.push(step3Title, "");
+  if (actionPlanRows.length > 0) {
+    for (const row of actionPlanRows) {
+      lines.push(`– ${row.category}: ${row.amount} → ${row.whereToInvest}`);
+    }
+  } else if (advice.nextAction) {
+    lines.push(`– ${advice.nextAction}`);
+  }
+
+  lines.push("");
+  if (advice.riskWarning) lines.push(`Note: ${advice.riskWarning}`);
+
+  return lines.join("\n").trim();
 }
 
-function recordProviderFailure(provider: ProviderName, error: unknown, retryable: boolean) {
-  const circuit = providerCircuits[provider];
-  const now = Date.now();
-  const status = getProviderErrorStatus(error);
-
-  if (status !== null) {
-    pushProviderStatus(circuit, status);
-  }
-
-  if (circuit.mode === "half-open") {
-    openCircuit(circuit, now);
-    return;
-  }
-
-  if (retryable) {
-    circuit.consecutiveRetryableFailures += 1;
-  } else {
-    circuit.consecutiveRetryableFailures = 0;
-  }
-
-  if (shouldTripCircuit(circuit)) {
-    openCircuit(circuit, now);
-  }
-}
-
-function isNimCapacityError(error: unknown): boolean {
-  if (error instanceof ProviderCircuitOpenError) {
-    return true;
-  }
-
-  if (error instanceof ProviderQualityError) {
-    return true;
-  }
-
-  if (error instanceof OpenRouterApiError) {
-    return isRetryableStatus(error.status) || error.status === 401;
-  }
-
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("openrouter api error (429)") ||
-    message.includes("openrouter api error (401)") ||
-    message.includes("openrouter api error (5") ||
-    message.includes("bad gateway") ||
-    message.includes("gateway timeout") ||
-    message.includes("temporarily unavailable") ||
-    message.includes("upstream") ||
-    message.includes("fetch failed") ||
-    message.includes("timeout") ||
-    message.includes("resource_exhausted") ||
-    message.includes("quota") ||
-    message.includes("rate limit") ||
-    message.includes("missing openrouter_api_key") ||
-    message.includes("quality gate failed")
-  );
-}
-
-function inferProviderFromErrorReason(reason: string): "OpenRouter" | "provider" {
-  const normalized = reason.toLowerCase();
-  if (normalized.includes("openrouter")) {
-    return "OpenRouter";
-  }
-
-  return "provider";
-}
-
-function isSexualOrNonFinancialPrompt(message: string): boolean {
-  const normalized = message.toLowerCase();
-  const sexualSignals = /\b(horny|sex|sexy|nude|naked|porn|xxx|aroused|turn me on|erotic)\b/i.test(normalized);
-  if (sexualSignals) {
-    return true;
-  }
-
-  const financeSignals = /\b(invest|sip|portfolio|mutual fund|equity|debt|gold|tax|80c|80d|goal|retire|retirement|house|home loan|emi|savings|budget|income|expense|wealth)\b/i.test(normalized);
-  const nonFinancialSmallTalk = /\b(joke|funny|sing|poem|love|flirt|date)\b/i.test(normalized);
-
-  return nonFinancialSmallTalk && !financeSignals;
-}
-
-function isSimpleQuestion(message: string): boolean {
-  const normalized = message.toLowerCase().trim();
-  if (normalized.length === 0) return false;
-
-  const simplePatterns = [
-    /^hi$/, /^hey$/, /^hello$/, /^yo$/, /^sup$/, /^wassup$/, /^greetings$/,
-    /^hii?$/, /^helo$/, /^namaste$/, /^namaskar$/,
-    /^(hi|hey|hello),?\s*(how are you|how r u)?$/i,
-    /^(good morning|good evening|good afternoon|good night)$/i,
-    /^thanks?$/, /^thank you$/, /^thx$/, /^ty$/,
-    /^ok[.,]?$/, /^okay$/, /^sure$/, /^yes$/, /^no$/,
-    /^nice$/, /^cool$/, /^awesome$/, /^great$/, /^good$/,
+export async function generateAdvisorChatReply(input: {
+  message: string;
+  history: AgentChatHistoryItem[];
+  context: AgentContext;
+}): Promise<{
+  reply: string;
+  structured: AgentStructuredAdvice;
+  isSimpleAnswer: boolean;
+}> {
+  // Fetch market indicators for context
+  const marketData = await fetchMarketIndicators();
+  
+  const contextBlock = buildContextBlock(input.context);
+  const marketContext = marketData 
+    ? `\n\n-- CURRENT MARKET CONDITIONS --\nNIFTY 50: ${marketData.nifty.toLocaleString()} (${marketData.trend})\nBANK NIFTY: ${marketData.bankNifty.toLocaleString()}\nSENSEX: ${marketData.sensex.toLocaleString()}\n`
+    : "";
+  
+  const messages: NimMessage[] = [
+    { role: "system", content: buildSystemInstruction("chat") },
+    ...input.history.map((h) => ({
+      role: (h.role === "user" ? "user" : "assistant") as NimRole,
+      content: h.content,
+    })),
+    {
+      role: "user",
+      content: [
+        `User Message: ${input.message}`,
+        "Context:",
+        contextBlock + marketContext,
+      ].join("\n\n"),
+    },
   ];
 
-  for (const pattern of simplePatterns) {
-    if (pattern.test(normalized)) return true;
+  console.log("[PRAVIX DEBUG] Model being used:", getOpenRouterModel());
+  console.log("[PRAVIX DEBUG] API key present:", !!getOpenRouterApiKey());
+
+  const deadlineAt = Date.now() + CHAT_PRIMARY_TIMEOUT_MS;
+  try {
+    const raw = await callProviderWithRetry({
+      provider: "openrouter",
+      attempt: (timeoutMs) => callOpenRouter(messages, { temperature: 0.72, maxOutputTokens: 4000 }, timeoutMs),
+      preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
+      maxRetries: CHAT_PRIMARY_MAX_RETRIES,
+      deadlineAt,
+    });
+
+    recordProviderSuccess("openrouter");
+
+    // GPT-4o-mini returns plain text — parse directly, no JSON needed
+    const rawStructured = buildRawTextStructuredAdvice(raw, input.message);
+    const structured = enforceAdviceGuardrails({
+      advice: ensurePersonalizedAdvice(rawStructured, input.context),
+      context: input.context,
+      userMessage: input.message,
+    });
+    const isSimple = isSimpleQuestion(input.message);
+    return {
+      reply: formatStructuredAdvice(structured, isSimple),
+      structured,
+      isSimpleAnswer: isSimple,
+    };
+  } catch (error) {
+    console.error("[PRAVIX DEBUG] Fallback triggered. Reason:", normalizeErrorMessage(error));
+    if (isNimCapacityError(error)) {
+      try {
+        const raw = await callProviderWithRetry({
+          provider: "nvidia",
+          attempt: (timeoutMs) => callNvidia(messages, { temperature: 0.72, maxOutputTokens: 4000 }, timeoutMs),
+          preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
+          maxRetries: CHAT_PRIMARY_MAX_RETRIES,
+          deadlineAt: Date.now() + 20000,
+        });
+        recordProviderSuccess("nvidia");
+        const nimStructured = buildRawTextStructuredAdvice(raw, input.message);
+        const structured = enforceAdviceGuardrails({
+          advice: ensurePersonalizedAdvice(nimStructured, input.context),
+          context: input.context,
+          userMessage: input.message,
+        });
+        const isSimple = isSimpleQuestion(input.message);
+        return { reply: formatStructuredAdvice(structured, isSimple), structured, isSimpleAnswer: isSimple };
+      } catch (nimError) {
+        console.error("[generateAdvisorChatReply] NIM fallback failed", nimError);
+      }
+    }
+    const fallback = buildFallbackChatStructuredAdvice({ message: input.message, context: input.context, reason: normalizeErrorMessage(error) });
+    return { reply: formatStructuredAdvice(fallback, false), structured: fallback, isSimpleAnswer: false };
   }
-
-  if (normalized.split(/\s+/).length <= 3) {
-    const greetingWords = /\b(hi|hey|hello|thanks|thank|ok|okay|sure|yes|no|nice|cool|awesome|great|good|morning|evening|afternoon|night|namaste)\b/gi;
-    const nonGreetingWords = normalized.replace(greetingWords, "").trim();
-    if (nonGreetingWords.length === 0) return true;
-  }
-
-  return false;
-}
-
-function buildOutOfScopeStructuredAdvice(): AgentStructuredAdvice {
-  return {
-    recommendation: "Sorry, I can't assist with that.",
-    reason: "I can help only with financial planning, investing, taxes, and wealth-management questions.",
-    riskWarning: "No financial recommendation was generated because the request is outside advisory scope.",
-    nextAction: "Ask something like: 'How should I allocate INR 20,000 monthly SIP for a 5-year goal?'",
-    intro: "Sorry, I can't assist with that.",
-    step1Title: "Step 1: Share your financial goal",
-    assumptionBullets: [
-      "Tell me your target amount and time horizon.",
-      "Share your monthly investment capacity.",
-    ],
-    step2Title: "Step 2: I will suggest allocation",
-    portfolioBuckets: [
-      {
-        heading: "Financial-only guidance",
-        expectedReturn: "No estimate until relevant inputs are shared.",
-        instruments: ["Goal planning", "Risk-aligned allocation"],
-        allocationHint: "I provide only finance-focused recommendations.",
-      },
-    ],
-    step3Title: "Step 3: Next action",
-    actionPlanRows: [
-      {
-        category: "Ask a finance question",
-        amount: "N/A",
-        whereToInvest: "Share goal, timeline, and SIP budget",
-      },
-    ],
-  };
-}
-
-function buildFallbackDashboardActionPlan(context: AgentContext, reason: string): string {
-  const monthlySurplus = resolveMonthlySurplus(context);
-  const emergencyMonths = context.profile?.emergency_fund_months;
-  const riskBucket = resolveRiskBucket(context);
-  const plan = getAllocationPlan(riskBucket);
-  const eightyC = null;
-  const retryIn = extractRetrySeconds(reason);
-
-  const actions: string[] = [];
-
-  if (typeof emergencyMonths === "number" && emergencyMonths < 6) {
-    actions.push(
-      `1) Increase emergency fund from ${emergencyMonths.toFixed(1)} months toward 6 months before raising equity exposure.`,
-    );
-  } else {
-    actions.push("1) Maintain your emergency corpus at 6 months of expenses in a liquid, low-risk bucket.");
-  }
-
-  if (monthlySurplus && monthlySurplus > 0) {
-    actions.push(
-      `2) Deploy monthly surplus of ${formatInr(monthlySurplus)} using: ${formatAllocationLine(monthlySurplus, plan)}.`,
-    );
-  } else {
-    actions.push(
-      "2) Start with a fixed monthly SIP amount and use a balanced split: 55% equity, 30% debt, 10% gold, 5% liquid reserve.",
-    );
-  }
-
-  if (typeof eightyC === "number" && eightyC < 150000) {
-    const remaining = Math.max(150000 - eightyC, 0);
-    actions.push(`3) Use remaining Section 80C room of ${formatInr(remaining)} with tax-efficient instruments this year.`);
-  } else {
-    actions.push("3) Review tax optimization for Section 80C/80D utilization and rebalance once per quarter.");
-  }
-
-  const cautionLines = [
-    `CAUTION: AI model is temporarily unavailable due to OpenRouter limits/availability${retryIn ? ` (retry after ~${retryIn})` : ""}.`,
-    "This is a rules-based fallback summary; verify suitability before execution.",
-    `Risk note: ${plan.note}`,
-  ];
-
-  return ["ACTIONS", ...actions, "", ...cautionLines].join("\n");
 }
 
 function buildFallbackChatStructuredAdvice(input: {
@@ -1602,813 +915,104 @@ function buildFallbackChatStructuredAdvice(input: {
   const plan = getAllocationPlan(riskBucket);
   const retryIn = extractRetrySeconds(input.reason);
   const providerLabel = inferProviderFromErrorReason(input.reason);
-  const normalizedMessage = input.message.toLowerCase();
 
   const recommendation =
     monthlySurplus && monthlySurplus > 0
       ? `Invest ${formatInr(monthlySurplus)} each month using this split: ${formatAllocationLine(monthlySurplus, plan)}.`
       : "Start with a manageable SIP amount and use a baseline split of 55% equity, 30% debt, 10% gold, and 5% liquid reserve.";
 
-  const monthlyRange =
-    monthlySurplus && monthlySurplus > 0
-      ? `${formatInr(Math.max(Math.round(monthlySurplus * 0.75), 1000))} to ${formatInr(Math.round(monthlySurplus * 1.05))}`
-      : "INR 5,000 to INR 10,000";
-
   const rationaleParts = [
     `This aligns with your ${riskBucket} risk context and prioritizes diversified allocation instead of single-bet exposure.`,
     "It keeps execution simple with a repeatable monthly process.",
   ];
 
-  if (normalizedMessage.includes("tax") || normalizedMessage.includes("80c") || normalizedMessage.includes("80d")) {
-    rationaleParts.push("Tax-aware investing can improve net outcomes when Section 80C and 80D limits are utilized first.");
-  }
-
   const riskWarning = [
     `Live AI response is temporarily unavailable due to ${providerLabel} limits/availability${retryIn ? ` (retry after ~${retryIn})` : ""}.`,
     `Fallback guidance is rules-based. ${plan.note}`,
-    "Educational guidance only. Validate suitability before investing.",
   ].join(" ");
-
-  let nextAction = "Create one SIP mandate today and set a month-end review to rebalance and step up contributions by 5-10% after income increases.";
-
-  if (normalizedMessage.includes("tax") || normalizedMessage.includes("80c") || normalizedMessage.includes("80d")) {
-    nextAction =
-      "Before your next SIP date, check remaining 80C/80D room and route eligible investments to tax-efficient instruments first.";
-  }
-
-  if (normalizedMessage.includes("goal") || normalizedMessage.includes("house") || normalizedMessage.includes("education")) {
-    nextAction =
-      "Map each goal to a target year today, then reduce equity allocation for goals that are less than 3 years away.";
-  }
 
   return {
     recommendation,
     reason: rationaleParts.join(" "),
     riskWarning,
-    nextAction,
+    nextAction: "Create one SIP mandate today and set a month-end review to rebalance and step up contributions.",
     intro: recommendation,
-    step1Title: "\ud83c\udfaf Step 1: How much you need to invest",
-    assumptionBullets: [
-      "Assuming moderate long-term market returns and disciplined monthly SIP.",
-      "Assuming no large SIP breaks in the next 12 months.",
-    ],
-    bestAssumption: `Use your current monthly capacity as baseline: ${monthlySurplus ? formatInr(monthlySurplus) : "INR not provided"}.`,
-    monthlySipRange: monthlyRange,
+    step1Title: "HOW MUCH TO INVEST",
+    assumptionBullets: ["Assuming moderate long-term market returns and disciplined monthly SIP."],
+    bestAssumption: `Use your current monthly capacity: ${monthlySurplus ? formatInr(monthlySurplus) : "INR not provided"}.`,
+    monthlySipRange: monthlySurplus ? `${formatInr(monthlySurplus * 0.9)} to ${formatInr(monthlySurplus * 1.1)}` : "₹5,000 to ₹10,000",
     monthlySipBreakdown: [
-      `Equity allocation: ${plan.equityPct}%`,
-      `Debt allocation: ${plan.debtPct}%`,
-      `Gold allocation: ${plan.goldPct}%`,
+      `Equity: ${plan.equityPct}%`,
+      `Debt: ${plan.debtPct}%`,
+      `Gold: ${plan.goldPct}%`,
     ],
-    step2Title: "\ud83d\udcbc Step 2: How to allocate your SIP",
+    step2Title: "HOW TO ALLOCATE YOUR SIP",
     portfolioBuckets: [
-      {
-        heading: "\ud83d\udcc8 Equity Index Funds",
-        expectedReturn: "Expected return: about 10% to 12% p.a.",
-        instruments: ["Nifty 50 index fund", "Nifty Next 50 index fund"],
-        allocationHint: `${plan.equityPct}% allocation for growth based on your risk bucket.`,
-      },
-      {
-        heading: "\ud83d\udcc9 Debt Funds",
-        expectedReturn: "Expected return: about 6% to 7.5% p.a.",
-        instruments: ["Short duration debt fund", "Banking and PSU debt fund"],
-        allocationHint: `${plan.debtPct}% allocation for stability and downside cushion.`,
-      },
-      {
-        heading: "\ud83e\ude99 Gold",
-        expectedReturn: "Expected return: about 5% to 7% p.a. over long cycles.",
-        instruments: ["Gold ETF", "Gold savings fund"],
-        allocationHint: `${plan.goldPct}% allocation as macro hedge and diversification.`,
-      },
+      { heading: "Equity Index Funds", expectedReturn: "10% to 12% p.a.", instruments: ["Nifty 50 Index Fund"], allocationHint: "Growth" },
+      { heading: "Debt Funds", expectedReturn: "6% to 7.5% p.a.", instruments: ["Short duration debt fund"], allocationHint: "Stability" },
     ],
-    step3Title: "\ud83e\udde0 Step 3: Action plan for this month",
+    step3Title: "YOUR ACTION PLAN",
     actionPlanRows: [
-      {
-        category: "Emergency reserve",
-        amount: "6 months expenses",
-        whereToInvest: "Liquid fund or high-yield savings account",
-      },
-      {
-        category: "Monthly SIP",
-        amount: monthlySurplus ? formatInr(monthlySurplus) : "INR not provided",
-        whereToInvest: "Auto-debit SIP across equity/debt/gold buckets",
-      },
-      {
-        category: "Tax check",
-        amount: "Review quarterly",
-        whereToInvest: "80C and 80D eligible instruments where relevant",
-      },
+      { category: "Emergency reserve", amount: "6 months expenses", whereToInvest: "Liquid fund" },
+      { category: "Monthly SIP", amount: monthlySurplus ? formatInr(monthlySurplus) : "As per budget", whereToInvest: "Index/Debt Funds" },
     ],
   };
-}
-
-function truncateText(value: string | null | undefined, maxLength: number): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const cleaned = value.replace(/\s+/g, " ").trim();
-  if (!cleaned) {
-    return null;
-  }
-
-  return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength - 3)}...` : cleaned;
-}
-
-function computeAgeYears(dateOfBirth: string | null | undefined): number | null {
-  if (!dateOfBirth || typeof dateOfBirth !== "string") {
-    return null;
-  }
-
-  const dob = new Date(`${dateOfBirth}T00:00:00Z`);
-  if (Number.isNaN(dob.getTime())) {
-    return null;
-  }
-
-  const now = new Date();
-  let age = now.getUTCFullYear() - dob.getUTCFullYear();
-  const monthDelta = now.getUTCMonth() - dob.getUTCMonth();
-
-  if (monthDelta < 0 || (monthDelta === 0 && now.getUTCDate() < dob.getUTCDate())) {
-    age -= 1;
-  }
-
-  return age >= 0 && age < 120 ? age : null;
-}
-
-function summarizeHoldings(context: AgentContext) {
-  const holdingsWithValue = context.holdings.map((holding) => {
-    const marketValueInr = Math.round(holding.quantity * holding.current_price_inr);
-    const costValueInr = Math.round(holding.quantity * holding.average_buy_price_inr);
-    const pnlPct = costValueInr > 0 ? Math.round(((marketValueInr - costValueInr) / costValueInr) * 10000) / 100 : null;
-
-    return {
-      symbol: holding.instrument_symbol,
-      name: holding.instrument_name,
-      assetClass: holding.asset_class,
-      sector: holding.sector,
-      marketValueInr,
-      pnlPct,
-    };
-  });
-
-  const totalValueInr = holdingsWithValue.reduce((sum, holding) => sum + holding.marketValueInr, 0);
-  const assetAllocation = holdingsWithValue.reduce<Record<string, number>>((accumulator, holding) => {
-    const key = holding.assetClass.toLowerCase();
-    accumulator[key] = (accumulator[key] ?? 0) + holding.marketValueInr;
-    return accumulator;
-  }, {});
-
-  const allocationPct = Object.entries(assetAllocation)
-    .map(([assetClass, valueInr]) => ({
-      assetClass,
-      pct: totalValueInr > 0 ? Math.round((valueInr / totalValueInr) * 10000) / 100 : 0,
-    }))
-    .sort((a, b) => b.pct - a.pct);
-
-  return {
-    totalHoldings: holdingsWithValue.length,
-    totalMarketValueInr: totalValueInr,
-    topHoldings: holdingsWithValue
-      .slice()
-      .sort((a, b) => b.marketValueInr - a.marketValueInr)
-      .slice(0, 6),
-    allocationPct,
-  };
-}
-
-function summarizeGoals(context: AgentContext) {
-  const prioritized = context.goals
-    .slice()
-    .sort((a, b) => {
-      const priorityRank = { high: 0, medium: 1, low: 2 };
-      const left = priorityRank[(a.priority?.toLowerCase() as keyof typeof priorityRank) ?? "medium"] ?? 1;
-      const right = priorityRank[(b.priority?.toLowerCase() as keyof typeof priorityRank) ?? "medium"] ?? 1;
-
-      if (left !== right) {
-        return left - right;
-      }
-
-      const leftDate = a.target_date ? Date.parse(a.target_date) : Number.POSITIVE_INFINITY;
-      const rightDate = b.target_date ? Date.parse(b.target_date) : Number.POSITIVE_INFINITY;
-      return leftDate - rightDate;
-    })
-    .slice(0, 4)
-    .map((goal) => ({
-      title: goal.title,
-      category: goal.category,
-      priority: goal.priority,
-      targetAmountInr: goal.target_amount_inr,
-      targetDate: goal.target_date,
-    }));
-
-  return {
-    totalGoals: context.goals.length,
-    priorityGoals: prioritized,
-  };
-}
-
-function buildPersonalizationAnchor(context: AgentContext): string {
-  const riskBucket = resolveRiskBucket(context);
-  const surplus = resolveMonthlySurplus(context);
-  const surplusBand =
-    surplus === null ? "unknown" : surplus < 10000 ? "low_surplus" : surplus < 50000 ? "mid_surplus" : "high_surplus";
-  const topGoal = context.goals[0]?.category ?? context.profile?.primary_financial_goal ?? "goal_unspecified";
-  const taxRegime = context.profile?.tax_regime ?? "tax_unknown";
-  const holdingsBand =
-    context.holdings.length === 0 ? "no_holdings" : context.holdings.length < 5 ? "focused_holdings" : "diversified_holdings";
-  const investmentExperienceBand = context.profile?.has_existing_investments ? "has_existing_investments" : "no_existing_investments";
-
-  return [riskBucket, surplusBand, topGoal, taxRegime, holdingsBand, investmentExperienceBand].join("|");
-}
-
-function contextKeywordsForValidation(context: AgentContext): string[] {
-  const keywords = new Set<string>();
-
-  const riskBucket = resolveRiskBucket(context).toLowerCase();
-  if (riskBucket) {
-    keywords.add(riskBucket);
-  }
-
-  const taxRegime = (context.profile?.tax_regime ?? "").toLowerCase();
-  if (taxRegime) {
-    keywords.add(taxRegime);
-  }
-
-  const employmentType = (context.profile?.employment_type ?? "").toLowerCase();
-  if (employmentType) {
-    keywords.add(employmentType.replace("_", " "));
-  }
-
-  const primaryGoal = (context.profile?.primary_financial_goal ?? "").toLowerCase();
-  if (primaryGoal) {
-    keywords.add(primaryGoal.replaceAll("_", " "));
-    for (const token of primaryGoal.split(/[_\s]+/)) {
-      if (token.length >= 3) {
-        keywords.add(token);
-      }
-    }
-  }
-
-  for (const investmentType of context.profile?.existing_investment_types ?? []) {
-    const normalized = investmentType.toLowerCase().replaceAll("_", " ").trim();
-    if (normalized.length > 0) {
-      keywords.add(normalized);
-    }
-  }
-
-  const topGoalTitle = context.goals[0]?.title?.toLowerCase() ?? "";
-  if (topGoalTitle) {
-    for (const token of topGoalTitle.split(/\s+/)) {
-      if (token.length >= 4) {
-        keywords.add(token);
-      }
-    }
-  }
-
-  return Array.from(keywords);
-}
-
-function buildPersonalizationSnippet(context: AgentContext): string | null {
-  const parts: string[] = [];
-  const firstName = context.profile?.full_name?.trim().split(/\s+/)[0] ?? null;
-  const riskBucket = resolveRiskBucket(context);
-  const surplus = resolveMonthlySurplus(context);
-  const topGoal = context.goals[0]?.title ?? null;
-  const taxRegime = context.profile?.tax_regime ?? null;
-  const primaryGoal = context.profile?.primary_financial_goal ?? null;
-  const horizonBand = context.profile?.target_goal_horizon_band ?? null;
-  const monthlyCapacityBand = context.profile?.monthly_investment_capacity_band ?? null;
-  const existingInvestments = context.profile?.existing_investment_types ?? [];
-
-  if (firstName) {
-    parts.push(`${firstName}, this aligns with your current profile.`);
-  }
-
-  if (typeof surplus === "number" && Number.isFinite(surplus) && surplus > 0) {
-    parts.push(`Your monthly investable surplus is around ${formatInr(surplus)}.`);
-  }
-
-  if (riskBucket) {
-    parts.push(`Your risk posture is ${riskBucket}.`);
-  }
-
-  if (topGoal) {
-    parts.push(`Your top stated goal is ${topGoal}.`);
-  }
-
-  if (primaryGoal) {
-    parts.push(`Your selected primary goal is ${primaryGoal.replaceAll("_", " ")}.`);
-  }
-
-  if (horizonBand) {
-    parts.push(`You chose a ${horizonBand.replaceAll("_", " ")} horizon for this goal.`);
-  }
-
-  if (monthlyCapacityBand) {
-    parts.push(`Your monthly investment capacity band is ${monthlyCapacityBand.replaceAll("_", " ")}.`);
-  }
-
-  if (existingInvestments.length > 0) {
-    parts.push(`You already invest via ${existingInvestments.map((entry) => entry.replaceAll("_", " ")).join(", ")}.`);
-  }
-
-  if (taxRegime) {
-    parts.push(`Current tax regime recorded is ${taxRegime}.`);
-  }
-
-  return parts.length > 0 ? parts.join(" ") : null;
-}
-
-function ensurePersonalizedAdvice(advice: AgentStructuredAdvice, context: AgentContext): AgentStructuredAdvice {
-  const combined = `${advice.recommendation} ${advice.reason} ${advice.nextAction}`.toLowerCase();
-  const keywords = contextKeywordsForValidation(context);
-  const hasContextSignals = keywords.some((keyword) => combined.includes(keyword));
-
-  if (hasContextSignals) {
-    return advice;
-  }
-
-  const snippet = buildPersonalizationSnippet(context);
-  if (!snippet) {
-    return advice;
-  }
-
-  return {
-    ...advice,
-    reason: `${advice.reason} ${snippet}`.trim(),
-  };
-}
-
-function buildSystemInstruction(mode: "chat" | "dashboard"): string {
-  const common = [
-    "You are Pravix AI Wealth Advisor for Indian families.",
-    "Give educational guidance, not guaranteed returns or personalized legal/tax certification.",
-    "Never promise profit, never suggest illegal tax evasion, and clearly call out uncertainty.",
-    "Prefer concise, actionable recommendations with INR examples when useful.",
-    "If key inputs are missing, ask a short follow-up question instead of guessing.",
-  ];
-
-  if (mode === "dashboard") {
-    return [
-      ...common,
-      "Generate exactly 3 action items and 1 caution note.",
-      "Output plain text with headings: ACTIONS and CAUTION.",
-    ].join(" ");
-  }
-
-return [
-      ...common,
-      "IMPORTANT: If the user is just greeting you (like 'hi', 'hello') or asking a very simple non-financial question, provide a short, friendly response in the 'recommendation' and 'reason' fields, and keep the others brief. Do NOT force a full 3-step wealth plan unless the user asks for strategy or shows specific financial intent.",
-      "Speak like a helpful older sibling or trusted uncle — never robotic, never textbook-ish. Use plain Hindi-English mix if it fits naturally.",
-      "No jargon. No buzzwords. No corporate speak. If a financial term is needed, explain it in one simple sentence.",
-      "Be direct. Give the most useful answer first, then a short explanation. No fluff, no padding.",
-      "Personalize by referencing user facts (goal, income, risk) only when it adds value — don't force it in.",
-      "Never invent numbers. Only mention INR values if they come from context or simple math.",
-      "Keep every answer tight. If the answer can be 2 lines, make it 2 lines. Respect the user's time.",
-      "Explain concepts using fresh analogies and real examples — avoid repeating the same phrasing.",
-      "Vary your opening: sometimes start with the answer, sometimes with a question, sometimes with a relatable example.",
-      "Respond in valid JSON only using these keys: recommendation, reason, riskWarning, nextAction, intro, step1Title, assumptionBullets, bestAssumption, monthlySipRange, monthlySipBreakdown, step2Title, portfolioBuckets, step3Title, actionPlanRows.",
-      "Use the exact 3-step structure ONLY for strategy queries: step1Title for feasibility math, step2Title for allocation, step3Title for this-month actions.",
-      "For portfolioBuckets include heading, expectedReturn, instruments (array), and allocationHint.",
-      "For actionPlanRows include category, amount, whereToInvest with 3 to 4 rows.",
-      "Do not add markdown code fences.",
-    ].join(" ");
-}
-
-export function buildContextBlock(context: AgentContext): string {
-  const profile = context.profile;
-  const risk = context.latestRiskAssessment;
-  const tax = null;
-  const holdingsSummary = summarizeHoldings(context);
-  const goalsSummary = summarizeGoals(context);
-  const personalizationAnchor = buildPersonalizationAnchor(context);
-  const onboardingAnswers = profile
-    ? {
-      primaryFinancialGoal: profile.primary_financial_goal ?? null,
-      targetGoalAmountInr: context.goals[0]?.target_amount_inr ?? null,
-      targetHorizonBand: profile.target_goal_horizon_band ?? null,
-      monthlyInvestmentCapacityBand: profile.monthly_investment_capacity_band ?? null,
-      monthlyIncomeBand: profile.monthly_income_band ?? null,
-      riskPreference: profile.risk_appetite ?? null,
-      hasExistingInvestments: profile.has_existing_investments ?? null,
-      existingInvestmentTypes: profile.existing_investment_types ?? [],
-    }
-    : null;
-
-  const onboardingProfile = profile
-    ? {
-      ...profile,
-      age_years: computeAgeYears(profile.date_of_birth),
-      liquidity_needs_notes: truncateText(profile.liquidity_needs_notes, 220),
-    }
-    : null;
-
-  return JSON.stringify(
-    {
-      personalizationAnchor,
-      onboardingProfile,
-      onboardingAnswers,
-      risk,
-      goals: context.goals,
-      goalsSummary,
-      tax,
-      communicationPreferences: context.communicationPreferences,
-      holdingsSummary,
-    },
-  );
-}
-
-async function callOpenRouter(
-  messages: NimMessage[],
-  generationConfig: { temperature: number; maxOutputTokens: number },
-  timeoutMs: number,
-): Promise<string> {
-  const apiKey = getOpenRouterApiKey();
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
-
-  let response: Response;
-
-  try {
-    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: getOpenRouterModel(),
-        messages,
-        temperature: generationConfig.temperature,
-        max_tokens: generationConfig.maxOutputTokens,
-        top_p: 0.9,
-      }),
-      signal: abortController.signal,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(`OpenRouter API timeout after ${timeoutMs}ms.`);
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  const rawBody = await response.text();
-
-  if (!response.ok) {
-    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
-    throw new OpenRouterApiError(response.status, summarizeNimErrorBody(rawBody), retryAfterMs);
-  }
-
-  let data: NimChatCompletionsResponse;
-
-  try {
-    data = JSON.parse(rawBody) as NimChatCompletionsResponse;
-  } catch {
-    throw new Error("OpenRouter returned a malformed JSON payload.");
-  }
-
-  const content = data.choices?.[0]?.message?.content;
-  const text =
-    typeof content === "string"
-      ? content.trim()
-      : Array.isArray(content)
-        ? content.map((part) => part.text ?? "").join("\n").trim()
-        : "";
-
-  if (!text) {
-    throw new Error("OpenRouter returned an empty response.");
-  }
-
-  return text;
-}
-
-async function callNvidia(
-  messages: NimMessage[],
-  generationConfig: { temperature: number; maxOutputTokens: number },
-  timeoutMs: number,
-): Promise<string> {
-  const apiKey = getNvidiaApiKey();
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
-
-  let response: Response;
-
-  try {
-    response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: getNvidiaModel(),
-        messages,
-        temperature: generationConfig.temperature,
-        max_tokens: generationConfig.maxOutputTokens,
-        top_p: 0.9,
-      }),
-      signal: abortController.signal,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(`Nvidia NIM API timeout after ${timeoutMs}ms.`);
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  const rawBody = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`Nvidia NIM API error (${response.status}): ${rawBody.slice(0, 200)}`);
-  }
-
-  let data: NimChatCompletionsResponse;
-
-  try {
-    data = JSON.parse(rawBody) as NimChatCompletionsResponse;
-  } catch {
-    throw new Error("Nvidia NIM returned a malformed JSON payload.");
-  }
-
-  const content = data.choices?.[0]?.message?.content;
-  const text =
-    typeof content === "string"
-      ? content.trim()
-      : Array.isArray(content)
-        ? content.map((part) => part.text ?? "").join("\n").trim()
-        : "";
-
-  if (!text) {
-    throw new Error("Nvidia NIM returned an empty response.");
-  }
-
-  return text;
-}
-
-async function callProviderWithRetry(input: {
-  provider: ProviderName;
-  attempt: (timeoutMs: number) => Promise<string>;
-  preferredTimeoutMs: number;
-  maxRetries: number;
-  deadlineAt: number;
-}): Promise<string> {
-  prepareProviderCall(input.provider);
-
-  let retriesUsed = 0;
-
-  while (true) {
-    const timeoutMs = resolveAttemptTimeoutMs(input.preferredTimeoutMs, input.deadlineAt);
-    if (timeoutMs <= 0) {
-      throw new Error("Provider routing deadline exceeded.");
-    }
-
-    try {
-      const responseText = await input.attempt(timeoutMs);
-      recordProviderSuccess(input.provider);
-      return responseText;
-    } catch (error) {
-      const retryableError = isRetryableProviderError(error);
-      const canRetry = retriesUsed < input.maxRetries && retryableError;
-      if (!canRetry) {
-        recordProviderFailure(input.provider, error, retryableError);
-        throw error;
-      }
-
-      const retryDelayMs = resolveRetryDelayMs(error, input.deadlineAt);
-      if (retryDelayMs === null) {
-        recordProviderFailure(input.provider, error, true);
-        throw error;
-      }
-
-      retriesUsed += 1;
-      await sleep(retryDelayMs);
-    }
-  }
-}
-
-export async function generateAdvisorChatReply(input: {
-  message: string;
-  history: AgentChatHistoryItem[];
-  context: AgentContext;
-}): Promise<AdvisorChatReply> {
-  if (isSexualOrNonFinancialPrompt(input.message)) {
-    const structured = buildOutOfScopeStructuredAdvice();
-    return {
-      reply: "Sorry, I can't assist with that.",
-      structured,
-      isSimpleAnswer: false,
-    };
-  }
-
-  const history = trimHistory(input.history);
-
-  const messages: NimMessage[] = [
-    { role: "system", content: buildSystemInstruction("chat") },
-    ...history.map((item) => ({
-      role: toNimRole(item.role),
-      content: item.content,
-    })),
-    {
-      role: "user",
-      content: [
-        "User financial context:",
-        buildContextBlock(input.context),
-        "User question:",
-        input.message,
-        "Use personalizationAnchor and onboardingProfile to tailor the response for this exact user.",
-        "Treat onboardingAnswers as the source of truth for goal, horizon, capacity, income, risk, and investment background.",
-        "Reference at least two concrete data points from context (numbers or specific goals/risks).",
-        "Provide a clear, engaging response with 2-4 practical next steps.",
-      ].join("\n\n"),
-    },
-  ];
-
-  const deadlineAt = Date.now() + CHAT_REQUEST_DEADLINE_MS;
-  try {
-    const raw = await callProviderWithRetry({
-      provider: "openrouter",
-      attempt: (timeoutMs) =>
-        callOpenRouter(
-          messages,
-          {
-            temperature: 0.7,
-            maxOutputTokens: 800,
-          },
-          timeoutMs,
-        ),
-      preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
-      maxRetries: CHAT_PRIMARY_MAX_RETRIES,
-      deadlineAt,
-    });
-
-    const strictStructured = parseStructuredAdviceStrict(raw);
-    if (!strictStructured) {
-      console.error("[generateAdvisorChatReply] OpenRouter returned non-JSON response. Trying NIM...");
-      const nimDeadlineAt = Date.now() + 20000;
-      try {
-        const nimRaw = await callProviderWithRetry({
-          provider: "nvidia",
-          attempt: (timeoutMs) =>
-            callNvidia(messages, { temperature: 0.7, maxOutputTokens: 800 }, timeoutMs),
-          preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
-          maxRetries: CHAT_PRIMARY_MAX_RETRIES,
-          deadlineAt: nimDeadlineAt,
-        });
-
-        recordProviderSuccess("nvidia");
-        const nimStructured = parseStructuredAdviceStrict(nimRaw);
-        if (nimStructured) {
-          const structured = enforceAdviceGuardrails({
-            advice: ensurePersonalizedAdvice(nimStructured, input.context),
-            context: input.context,
-            userMessage: input.message,
-          });
-          const isSimple = isSimpleQuestion(input.message);
-          return {
-            reply: formatStructuredAdvice(structured, isSimple),
-            structured,
-            isSimpleAnswer: isSimple,
-          };
-        }
-      } catch (nimError) {
-        const nimReason = nimError instanceof Error ? nimError.message : "Unknown NIM error";
-        console.error("[generateAdvisorChatReply] NIM also failed or returned non-JSON:", nimReason);
-      }
-
-      const rawStructured = buildRawTextStructuredAdvice(raw, input.message);
-      const structured = enforceAdviceGuardrails({
-        advice: ensurePersonalizedAdvice(rawStructured, input.context),
-        context: input.context,
-        userMessage: input.message,
-      });
-      const isSimple = isSimpleQuestion(input.message);
-      return {
-        reply: formatStructuredAdvice(structured, isSimple),
-        structured,
-        isSimpleAnswer: isSimple,
-      };
-    }
-
-    const structured = enforceAdviceGuardrails({
-      advice: ensurePersonalizedAdvice(strictStructured, input.context),
-      context: input.context,
-      userMessage: input.message,
-    });
-    const isSimple = isSimpleQuestion(input.message);
-    return {
-      reply: formatStructuredAdvice(structured, isSimple),
-      structured,
-      isSimpleAnswer: isSimple,
-    };
-  } catch (error) {
-    if (isNimCapacityError(error)) {
-      const reason = normalizeErrorMessage(error);
-      console.error("[generateAdvisorChatReply] OpenRouter failed. Error:", reason, ". Trying NIM...");
-
-      const nimDeadlineAt = Date.now() + 20000;
-      try {
-        const raw = await callProviderWithRetry({
-          provider: "nvidia",
-          attempt: (timeoutMs) =>
-            callNvidia(messages, { temperature: 0.7, maxOutputTokens: 800 }, timeoutMs),
-          preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
-          maxRetries: CHAT_PRIMARY_MAX_RETRIES,
-          deadlineAt: nimDeadlineAt,
-        });
-
-        recordProviderSuccess("nvidia");
-        const nimStructured = parseStructuredAdviceStrict(raw);
-        if (nimStructured) {
-          const structured = enforceAdviceGuardrails({
-            advice: ensurePersonalizedAdvice(nimStructured, input.context),
-            context: input.context,
-            userMessage: input.message,
-          });
-          const isSimple = isSimpleQuestion(input.message);
-          return {
-            reply: formatStructuredAdvice(structured, isSimple),
-            structured,
-            isSimpleAnswer: isSimple,
-          };
-        } else {
-          console.error("[generateAdvisorChatReply] NIM returned non-JSON. Using raw text fallback.");
-          const rawStructured = buildRawTextStructuredAdvice(raw, input.message);
-          const structured = enforceAdviceGuardrails({
-            advice: ensurePersonalizedAdvice(rawStructured, input.context),
-            context: input.context,
-            userMessage: input.message,
-          });
-          const isSimple = isSimpleQuestion(input.message);
-          return {
-            reply: formatStructuredAdvice(structured, isSimple),
-            structured,
-            isSimpleAnswer: isSimple,
-          };
-        }
-      } catch (nimError) {
-        const nimReason = nimError instanceof Error ? nimError.message : "Unknown NIM error";
-        console.error("[generateAdvisorChatReply] NIM call failed:", nimReason);
-      }
-
-      const rawStructured = buildRawTextStructuredAdvice("", input.message);
-      const structured = enforceAdviceGuardrails({
-        advice: ensurePersonalizedAdvice(rawStructured, input.context),
-        context: input.context,
-        userMessage: input.message,
-      });
-      const isSimple = isSimpleQuestion(input.message);
-      return {
-        reply: formatStructuredAdvice(structured, isSimple),
-        structured,
-        isSimpleAnswer: isSimple,
-      };
-    }
-
-    throw error;
-  }
 }
 
 export async function generateDashboardActionPlan(context: AgentContext): Promise<string> {
   const messages: NimMessage[] = [
     { role: "system", content: buildSystemInstruction("dashboard") },
-    {
-      role: "user",
-      content: [
-        "Generate a short actionable wealth review for this user.",
-        "Context:",
-        buildContextBlock(context),
-      ].join("\n\n"),
-    },
+    { role: "user", content: `Generate a short actionable wealth review.\n\nContext:\n${buildContextBlock(context)}` },
   ];
 
-  const deadlineAt = Date.now() + DASHBOARD_REQUEST_DEADLINE_MS;
   try {
     return await callProviderWithRetry({
       provider: "openrouter",
-      attempt: (timeoutMs) =>
-        callOpenRouter(
-          messages,
-          {
-            temperature: 0.2,
-            maxOutputTokens: 280,
-          },
-          timeoutMs,
-        ),
+      attempt: (timeoutMs) => callOpenRouter(messages, { temperature: 0.2, maxOutputTokens: 280 }, timeoutMs),
       preferredTimeoutMs: DASHBOARD_PRIMARY_TIMEOUT_MS,
       maxRetries: DASHBOARD_PRIMARY_MAX_RETRIES,
-      deadlineAt,
+      deadlineAt: Date.now() + DASHBOARD_REQUEST_DEADLINE_MS,
     });
   } catch (error) {
-    if (isNimCapacityError(error)) {
-      const reason = normalizeErrorMessage(error);
-      return buildFallbackDashboardActionPlan(context, reason);
-    }
-
+    if (isNimCapacityError(error)) return buildFallbackDashboardActionPlan(context, normalizeErrorMessage(error));
     throw error;
   }
+}
+
+function buildFallbackDashboardActionPlan(context: AgentContext, reason: string): string {
+  const monthlySurplus = resolveMonthlySurplus(context);
+  const riskBucket = resolveRiskBucket(context);
+  const plan = getAllocationPlan(riskBucket);
+  const retryIn = extractRetrySeconds(reason);
+
+  const actions = [
+    "1) Maintain your emergency corpus at 6 months of expenses in a liquid bucket.",
+    monthlySurplus && monthlySurplus > 0
+      ? `2) Deploy monthly surplus of ${formatInr(monthlySurplus)} using: ${formatAllocationLine(monthlySurplus, plan)}.`
+      : "2) Start with a fixed monthly SIP using a balanced 55/30/10/5 split.",
+    "3) Review tax optimization for Section 80C/80D utilization quarterly.",
+  ];
+
+  const cautionLines = [
+    `CAUTION: AI is temporarily unavailable due to limits${retryIn ? ` (retry in ~${retryIn})` : ""}.`,
+    "This is a rules-based fallback summary.",
+    `Risk note: ${plan.note}`,
+  ];
+
+  return ["ACTIONS", ...actions, "", ...cautionLines].join("\n");
+}
+
+function summarizeNimErrorBody(raw: string): string {
+  const compact = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return compact.length > 320 ? `${compact.slice(0, 317)}...` : compact || "No response body";
+}
+
+function parseRetryAfterMs(value: string | null): number | null {
+  const s = Number.parseFloat(value || "");
+  return Number.isFinite(s) && s >= 0 ? Math.round(s * 1000) : null;
+}
+
+function extractRetrySeconds(message: string): string | null {
+  const match = message.match(/retry in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+  return match?.[1] ? `${Math.ceil(Number.parseFloat(match[1]))}s` : null;
 }

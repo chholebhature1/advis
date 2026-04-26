@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -52,6 +52,7 @@ const MainTrendChart = dynamic(() => import("@/components/charts/HomepageCharts"
 });
 import SiteHeader from "@/components/SiteHeader";
 import { blogPosts } from "@/app/learn/blog-data";
+
 const HeroPhoneMockup = dynamic(() => import("@/components/HeroPhoneMockup"), {
   ssr: false,
   loading: () => (
@@ -60,6 +61,8 @@ const HeroPhoneMockup = dynamic(() => import("@/components/HeroPhoneMockup"), {
     </div>
   ),
 });
+
+
 
 const CalendlyBookingSection = dynamic(() => import("@/components/CalendlyBookingSection"), {
   ssr: false,
@@ -377,7 +380,7 @@ const trustedPartners = [
     ),
   },
 ];
-const MARKET_POLL_INTERVAL_MS = 30_000; // 30s — indices don't need sub-second refresh on a marketing homepage
+const MARKET_POLL_INTERVAL_MS = 30_000; // 30s ΓÇö indices don't need sub-second refresh on a marketing homepage
 const poweredByRotator = [
   "Smart AI Insights",
   "Book Expert Call",
@@ -793,21 +796,21 @@ export default function Home() {
               </div>
             </div>
 
-             {/* Right: Animated Phone Mockup */}
-             <motion.div
-               initial={{ opacity: 0, x: 20 }}
-               animate={{ opacity: 1, x: 0 }}
-               transition={{ duration: 0.8, delay: 0.2 }}
-               className="mt-1 flex w-full max-w-[18.5rem] flex-1 justify-center sm:max-w-[22rem] md:max-w-[27rem] lg:mt-0 lg:max-w-[30rem] lg:-translate-x-[80px] lg:justify-end xl:max-w-[34rem]"
-             >
-               <HeroPhoneMockup />
-             </motion.div>
+            {/* Right: Animated Phone Mockup */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="mt-1 flex w-full max-w-[18.5rem] flex-1 justify-center sm:max-w-[22rem] md:max-w-[27rem] lg:mt-0 lg:max-w-[30rem] lg:-translate-x-[80px] lg:justify-end xl:max-w-[34rem]"
+            >
+              <HeroPhoneMockup />
+            </motion.div>
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            SECTION: WHO PRAVIX IS FOR — Premium Redesign
-            ═══════════════════════════════════════════════════════════════════ */}
+        {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+            SECTION: WHO PRAVIX IS FOR ΓÇö Premium Redesign
+            ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
         <motion.section
           id="why-goals"
           className="relative overflow-hidden py-24 md:py-32"
@@ -823,7 +826,7 @@ export default function Home() {
           <div className="pointer-events-none absolute left-1/2 top-1/3 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.04),transparent_65%)]" />
 
           <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-            {/* ── Section Header ── */}
+            {/* ΓöÇΓöÇ Section Header ΓöÇΓöÇ */}
             <motion.div
               className="mx-auto max-w-3xl text-center"
               variants={chartCardReveal}
@@ -843,12 +846,12 @@ export default function Home() {
                 </span>
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
-                Whether you&apos;re saving for your child&apos;s education, your first home, or long-term family security —
+                Whether you&apos;re saving for your child&apos;s education, your first home, or long-term family security ΓÇö
                 Pravix turns your ambitions into a clear, disciplined plan.
               </p>
             </motion.div>
 
-            {/* ── Audience Cards — Icon-driven grid ── */}
+            {/* ΓöÇΓöÇ Audience Cards ΓÇö Icon-driven grid ΓöÇΓöÇ */}
             <motion.div
               className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
               initial="hidden"
@@ -914,7 +917,7 @@ export default function Home() {
               ))}
             </motion.div>
 
-            {/* ── Main Content: Family Visual + Money Mistakes ── */}
+            {/* ΓöÇΓöÇ Main Content: Family Visual + Money Mistakes ΓöÇΓöÇ */}
             <div className="mt-16 grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
               {/* Left: Cinematic family image with floating stats */}
               <motion.div
@@ -979,7 +982,7 @@ export default function Home() {
                 </div>
               </motion.div>
 
-              {/* Right: Money Mistakes — premium checklist */}
+              {/* Right: Money Mistakes ΓÇö premium checklist */}
               <motion.div
                 className="flex flex-col gap-4"
                 variants={chartCardReveal}
@@ -1024,7 +1027,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Built for India — compact accent card */}
+                {/* Built for India ΓÇö compact accent card */}
                 <div className="rounded-[1.4rem] border border-[#2b5cff]/12 bg-gradient-to-br from-[#2b5cff] to-[#1e44cd] p-5 text-white shadow-[0_16px_40px_rgba(43,92,255,0.2)] sm:p-6">
                   <div className="flex items-center gap-2.5">
                     <Globe2 className="h-5 w-5 text-[#00d8ff]" />
@@ -1054,9 +1057,9 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            SECTION: GOALS & PRIORITIES — Premium Redesign
-            ═══════════════════════════════════════════════════════════════════ */}
+        {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+            SECTION: GOALS & PRIORITIES ΓÇö Premium Redesign
+            ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
         <motion.section
           id="insights-priorities"
           className="relative w-full overflow-hidden py-28 text-white md:py-36"
@@ -1102,7 +1105,7 @@ export default function Home() {
                 <span className="bg-[linear-gradient(120deg,#00d8ff,#7df9ff)] bg-clip-text text-transparent">Financial Priorities</span>
               </h3>
               <p className="mt-5 max-w-2xl text-base leading-relaxed text-blue-100/90 md:text-lg">
-                Every recommendation is shaped around what matters most to you — your risk comfort, your timeline, your family.
+                Every recommendation is shaped around what matters most to you ΓÇö your risk comfort, your timeline, your family.
               </p>
 
               <div className="mt-9 space-y-4">
@@ -1145,9 +1148,9 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            SECTION: HOW PRAVIX WORKS — Premium Redesign
-            ═══════════════════════════════════════════════════════════════════ */}
+        {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+            SECTION: HOW PRAVIX WORKS ΓÇö Premium Redesign
+            ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
         <motion.section
           id="how-it-works"
           className="relative overflow-hidden bg-white py-28 md:py-36"
@@ -1175,7 +1178,7 @@ export default function Home() {
               </p>
             </motion.div>
 
-            {/* Steps Grid — connected timeline */}
+            {/* Steps Grid ΓÇö connected timeline */}
             <motion.div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4" initial="hidden" whileInView="show" viewport={denseSectionViewport}>
               {[
                 {
@@ -1236,7 +1239,7 @@ export default function Home() {
               ))}
             </motion.div>
 
-            {/* Why Families Choose — premium dark card */}
+            {/* Why Families Choose ΓÇö premium dark card */}
             <motion.div
               className="mt-16 overflow-hidden rounded-[2rem] border border-[#2b5cff]/15 shadow-[0_32px_80px_rgba(10,25,48,0.2)]"
               style={{ background: "linear-gradient(155deg, #1d4494 0%, #2650a6 50%, #1e3f85 100%)" }}
@@ -1253,7 +1256,7 @@ export default function Home() {
                       <span className="bg-[linear-gradient(120deg,#00d8ff,#7df9ff)] bg-clip-text text-transparent">Better financial behavior.</span>
                     </h3>
                     <p className="mt-4 text-sm leading-relaxed text-blue-100/80 md:text-base">
-                      Pravix is designed to make wealth planning feel calm, clear, and confident — even during uncertain markets.
+                      Pravix is designed to make wealth planning feel calm, clear, and confident ΓÇö even during uncertain markets.
                     </p>
                   </div>
                   <motion.div className="space-y-3.5" initial="hidden" whileInView="show" viewport={cardGridViewport}>
@@ -1417,7 +1420,7 @@ export default function Home() {
                             ? "bg-[#ef4444]/20 text-[#fca5a5] shadow-[0_0_8px_rgba(239,68,68,0.15)]"
                             : "bg-white/15 text-[#dbe9ff]"
                         }`}>
-                        {indexItem.trend === "up" ? "▲" : indexItem.trend === "down" ? "▼" : ""} {indexItem.trend}
+                        {indexItem.trend === "up" ? "Γû▓" : indexItem.trend === "down" ? "Γû╝" : ""} {indexItem.trend}
                       </span>
                     </div>
                     <p className="mt-3 text-2xl font-semibold text-white">
@@ -1425,7 +1428,7 @@ export default function Home() {
                     </p>
                     <p className={`mt-1 text-xs font-medium ${indexItem.changePct > 0 ? "text-[#6ee7b7]" : indexItem.changePct < 0 ? "text-[#fca5a5]" : "text-[#d9e6ff]"
                       }`}>
-                      {changeAbsPrefix}{Math.abs(indexItem.changeAbs).toFixed(2)} • {changePctPrefix}{Math.abs(indexItem.changePct).toFixed(2)}%
+                      {changeAbsPrefix}{Math.abs(indexItem.changeAbs).toFixed(2)} ΓÇó {changePctPrefix}{Math.abs(indexItem.changePct).toFixed(2)}%
                     </p>
                     <div className="mt-3 h-14">
                       {miniTrendPoints.length > 1 ? (
@@ -1524,7 +1527,7 @@ export default function Home() {
                 Our Trusted Partners
               </h2>
               <p className="mt-4 max-w-5xl text-base leading-relaxed text-[#50607d] md:text-lg">
-                We partner with India’s most respected financial institutions to ensure your wealth is managed by the best in the industry. By bringing these trusted names into one calm, unified space, we give you the clarity and confidence to stay focused on what truly matters—your family&apos;s future.
+                We partner with IndiaΓÇÖs most respected financial institutions to ensure your wealth is managed by the best in the industry. By bringing these trusted names into one calm, unified space, we give you the clarity and confidence to stay focused on what truly mattersΓÇöyour family&apos;s future.
               </p>
             </motion.div>
 
@@ -1596,7 +1599,7 @@ export default function Home() {
                 </p>
                 <div className="mt-4 h-64">
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={sentimentChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="4 4" stroke="rgba(43,92,255,0.12)" />
                         <XAxis dataKey="label" stroke="#5f7396" fontSize={12} />
@@ -1632,7 +1635,7 @@ export default function Home() {
                 <p className="mt-1 text-xs text-[#50607d]">A balanced goal-first structure with diversification controls</p>
                 <div className="mt-4 h-56">
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={allocationMixData}
@@ -1687,7 +1690,7 @@ export default function Home() {
                 </p>
                 <div className="mt-4 h-56">
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={fxChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="sipGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1722,9 +1725,9 @@ export default function Home() {
 
 
 
-        {/* ═══════════════════════════════════════════════════════════════════
-          SECTION: TEAM PRAVIX — Premium Redesign
-          ═══════════════════════════════════════════════════════════════════ */}
+        {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+          SECTION: TEAM PRAVIX ΓÇö Premium Redesign
+          ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
         <motion.section
           id="about-us"
           className="relative overflow-hidden bg-white py-28 md:py-36"
@@ -1833,7 +1836,7 @@ export default function Home() {
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0)_25%,rgba(10,25,48,0.62)_100%)]" />
                     <div className="absolute inset-x-0 bottom-0 p-4 text-white">
                       <p className="text-xl font-semibold">Umesh Kumar Sharma</p>
-                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Director · Vision & Strategy</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Director ┬╖ Vision & Strategy</p>
                     </div>
                   </div>
                 </motion.article>
@@ -1854,7 +1857,7 @@ export default function Home() {
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,48,0)_25%,rgba(10,25,48,0.62)_100%)]" />
                     <div className="absolute inset-x-0 bottom-0 p-4 text-white">
                       <p className="text-xl font-semibold">Aditya Saini</p>
-                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Advocate & Tax Consultant ·</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-[#d8e5ff]">Advocate & Tax Consultant ┬╖</p>
                     </div>
                   </div>
                   {/* <div className="border-t border-[#d8e7ff] px-4 py-3 text-xs text-[#50607d]">Contact: adv.aaditya00@gmail.com</div> */}
@@ -1864,9 +1867,9 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            SECTION: BLOG — Premium Redesign
-            ═══════════════════════════════════════════════════════════════════ */}
+        {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+            SECTION: BLOG ΓÇö Premium Redesign
+            ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
         <motion.section
           id="blog"
           className="relative overflow-hidden py-28 md:py-36"
@@ -1949,9 +1952,9 @@ export default function Home() {
         {/* Calendly Booking Section */}
         <CalendlyBookingSection />
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            SECTION: FINAL CTA — Premium Redesign
-            ═══════════════════════════════════════════════════════════════════ */}
+        {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+            SECTION: FINAL CTA ΓÇö Premium Redesign
+            ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
         <motion.section
           id="contact"
           className="relative overflow-hidden py-28 text-white md:py-36"

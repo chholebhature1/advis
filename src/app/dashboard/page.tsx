@@ -46,8 +46,6 @@ import SiteHeader from "@/components/SiteHeader";
 import AuthPanel from "@/components/AuthPanel";
 import RequireAuth from "@/components/RequireAuth";
 import AgentAdvisorPanel from "@/components/AgentAdvisorPanel";
-import ExecutiveIntelligencePanel from "@/components/ExecutiveIntelligencePanel";
-import HoldingsAnalyzerPanel from "@/components/HoldingsAnalyzerPanel";
 import { DashboardSectionCard, StatCard, StatusBadge } from "@/components/dashboard/DashboardPrimitives";
 import type { AgentStructuredAdvice, DashboardIntelligenceSnapshot, DashboardModuleKey } from "@/lib/agent/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -1371,7 +1369,7 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({
           message: `${trimmedQuestion}`,
-          history: followUpThread.flatMap((item) => {
+          history: [...followUpThread].reverse().flatMap((item) => {
             const assistantContent = item.recommendation && item.reason
               ? `${item.recommendation}\n\n${item.reason}${item.nextAction ? '\n\nNext step: ' + item.nextAction : ''}`
               : item.answer;
@@ -2192,30 +2190,87 @@ export default function DashboardPage() {
                       ) : null}
 
                       {followUpThread.length > 0 ? (
-                        <div className="mt-3 space-y-2.5">
+                        <div className="mt-4 space-y-4">
                           {followUpThread.map((item) => (
-                            item.isSimple ? (
-                              <div key={item.id} className="animate-[fadeInScale_0.4s_ease-out_forwards] rounded-2xl border border-[#e1ebff] bg-gradient-to-br from-[#f8fbff] to-white px-5 py-4 shadow-[0_4px_16px_rgba(43,92,255,0.06)]">
-                                <p className="text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
-                                <div className="mt-3 flex items-start gap-3">
-                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-finance-accent/10">
-                                    <svg className="h-4 w-4 text-finance-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            <div
+                              key={item.id}
+                              className="animate-[fadeInScale_0.4s_ease-out_forwards] overflow-hidden rounded-2xl border border-[#dce8ff] bg-white shadow-[0_6px_24px_rgba(43,92,255,0.08)]"
+                            >
+                              <div className="flex items-start gap-3 border-b border-[#edf3ff] bg-gradient-to-r from-[#f5f9ff] to-[#eef4ff] px-4 py-3">
+                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2b5cff]/10">
+                                  <svg className="h-3.5 w-3.5 text-[#2b5cff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </div>
+                                <p className="text-sm font-semibold leading-snug text-[#0a1930]">{item.question}</p>
+                              </div>
+                              <div className="px-4 py-4">
+                                <div className="mb-3 flex items-center gap-2">
+                                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#2b5cff] to-[#00b8ff]">
+                                    <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                     </svg>
                                   </div>
-                                  <div className="flex-1">
-                                    <p className="text-[10px] font-semibold uppercase tracking-wide text-finance-accent">Simple Answer</p>
-                                    <p className="mt-1 text-sm leading-relaxed text-[#1d355d] whitespace-pre-line">{item.answer}</p>
-                                  </div>
+                                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#2b5cff]">Pravix AI</span>
+                                </div>
+                                <div className="space-y-3 text-sm leading-relaxed text-[#1d355d]">
+                                  {item.answer.split("\n").map((line, lineIndex) => {
+                                    const trimmed = line.trim();
+                                    
+                                    // Empty line
+                                    if (!trimmed) return <div key={lineIndex} className="h-1" />;
+
+                                    // Key Takeaway Block
+                                    if (trimmed.startsWith("KEY TAKEAWAY")) {
+                                      return (
+                                        <div key={lineIndex} className="mt-4 rounded-xl border border-[#2b5cff]/20 bg-[#2b5cff]/5 p-4 shadow-sm">
+                                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Actionable Insight</p>
+                                          <p className="mt-1 text-sm font-medium leading-relaxed text-[#0a1930]">{trimmed.replace("KEY TAKEAWAY", "").trim()}</p>
+                                        </div>
+                                      );
+                                    }
+
+                                    // CAPS SECTION TITLES
+                                    if (trimmed === trimmed.toUpperCase() && trimmed.length > 3 && !trimmed.startsWith("–") && !trimmed.startsWith("📌")) {
+                                      return (
+                                        <p key={lineIndex} className="mt-4 text-xs font-bold uppercase tracking-[0.15em] text-[#0a1930]">
+                                          {trimmed}
+                                        </p>
+                                      );
+                                    }
+
+                                    // Bullet points: – 
+                                    if (trimmed.startsWith("–")) {
+                                      const content = trimmed.replace(/^–\s*/, "");
+                                      return (
+                                        <div key={lineIndex} className="flex items-start gap-2.5 px-1">
+                                          <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#2b5cff]/30" />
+                                          <p className="flex-1">{content}</p>
+                                        </div>
+                                      );
+                                    }
+
+                                    // Indented Example:   📌 Example:
+                                    if (trimmed.includes("📌 Example:")) {
+                                      return (
+                                        <div key={lineIndex} className="ml-5 mt-1 rounded-lg border-l-2 border-[#edf3ff] bg-[#f8fbff] px-4 py-2.5">
+                                          <p className="text-xs text-[#5f7396] italic leading-relaxed">
+                                            {trimmed}
+                                          </p>
+                                        </div>
+                                      );
+                                    }
+
+                                    // Standard Paragraph
+                                    return (
+                                      <p key={lineIndex} className="leading-relaxed">
+                                        {trimmed}
+                                      </p>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                            ) : (
-                              <div key={item.id} className="animate-[fadeInScale_0.4s_ease-out_forwards] rounded-xl border border-[#e1ebff] bg-[#f8fbff] px-3.5 py-3">
-                                <p className="text-sm font-medium leading-relaxed text-[#0a1930]">{item.question}</p>
-                                <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5f7396]">Simple Answer</p>
-                                <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-[#1d355d]">{item.answer}</p>
-                              </div>
-                            )
+                            </div>
                           ))}
                         </div>
                       ) : null}

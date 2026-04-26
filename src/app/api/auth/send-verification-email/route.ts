@@ -37,9 +37,9 @@ function getClientIp(request: NextRequest): string | null {
 }
 
 async function enforceRateLimits(
-  supabase: SupabaseClient<any, any, any, any, any>,
-  normalizedEmail: string,
-  requestIp: string | null
+   supabase: SupabaseClient<any, any, any, any, any>,
+   normalizedEmail: string,
+   requestIp: string | null
 ): Promise<string | null> {
   const now = new Date();
   const cooldownStart = new Date(now.getTime() - EMAIL_COOLDOWN_SECONDS * 1000).toISOString();
