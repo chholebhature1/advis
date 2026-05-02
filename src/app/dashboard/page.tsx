@@ -2397,23 +2397,1005 @@ export default function DashboardPage() {
                 </div>
               </div>
             </section>
-          ) : null}
-          {!isLoading && !error && signedInEmail && profile && corpusProjection ? (
-            <section className="relative mt-5 overflow-hidden rounded-[2rem] border border-finance-border bg-white shadow-[0_20px_50px_rgba(10,25,48,0.08)] sm:mt-6">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,rgba(43,92,255,0.06),transparent_40%),linear-gradient(180deg,#ffffff_0%,#f8faff_100%)]" />
-              
-              <div className="relative p-6 sm:p-8">
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+
+            {/* Error banner for failed API loads */}
+            {powerInsightsError && (
+              <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600 flex-shrink-0" />
                   <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-finance-accent/10 bg-finance-accent/5 px-3 py-1.5">
-                      <TrendingUp className="h-3.5 w-3.5 text-finance-accent" />
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-finance-accent">Horizon Intelligence</p>
+                    <p className="font-semibold text-amber-900">Dashboard insight warning</p>
+                    <p className="mt-1 text-sm text-amber-800">{powerInsightsError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── My Easy Money Plan Section ── */}
+            {!isLoading && !error && signedInEmail && profile ? (
+              <section className="relative mt-5 overflow-hidden rounded-2xl border border-[#d8e7ff] bg-white shadow-[0_12px_30px_rgba(10,25,48,0.08)] sm:mt-6">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_15%,rgba(43,92,255,0.1),transparent_30%),radial-gradient(circle_at_95%_12%,rgba(0,216,255,0.12),transparent_28%),linear-gradient(180deg,#ffffff_0%,#f6f9ff_100%)]" />
+                <div className="relative p-5 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[#2b5cff]/20 bg-[#edf4ff] px-3 py-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-[#2b5cff]" />
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#2b5cff]">
+                          My Easy Money Plan
+                        </p>
+                      </div>
+                      <h2 className="mt-3 text-xl font-bold tracking-tight text-[#0a1930] sm:text-2xl">
+                        A simple plan for your money
+                      </h2>
+                      {financialSummary?.dataQuality &&
+                        (financialSummary.dataQuality.confidence !== "high" ||
+                          financialSummary.dataQuality.hasFallbacks) && (
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <p className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-amber-900">
+                              {financialSummary.dataQuality.confidence ===
+                                "high"
+                                ? "Some values were estimated from available inputs."
+                                : `Plan confidence: ${financialSummary.dataQuality.confidence}. This projection uses estimated inputs.`}
+                            </p>
+                            {financialSummary.dataQuality.confidence !==
+                              "high" ? (
+                              <Link
+                                href="/onboarding"
+                                className="inline-flex items-center rounded-full bg-[#2b5cff] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#1e49d3]"
+                              >
+                                Improve Accuracy
+                              </Link>
+                            ) : null}
+                          </div>
+                        )}
+
+                      {/* AI explanation — narrator only. Numbers come from the snapshot above. */}
+                      {explanation && (
+                        <motion.div
+                          className="mt-4 space-y-3"
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.5, delay: 0.2 }}
+                        >
+                          {/* PRIMARY ACTION - Main Headline */}
+                          <div
+                            className={`rounded-lg border-l-4 p-4 ${explanation.tone === "positive"
+                                ? "border-green-500 bg-green-50"
+                                : explanation.tone === "neutral"
+                                  ? "border-[#2b5cff] bg-[#f8faff]"
+                                  : explanation.tone === "caution"
+                                    ? "border-amber-500 bg-amber-50"
+                                    : "border-red-500 bg-red-50"
+                              }`}
+                          >
+                            <p
+                              className={`text-base font-bold leading-tight ${explanation.tone === "positive"
+                                  ? "text-green-900"
+                                  : explanation.tone === "neutral"
+                                    ? "text-[#0a1930]"
+                                    : explanation.tone === "caution"
+                                      ? "text-amber-900"
+                                      : "text-red-900"
+                                }`}
+                            >
+                              {explanation.summary ??
+                                "Your financial plan is being prepared."}
+                            </p>
+                            {explanation.reason && (
+                              <p
+                                className={`mt-1 text-xs opacity-75 ${explanation.tone === "positive"
+                                    ? "text-green-800"
+                                    : explanation.tone === "neutral"
+                                      ? "text-[#0a1930]"
+                                      : explanation.tone === "caution"
+                                        ? "text-amber-800"
+                                        : "text-red-800"
+                                  }`}
+                              >
+                                {explanation.reason}
+                              </p>
+                            )}
+                            {explanation.insight && (
+                              <p
+                                className={`mt-2 text-xs leading-relaxed opacity-85 ${explanation.tone === "positive"
+                                    ? "text-green-700"
+                                    : explanation.tone === "neutral"
+                                      ? "text-[#4a628b]"
+                                      : explanation.tone === "caution"
+                                        ? "text-amber-700"
+                                        : "text-red-700"
+                                  }`}
+                              >
+                                {explanation.insight}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* RECOVERY OR SECONDARY ACTIONS */}
+                          {(explanation.suggestion?.primary ||
+                            explanation.suggestion?.optional) && (
+                              <div
+                                className={`rounded-lg p-3 ${explanation.isCritical
+                                    ? "bg-red-50/50 border border-red-100"
+                                    : "bg-[#f0f4ff]"
+                                  }`}
+                              >
+                                <p
+                                  className={`text-xs font-semibold ${explanation.isCritical
+                                      ? "text-red-700"
+                                      : "text-[#2b5cff]"
+                                    }`}
+                                >
+                                  {explanation.isCritical
+                                    ? "Required recovery actions:"
+                                    : "Optional next steps:"}
+                                </p>
+                                <div className="mt-1 space-y-1.5">
+                                  {explanation.suggestion.primary && (
+                                    <p
+                                      className={`text-sm ${explanation.isCritical ? "text-red-900 font-medium" : "text-[#0a1930]"}`}
+                                    >
+                                      • {explanation.suggestion.primary}
+                                    </p>
+                                  )}
+                                  {explanation.suggestion.optional && (
+                                    <p
+                                      className={`text-sm ${explanation.isCritical ? "text-red-900 font-medium" : "text-[#0a1930]"}`}
+                                    >
+                                      • {explanation.suggestion.optional}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                          {/* FOLLOW UP Q&A moved below allocation section */}
+
+                          {/* GOAL INTERPRETATION */}
+                          {financialSummary?.goalIntent?.note && (
+                            <p className="rounded-md border border-blue-100 bg-blue-50 p-2 text-xs text-blue-800">
+                              <span className="font-semibold">Goal:</span>{" "}
+                              {financialSummary.goalIntent.note}
+                            </p>
+                          )}
+
+                          {/* GOAL WARNINGS */}
+                          {financialSummary?.goalIntent?.warnings && financialSummary.goalIntent.warnings.length > 0 && (
+                            <div className="space-y-2">
+                              {financialSummary.goalIntent.warnings.map((w: string, idx: number) => (
+                                <p key={idx} className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-900 flex gap-2">
+                                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                  {w}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* RISK NOTE */}
+                          {financialSummary?.decision?.riskNote && (
+                            <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                              {financialSummary.decision.riskNote}
+                            </p>
+                          )}
+                        </motion.div>
+                      )}
+
+                      {/* Fallback when loading */}
+                      {isPowerInsightsLoading && !explanation && (
+                        <div className="mt-4 space-y-2">
+                          <div className="h-4 w-3/4 animate-pulse rounded bg-[#e8efff]" />
+                          <div className="h-4 w-1/2 animate-pulse rounded bg-[#e8efff]" />
+                        </div>
+                      )}
                     </div>
-                    <h2 className="mt-4 text-3xl font-bold tracking-tight text-finance-text sm:text-4xl">
-                      Future Corpus Simulator
-                    </h2>
-                    <p className="mt-3 text-sm leading-relaxed text-finance-muted md:text-base">
-                      See how your <strong className="text-finance-text">Strategic Asset Architecture</strong> compounds over time. Adjust the horizon to visualize your projected wealth.
+                  </div>
+
+                  {/* Decision + Allocation Infographic */}
+                  {financialSummary?.decision?.primaryAction &&
+                    financialSummary?.allocation &&
+                    (() => {
+                      const totalSip =
+                        financialSummary.sipUsed ||
+                        financialSummary.userCapacity ||
+                        0;
+                      if (!totalSip) return null;
+                      const a = financialSummary.allocation;
+                      const buckets: Array<{
+                        type: AllocationItem["type"];
+                        pct: number;
+                      }> = [
+                          { type: "equity", pct: a.equity },
+                          { type: "debt", pct: a.debt },
+                          { type: "gold", pct: a.gold },
+                          { type: "liquid", pct: a.cash },
+                        ];
+                      const allocations: AllocationItem[] = buckets.map(
+                        (b) => ({
+                          type: b.type,
+                          pct: b.pct,
+                          amount: Math.round((totalSip * b.pct) / 100),
+                        }),
+                      );
+                      const sum = allocations.reduce((s, x) => s + x.amount, 0);
+                      if (sum !== totalSip && allocations.length) {
+                        allocations[allocations.length - 1].amount +=
+                          totalSip - sum;
+                      }
+                      const fz = financialSummary.decision.feasibility;
+                      const prefix =
+                        fz === "not_viable"
+                          ? "This plan cannot reach your goal under current conditions—invest"
+                          : fz === "stretched"
+                            ? "Continue investing"
+                            : "Invest";
+                      return (
+                        <div className="mt-4 space-y-6">
+                          <GapDominancePanel
+                            goalAmount={financialSummary.decision.goalAmount}
+                            likelyCorpus={financialSummary.decision.likelyCorpus}
+                            gapAmount={financialSummary.decision.gapAmount}
+                            percentageOfGoal={financialSummary.decision.percentageOfGoal}
+                            timeYears={financialSummary.decision.timeYears}
+                            feasibility={financialSummary.decision.feasibility}
+                            primaryLever={financialSummary.decision.primaryAction}
+                            secondaryLever={financialSummary.decision.secondaryAction}
+                            primaryActionType={financialSummary.decision.primaryActionType}
+                          />
+                          <DecisionWithAllocation
+                            totalSip={financialSummary.sipOriginal}
+                            allocations={Object.entries(financialSummary.allocation || {}).map(([type, amount]) => {
+                              const amt = Number(amount) || 0;
+                              return {
+                                type: type as any,
+                                amount: amt,
+                                pct: financialSummary.sipOriginal > 0 
+                                  ? Math.round((amt / financialSummary.sipOriginal) * 100) 
+                                  : 0
+                              };
+                            })}
+                            prefix={prefix}
+                          />
+
+                          {/* Fallback when allocation data is unavailable */}
+                          {financialSummary.sipOriginal <= 0 && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                              <div className="flex items-start gap-3">
+                                <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600 flex-shrink-0" />
+                                <div>
+                                  <p className="font-semibold text-amber-900">Allocation unavailable</p>
+                                  <p className="mt-1 text-sm text-amber-800">
+                                    Your current investment capacity is ₹0/month (income minus expenses minus EMI). 
+                                    To create an allocation plan, increase your income or reduce expenses to generate surplus.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                  {/* FOLLOW UP Q&A */}
+                  {financialSummary && explanation && (
+                    <FollowUpPanel
+                      snapshot={financialSummary as any}
+                      explanation={explanation}
+                    />
+                  )}
+
+                  {/* Best Next Step CTA */}
+                  {financialSummary?.decision?.primaryAction && (
+                    <div className="mt-5 p-5 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg
+                          className="h-5 w-5 text-green-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span className="font-semibold text-green-800 uppercase tracking-wider text-sm">
+                          Best Next Step
+                        </span>
+                      </div>
+                      <p className="text-green-900 font-medium text-lg leading-relaxed">
+                        {financialSummary.decision.primaryAction}
+                      </p>
+                    </div>
+                  )}
+
+                  <StatusBadge label="Plan ready" tone="success" />
+
+                  {/* Scenario row: Best / Likely / Worst */}
+                  {financialSummary?.scenarioOutcomes && (
+                    <div className="mt-5 rounded-xl border border-[#e1ebff] bg-[#f8faff] p-4">
+                      <p className="mb-3 text-xs font-semibold text-[#5f7396]">
+                        What you might reach with ₹
+                        {financialSummary.sipUsed.toLocaleString()}/month:
+                      </p>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#2b5cff]">
+                            Best
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-[#0a1930]">
+                            {formatCompactCurrency(
+                              financialSummary.scenarioOutcomes.optimistic,
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">
+                            Likely
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-[#0a1930]">
+                            {formatCompactCurrency(
+                              financialSummary.scenarioOutcomes.moderate,
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-red-400">
+                            Worst
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-[#0a1930]">
+                            {formatCompactCurrency(
+                              financialSummary.scenarioOutcomes.conservative,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4 stat cards */}
+                  {financialSummary && (
+                    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {/* Investment Capacity */}
+                      <div className="rounded-xl border border-[#e1ebff] bg-white p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">
+                          Your Investment Capacity
+                        </p>
+                        <p className="mt-2 text-xl font-bold text-[#0a1930]">
+                          ₹{financialSummary.sipUsed.toLocaleString()}/mo
+                        </p>
+                        <p className="mt-1 text-xs text-[#5f7396]">
+                          Required: ₹
+                          {financialSummary.requiredSip.toLocaleString()}
+                        </p>
+                        <p className="text-[10px] text-[#8a9dbe]">
+                          Based on 12% return assumption
+                        </p>
+                      </div>
+
+                      {/* Plan Status */}
+                      <div className="rounded-xl border border-[#e1ebff] bg-white p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">
+                          Plan Status
+                        </p>
+                        {(() => {
+                          const fz = financialSummary.decision.feasibility;
+                          const cfg =
+                            fz === "comfortable"
+                              ? {
+                                label: "Feasible",
+                                cls: "text-emerald-700",
+                                dotCls: "bg-emerald-500",
+                              }
+                              : fz === "tight"
+                                ? {
+                                  label: "Tight",
+                                  cls: "text-amber-700",
+                                  dotCls: "bg-amber-500",
+                                }
+                                : fz === "stretched"
+                                  ? {
+                                    label: "Stretched",
+                                    cls: "text-orange-700",
+                                    dotCls: "bg-orange-500",
+                                  }
+                                  : {
+                                    label: "Needs attention",
+                                    cls: "text-red-700",
+                                    dotCls: "bg-red-500",
+                                  };
+                          return (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span
+                                className={`h-2.5 w-2.5 rounded-full ${cfg.dotCls}`}
+                              />
+                              <p className={`text-lg font-bold ${cfg.cls}`}>
+                                {cfg.label}
+                              </p>
+                            </div>
+                          );
+                        })()}
+                        {financialSummary.timeHorizon?.label && (
+                          <p className="mt-1 text-xs text-[#5f7396]">
+                            {financialSummary.timeHorizon.label}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Income Utilization */}
+                      <div
+                        className={`rounded-xl border p-4 ${financialSummary.utilizationInsight?.level ===
+                            "risky" ||
+                            financialSummary.utilizationInsight?.level ===
+                            "unsustainable"
+                            ? "border-red-200 bg-red-50"
+                            : financialSummary.utilizationInsight?.level ===
+                              "aggressive"
+                              ? "border-amber-200 bg-amber-50"
+                              : "border-emerald-200 bg-emerald-50"
+                          }`}
+                      >
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">
+                          Income Utilization
+                        </p>
+                        <p className="mt-2 text-xl font-bold text-[#0a1930]">
+                          {financialSummary.utilizationPercent.toFixed(0)}%
+                        </p>
+                        {financialSummary.utilizationInsight?.message && (
+                          <p className="mt-1 text-xs text-[#5f7396]">
+                            {financialSummary.utilizationInsight.message}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Goal vs Reality */}
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[#5f7396]">
+                          Goal vs Reality
+                        </p>
+                        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-amber-200">
+                          <div
+                            className="h-full rounded-full bg-amber-500 transition-all duration-700"
+                            style={{
+                              width: `${Math.min(100, financialSummary.goalDeltaPercent ?? 0)}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-1 text-[10px] text-[#5f7396]">
+                          {financialSummary.goalDeltaPercent?.toFixed(0) ?? 0}%
+                          achievable · Goal:{" "}
+                          {formatCompactCurrency(financialSummary.goalAmount)}
+                        </p>
+                        <p className="mt-2 text-xl font-bold text-[#0a1930]">
+                          {formatCompactCurrency(
+                            financialSummary.projectedCorpus ?? 0,
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Journey Map — milestone roadmap */}
+                  {financialSummary?.milestoneRoadmap?.length ? (
+                    <div className="mt-6">
+                      <p className="mb-4 text-sm font-semibold text-[#0a1930]">
+                        Your Journey Map
+                      </p>
+                      <div className="relative flex items-start justify-between overflow-x-auto pb-2">
+                        <div className="absolute top-4 left-0 right-0 h-0.5 bg-[#d8e7ff]" />
+                        {financialSummary.milestoneRoadmap.map((m, i) => (
+                          <div
+                            key={i}
+                            className="relative z-10 flex flex-col items-center px-2 min-w-[60px]"
+                          >
+                            <div
+                              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold ${i === 0
+                                  ? "border-[#2b5cff] bg-[#2b5cff] text-white"
+                                  : i ===
+                                    financialSummary.milestoneRoadmap.length -
+                                    1
+                                    ? "border-[#2b5cff] bg-[#2b5cff] text-white"
+                                    : "border-[#d8e7ff] bg-white text-[#5f7396]"
+                                }`}
+                            >
+                              {i === 0 ? "●" : i + 1}
+                            </div>
+                            <p className="mt-2 text-[10px] font-bold uppercase text-[#5f7396]">
+                              {i === 0 ? "Year 1" : `Year ${m.year}`}
+                            </p>
+                            <p className="mt-0.5 text-xs font-bold text-[#0a1930]">
+                              {formatCompactCurrency(m.projectedValue)}
+                            </p>
+                            {m.milestone && (
+                              <p className="mt-0.5 text-[9px] text-[#8a9dbe] text-center">
+                                {m.milestone}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* How to Close the Gap */}
+                  {financialSummary?.gapStrategies?.length ? (
+                    <div className="mt-6">
+                      <p className="mb-3 text-sm font-semibold text-[#0a1930]">
+                        How to Close the Gap
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {financialSummary.gapStrategies.slice(0, 2).map((s) => (
+                          <div
+                            key={s.id}
+                            className="rounded-xl border border-[#e1ebff] bg-white p-4"
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="rounded-full bg-[#edf4ff] px-2 py-0.5 text-[10px] font-bold uppercase text-[#2b5cff]">
+                                {s.feasibility === "achievable"
+                                  ? "Recommended"
+                                  : s.feasibility === "partial"
+                                    ? "Partial"
+                                    : "Stretch"}
+                              </span>
+                            </div>
+                            <p className="text-sm font-bold text-[#0a1930]">
+                              {s.title}
+                            </p>
+                            <p className="mt-1 text-xs text-[#5f7396]">
+                              {s.description}
+                            </p>
+                            <p className="mt-2 text-xs font-semibold text-emerald-700">
+                              {s.outcome}
+                            </p>
+                            {s.tradeoffs?.length ? (
+                              <ul className="mt-2 space-y-0.5">
+                                {s.tradeoffs.map((t, ti) => (
+                                  <li
+                                    key={ti}
+                                    className="text-[10px] text-[#8a9dbe]"
+                                  >
+                                    • {t}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Your Next 30 Days — action plan */}
+                  {financialSummary?.actionPlan?.length ? (
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[#0a1930]">
+                            Your Next 30 Days
+                          </p>
+                          <p className="text-xs text-[#5f7396]">
+                            Concrete actions to start building wealth
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {financialSummary.actionPlan.map((item, index) => (
+                          <div
+                            key={index}
+                            className="flex items-start gap-3 rounded-lg border border-[#e1ebff] bg-white p-3"
+                          >
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-[#2b5cff]/30 bg-white">
+                              <span className="text-xs font-bold text-[#2b5cff]">
+                                {item.priority}
+                              </span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-[#0a1930]">
+                                {item.action}
+                              </p>
+                              <p className="mt-0.5 text-xs text-[#5f7396]">
+                                {item.impact}
+                              </p>
+                              <p className="mt-1 text-[10px] font-medium text-[#2b5cff]">
+                                {item.timeframe}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Step-up SIP suggestion */}
+                  {financialSummary?.stepUpSuggestion && (
+                    <motion.div
+                      className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-600">
+                          <TrendingUp className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-green-900">
+                            💡 Power Move: Step-up SIP
+                          </p>
+                          <p className="mt-1 text-sm text-green-800">
+                            Start at ₹
+                            {financialSummary.sipUsed.toLocaleString()},
+                            increase{" "}
+                            {Math.round(
+                              financialSummary.stepUpSuggestion.yearlyIncrease *
+                              100,
+                            )}
+                            % yearly
+                          </p>
+                          <div className="mt-2 rounded-lg bg-white/70 p-2">
+                            <p className="text-xs text-green-700">
+                              Final corpus:{" "}
+                              <span className="font-semibold">
+                                {formatCompactCurrency(
+                                  financialSummary.stepUpSuggestion
+                                    .projectedCorpus,
+                                )}
+                              </span>{" "}
+                              vs fixed SIP:{" "}
+                              <span className="font-semibold">
+                                {formatCompactCurrency(
+                                  financialSummary.stepUpSuggestion.vsFixedSip,
+                                )}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </section>
+            ) : null}
+
+            {/* AI Chat Assistant - World Class Chat Interface */}
+            {!isLoading && !error && signedInEmail && profile ? (
+              <section className="relative mt-5 overflow-hidden rounded-2xl border border-[#d8e7ff] bg-white shadow-[0_12px_40px_rgba(43,92,255,0.12)] sm:mt-6">
+                {/* Animated gradient background */}
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(124,58,237,0.08),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(43,92,255,0.1),transparent_35%),linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]" />
+
+                {/* Floating particles effect */}
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  <motion.div
+                    className="absolute h-2 w-2 rounded-full bg-[#2b5cff]/20"
+                    animate={{
+                      y: [-20, -100],
+                      x: [0, 20, -20, 0],
+                      opacity: [0, 1, 0],
+                    }}
+                    transition={{ duration: 8, repeat: Infinity, delay: 0 }}
+                    style={{ left: "10%", bottom: 0 }}
+                  />
+                  <motion.div
+                    className="absolute h-1.5 w-1.5 rounded-full bg-[#7c3aed]/20"
+                    animate={{
+                      y: [-20, -120],
+                      x: [0, -30, 30, 0],
+                      opacity: [0, 1, 0],
+                    }}
+                    transition={{ duration: 10, repeat: Infinity, delay: 2 }}
+                    style={{ left: "30%", bottom: 0 }}
+                  />
+                  <motion.div
+                    className="absolute h-2 w-2 rounded-full bg-[#04bfff]/20"
+                    animate={{
+                      y: [-20, -80],
+                      x: [0, 15, -15, 0],
+                      opacity: [0, 1, 0],
+                    }}
+                    transition={{ duration: 7, repeat: Infinity, delay: 4 }}
+                    style={{ left: "70%", bottom: 0 }}
+                  />
+                </div>
+
+                <div className="relative p-5 sm:p-6">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <motion.div
+                        whileHover={{ scale: 1.05, rotate: 5 }}
+                        className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2b5cff] to-[#7c3aed] shadow-lg shadow-[#2b5cff]/25"
+                      >
+                        <Bot className="h-6 w-6 text-white" />
+                        {/* Online indicator */}
+                        <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#10b981] opacity-75"></span>
+                          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-[#10b981] border-2 border-white"></span>
+                        </span>
+                      </motion.div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-bold text-[#0a1930]">
+                            Pravix AI Assistant
+                          </h2>
+                          <span className="rounded-full bg-[#10b981]/10 px-2 py-0.5 text-[10px] font-semibold text-[#10b981]">
+                            Online
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#5f7396]">
+                          Ask anything about your wealth plan, investments, or
+                          market insights
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setIsChatExpanded(!isChatExpanded)}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e1ebff] bg-white text-[#5f7396] transition-all hover:border-[#2b5cff]/30 hover:text-[#2b5cff] hover:shadow-md"
+                    >
+                      {isChatExpanded ? (
+                        <ChevronDown className="h-5 w-5" />
+                      ) : (
+                        <ChevronUp className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Chat Messages Area */}
+                  <motion.div
+                    initial={false}
+                    animate={{ height: isChatExpanded ? "auto" : "320px" }}
+                    className="mt-5 overflow-hidden rounded-xl border border-[#e1ebff] bg-[#f8fbff]/50"
+                  >
+                    <div
+                      ref={chatScrollRef}
+                      className="h-full max-h-[500px] overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-[#dce8ff] scrollbar-track-transparent"
+                    >
+                      {chatMessages.length === 0 ? (
+                        /* Empty State - Suggested Questions */
+                        <div className="space-y-4 py-4">
+                          <div className="text-center">
+                            <motion.div
+                              initial={{ scale: 0.9, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#edf4ff] to-[#f5f3ff]"
+                            >
+                              <Sparkles className="h-8 w-8 text-[#2b5cff]" />
+                            </motion.div>
+                            <p className="text-sm font-semibold text-[#0a1930]">
+                              How can I help you today?
+                            </p>
+                            <p className="mt-1 text-xs text-[#5f7396]">
+                              Choose a suggested question or type your own
+                            </p>
+                          </div>
+
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {[
+                              "Should I increase my SIP amount?",
+                              "How is my portfolio performing?",
+                              "What if the market crashes?",
+                              "Can I retire early?",
+                            ].map((question, index) => (
+                              <motion.button
+                                key={index}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.1 }}
+                                whileHover={{
+                                  scale: 1.02,
+                                  backgroundColor: "#ffffff",
+                                }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => {
+                                  setChatInputValue(question);
+                                  chatInputRef.current?.focus();
+                                }}
+                                className="rounded-xl border border-[#e1ebff] bg-white p-3 text-left text-xs text-[#5f7396] transition-all hover:border-[#2b5cff]/30 hover:text-[#0a1930] hover:shadow-sm"
+                              >
+                                <span className="mr-2 text-[#2b5cff]">💡</span>
+                                {question}
+                              </motion.button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Message Thread */
+                        <div className="space-y-4">
+                          {chatMessages.map((message, index) => (
+                            <motion.div
+                              key={message.id}
+                              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              transition={{
+                                duration: 0.3,
+                                ease: [0.23, 1, 0.32, 1],
+                              }}
+                              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                            >
+                              <div
+                                className={`flex max-w-[85%] items-start gap-2 ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                              >
+                                {/* Avatar */}
+                                <motion.div
+                                  whileHover={{ scale: 1.1 }}
+                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${message.role === "user"
+                                      ? "bg-gradient-to-br from-[#2b5cff] to-[#7c3aed]"
+                                      : "bg-gradient-to-br from-[#f0f7ff] to-white border border-[#e1ebff]"
+                                    }`}
+                                >
+                                  {message.role === "user" ? (
+                                    <User className="h-4 w-4 text-white" />
+                                  ) : (
+                                    <Bot className="h-4 w-4 text-[#2b5cff]" />
+                                  )}
+                                </motion.div>
+
+                                {/* Message Bubble */}
+                                <div
+                                  className={`relative overflow-hidden rounded-2xl px-4 py-3 ${message.role === "user"
+                                      ? "bg-gradient-to-br from-[#2b5cff] to-[#7c3aed] text-white shadow-lg shadow-[#2b5cff]/25"
+                                      : "bg-white border border-[#e1ebff] text-[#0a1930] shadow-sm"
+                                    }`}
+                                >
+                                  {/* Gradient overlay for assistant */}
+                                  {message.role === "assistant" && (
+                                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#f8fbff]/50 to-transparent" />
+                                  )}
+
+                                  <div className="relative">
+                                    {message.isStreaming ? (
+                                      <div className="flex items-center gap-2 py-1">
+                                        <motion.div
+                                          animate={{ scale: [1, 1.2, 1] }}
+                                          transition={{
+                                            duration: 0.6,
+                                            repeat: Infinity,
+                                            delay: 0,
+                                          }}
+                                          className="h-2 w-2 rounded-full bg-current opacity-60"
+                                        />
+                                        <motion.div
+                                          animate={{ scale: [1, 1.2, 1] }}
+                                          transition={{
+                                            duration: 0.6,
+                                            repeat: Infinity,
+                                            delay: 0.2,
+                                          }}
+                                          className="h-2 w-2 rounded-full bg-current opacity-60"
+                                        />
+                                        <motion.div
+                                          animate={{ scale: [1, 1.2, 1] }}
+                                          transition={{
+                                            duration: 0.6,
+                                            repeat: Infinity,
+                                            delay: 0.4,
+                                          }}
+                                          className="h-2 w-2 rounded-full bg-current opacity-60"
+                                        />
+                                        <span className="ml-1 text-xs opacity-60">
+                                          Thinking...
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <p
+                                        className={`text-sm leading-relaxed ${message.role === "user" ? "text-white" : "text-[#0a1930]"}`}
+                                      >
+                                        {message.content}
+                                      </p>
+                                    )}
+
+                                    {/* Timestamp */}
+                                    <p
+                                      className={`mt-1.5 text-[10px] ${message.role === "user" ? "text-white/60" : "text-[#5f7396]"}`}
+                                    >
+                                      {message.timestamp.toLocaleTimeString(
+                                        [],
+                                        { hour: "2-digit", minute: "2-digit" },
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+
+                          {/* Typing indicator for loading state */}
+                          {isChatLoading &&
+                            chatMessages[chatMessages.length - 1]?.role !==
+                            "assistant" && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex justify-start"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#f0f7ff] to-white border border-[#e1ebff]">
+                                    <Bot className="h-4 w-4 text-[#2b5cff]" />
+                                  </div>
+                                  <div className="rounded-2xl border border-[#e1ebff] bg-white px-4 py-3 shadow-sm">
+                                    <div className="flex items-center gap-1.5">
+                                      <motion.div
+                                        animate={{ y: [0, -4, 0] }}
+                                        transition={{
+                                          duration: 0.4,
+                                          repeat: Infinity,
+                                          delay: 0,
+                                        }}
+                                        className="h-2 w-2 rounded-full bg-[#2b5cff]"
+                                      />
+                                      <motion.div
+                                        animate={{ y: [0, -4, 0] }}
+                                        transition={{
+                                          duration: 0.4,
+                                          repeat: Infinity,
+                                          delay: 0.15,
+                                        }}
+                                        className="h-2 w-2 rounded-full bg-[#7c3aed]"
+                                      />
+                                      <motion.div
+                                        animate={{ y: [0, -4, 0] }}
+                                        transition={{
+                                          duration: 0.4,
+                                          repeat: Infinity,
+                                          delay: 0.3,
+                                        }}
+                                        className="h-2 w-2 rounded-full bg-[#04bfff]"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+
+                  {/* Input Area */}
+                  <div className="mt-4">
+                    {chatError && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-3 flex items-center gap-2 rounded-lg border border-finance-red/20 bg-finance-red/10 px-3 py-2 text-xs text-finance-red"
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        {chatError}
+                      </motion.div>
+                    )}
+
+                    <div className="flex items-end gap-2 rounded-2xl border border-[#dce8ff] bg-white p-2 shadow-[0_4px_20px_rgba(43,92,255,0.06)] focus-within:border-[#2b5cff]/40 focus-within:shadow-[0_4px_25px_rgba(43,92,255,0.12)] transition-all">
+                      <textarea
+                        ref={chatInputRef}
+                        value={chatInputValue}
+                        onChange={handleChatInputChange}
+                        onKeyDown={handleChatKeyDown}
+                        placeholder="Ask about your investments, plan adjustments, or market insights..."
+                        rows={1}
+                        className="min-h-[44px] flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-[#0a1930] placeholder:text-[#5f7396]/60 outline-none"
+                        style={{ maxHeight: "120px" }}
+                      />
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleSendMessage}
+                        disabled={!chatInputValue.trim() || isChatLoading}
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${chatInputValue.trim() && !isChatLoading
+                            ? "bg-gradient-to-br from-[#2b5cff] to-[#7c3aed] text-white shadow-lg shadow-[#2b5cff]/25"
+                            : "bg-[#f4f8ff] text-[#5f7396]"
+                          }`}
+                      >
+                        {isChatLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </motion.button>
+                    </div>
+
+                    <p className="mt-2 text-center text-[10px] text-[#5f7396]/70">
+                      Press Enter to send, Shift + Enter for new line
                     </p>
                   </div>
 
