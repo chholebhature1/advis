@@ -15,6 +15,7 @@ type AgentStructuredAnswer = {
   reason: string;
   riskWarning: string;
   nextAction: string;
+  optionalAction?: string;
 };
 
 type AgentChatMessage = {
@@ -58,6 +59,7 @@ function normalizeStructuredAnswer(value: unknown): AgentStructuredAnswer | null
   const reason = toStructuredField(maybe.reason);
   const riskWarning = toStructuredField(maybe.riskWarning);
   const nextAction = toStructuredField(maybe.nextAction);
+  const optionalAction = toStructuredField(maybe.optionalAction);
 
   if (!recommendation || !reason || !riskWarning || !nextAction) {
     return null;
@@ -68,6 +70,7 @@ function normalizeStructuredAnswer(value: unknown): AgentStructuredAnswer | null
     reason,
     riskWarning,
     nextAction,
+    ...(optionalAction ? { optionalAction } : {}),
   };
 }
 
@@ -321,30 +324,34 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
                         : "bg-white border-finance-accent/30 p-5 shadow-sm"
                     }`}>
                       {message.role === "assistant" && message.structured ? (
-                        <div className="grid gap-6">
-                          <div className="border-l-2 border-finance-accent pl-5 py-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-finance-accent">Strategic Directive</p>
-                            <p className="mt-2 text-base font-bold text-finance-text leading-tight">{message.structured.recommendation}</p>
+                        <div className="grid gap-4">
+                          <div className="p-6 rounded-xl bg-finance-accent text-white shadow-lg shadow-finance-accent/20">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/80">Primary Action</p>
+                            <p className="mt-3 text-lg font-extrabold leading-tight">{message.structured.recommendation}</p>
                           </div>
-                          
+
                           <div className="grid sm:grid-cols-2 gap-4">
                             <div className="p-4 rounded-xl bg-white border border-finance-border shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted mb-2">Technical Rationale</p>
-                              <p className="text-xs font-medium text-finance-text leading-relaxed">{message.structured.reason}</p>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-finance-muted mb-2">Supporting Rationale</p>
+                              <p className="text-sm font-medium text-finance-text leading-relaxed">{message.structured.reason}</p>
                             </div>
                             <div className="p-4 rounded-xl bg-finance-red/[0.03] border border-finance-red/10">
                               <p className="text-[10px] font-bold uppercase tracking-widest text-finance-red mb-2">Risk Vectors</p>
-                              <p className="text-xs font-medium text-finance-red leading-relaxed">{message.structured.riskWarning}</p>
+                              <p className="text-sm font-medium text-finance-red leading-relaxed">{message.structured.riskWarning}</p>
                             </div>
                           </div>
 
-                          <div className="p-5 rounded-xl bg-finance-accent text-white shadow-lg shadow-finance-accent/15 flex items-center justify-between gap-4">
+                          {message.structured.optionalAction ? (
+                            <p className="mt-1 text-sm text-finance-muted">Optional: {message.structured.optionalAction}</p>
+                          ) : null}
+
+                          <div className="mt-2 p-4 rounded-lg bg-white border border-finance-border flex items-center justify-between gap-4">
                             <div>
-                              <p className="text-[10px] font-black uppercase tracking-widest text-white/70">Critical Next Action</p>
-                              <p className="mt-1 text-sm font-black tracking-tight">{message.structured.nextAction}</p>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-finance-muted">Next Action</p>
+                              <p className="mt-1 text-sm font-bold tracking-tight">{message.structured.nextAction}</p>
                             </div>
-                            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                              <Send className="h-4 w-4" />
+                            <div className="h-8 w-8 rounded-full bg-finance-accent/10 flex items-center justify-center">
+                              <Send className="h-4 w-4 text-finance-accent" />
                             </div>
                           </div>
                         </div>

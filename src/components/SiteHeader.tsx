@@ -29,8 +29,8 @@ const HOME_SCROLL_SECTIONS = [
   { id: "insights", hash: "#insights" },
   { id: "about-us", hash: "#about-us" },
   { id: "blog", hash: "#blog" },
-  { id: "contact", hash: "#send-inquiry" },
-  { id: "book-discovery-call", hash: "#send-inquiry" },
+  { id: "contact", hash: "#book-discovery-call" },
+  { id: "book-discovery-call", hash: "#book-discovery-call" },
 ] as const;
 
 export default function SiteHeader() {
@@ -290,7 +290,7 @@ export default function SiteHeader() {
     { label: "Marketplace", href: "/#insights" },
     { label: "Blog", href: "/#blog" },
     { label: "Team Pravix", href: "/#about-us" },
-    { label: "Contact", href: "/#send-inquiry" },
+    { label: "Contact", href: "/#book-discovery-call" },
   ];
   const navItems = baseNavItems;
 

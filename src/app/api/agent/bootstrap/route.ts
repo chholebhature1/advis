@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createAuthedSupabaseClient, getBearerToken, resolveAuthedUser } from "@/lib/agent/server";
 import { getAgentReadiness, loadAgentContext } from "@/lib/agent/context";
+import { generateFinancialSnapshot } from "@/lib/agent/financial-engine";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
+    const debug = new URL(request.url).searchParams.get("debug") === "true";
     const accessToken = getBearerToken(request);
     if (!accessToken) {
       return NextResponse.json({ error: "Missing bearer token." }, { status: 401 });
@@ -18,9 +20,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized request." }, { status: 401 });
     }
 
-    const context = await loadAgentContext(supabase, user.id);
+    const context = await loadAgentContext(supabase, user.id, debug);
+    const snapshot = generateFinancialSnapshot(context, debug);
     const readiness = getAgentReadiness(context);
 
+    // Use snapshot for consistent data across all endpoints
     const firstName = context.profile?.full_name?.split(" ")[0] ?? "there";
 
     return NextResponse.json(
@@ -33,11 +37,15 @@ export async function GET(request: Request) {
           "What are the top 3 actions I should take this month?",
           "How can I improve my tax efficiency this year?",
         ],
-        profileSnapshot: {
-          riskAppetite: context.profile?.risk_appetite ?? null,
-          monthlyInvestableSurplusInr: context.profile?.monthly_investable_surplus_inr ?? null,
-          goalsCount: context.goals.length,
-          holdingsCount: context.holdings.length,
+        snapshotPreview: {
+          monthlySurplus: snapshot.feasibility.currentSip,
+          requiredSip: snapshot.feasibility.requiredSip,
+          goalFeasible: snapshot.feasibility.isFeasible,
+          achievementProbability: snapshot.feasibility.achievementProbability,
+          riskProfile: snapshot.userProfile.riskProfile,
+          topAllocation: `${snapshot.allocation.equity}% equity / ${snapshot.allocation.debt}% debt`,
+          holdingsCount: snapshot.holdingsAnalysis?.holdingsCount ?? 0,
+          concentrationRisk: snapshot.holdingsAnalysis?.concentrationRisk ?? null,
         },
       },
       { status: 200 },

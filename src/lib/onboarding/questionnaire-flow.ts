@@ -68,9 +68,7 @@ export const ONBOARDING_QUESTIONNAIRE_FLOW: OnboardingScreen[] = [
           { label: "Wealth Creation 📈", value: "wealth_creation" },
           { label: "Retirement Planning 🧓", value: "retirement_planning" },
           { label: "Child Education 🎓", value: "child_education" },
-          { label: "Tax Saving 💸", value: "tax_saving" },
           { label: "Passive Income 💵", value: "passive_income" },
-          { label: "Insurance Planning 🛡️", value: "insurance_planning" },
         ],
         mapsTo: { table: "profiles", column: "primary_financial_goal" },
       },
@@ -245,7 +243,7 @@ export const ONBOARDING_QUESTIONNAIRE_FLOW: OnboardingScreen[] = [
         label: "Mobile Number",
         type: "phone",
         required: true,
-        placeholder: "98765 43210",
+        placeholder: "+91XXXXXXXXXX",
         mapsTo: { table: "profiles", column: "phone_e164" },
       },
       {

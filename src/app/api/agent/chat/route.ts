@@ -1,12 +1,29 @@
 import { NextResponse } from "next/server";
 import { createAuthedSupabaseClient, getBearerToken, resolveAuthedUser } from "@/lib/agent/server";
 import { loadAgentContext } from "@/lib/agent/context";
-import { generateAdvisorChatReply } from "@/lib/agent/nim";
+import { generateAdvisorChatReplyV2 } from "@/lib/agent/nim";
+import { generateFinancialSnapshot } from "@/lib/agent/financial-engine";
 import type { AgentChatHistoryItem } from "@/lib/agent/types";
+
+type FinancialContext = {
+  goal_amount_inr?: number;
+  horizon_years?: number;
+  risk_level?: string;
+  monthly_income?: number;
+  monthly_surplus?: number;
+  current_savings?: number;
+  emergency_months?: number;
+  loss_tolerance?: number | null;
+  plan_intro?: string;
+  sip_range?: string;
+  next_action?: string;
+};
 
 type ChatBody = {
   message?: unknown;
   history?: unknown;
+  system?: unknown;
+  context?: FinancialContext;
 };
 
 function isHistoryItem(value: unknown): value is AgentChatHistoryItem {
@@ -23,6 +40,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const debug = new URL(request.url).searchParams.get("debug") === "true";
     const accessToken = getBearerToken(request);
     if (!accessToken) {
       return NextResponse.json({ error: "Missing bearer token." }, { status: 401 });
@@ -37,6 +55,13 @@ export async function POST(request: Request) {
       ? body.history.filter(isHistoryItem).map((item) => ({ role: item.role, content: item.content.trim() }))
       : [];
 
+    // DEBUG: Log the incoming history for troubleshooting repeated answers
+    console.log('[DEBUG] Incoming chat history:', JSON.stringify(history, null, 2));
+    
+    // Extract optional system prompt and context
+    const systemPrompt = typeof body.system === "string" ? body.system.trim() : undefined;
+    const financialContext = body.context as FinancialContext | undefined;
+
     const supabase = createAuthedSupabaseClient(accessToken);
     const user = await resolveAuthedUser(supabase);
 
@@ -44,19 +69,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized request." }, { status: 401 });
     }
 
-    const context = await loadAgentContext(supabase, user.id);
-    const advisorReply = await generateAdvisorChatReply({
+    const context = await loadAgentContext(supabase, user.id, debug);
+    const snapshot = generateFinancialSnapshot(context, debug);
+    const advisorReply = await generateAdvisorChatReplyV2({
       message: body.message.trim(),
       history,
-      context,
+      snapshot,
     });
 
     return NextResponse.json(
       {
         ok: true,
         reply: advisorReply.reply,
+        raw: advisorReply.raw,
         structured: advisorReply.structured,
-        isSimpleAnswer: advisorReply.isSimpleAnswer,
         disclaimer:
           "Educational guidance only. This is not guaranteed return advice. Validate suitability before investing.",
       },
@@ -64,7 +90,6 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected chat error.";
-    console.error("[agent/chat] Error:", message, "Stack:", error instanceof Error ? error.stack : "");
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

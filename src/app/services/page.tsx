@@ -289,7 +289,7 @@ export default function ServicesPage() {
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Link
-                href="/#send-inquiry"
+                href="/#book-discovery-call"
                 className="inline-flex items-center justify-center rounded-full bg-[#2b5cff] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(43,92,255,0.28)] hover:bg-[#224ed8]"
               >
                 Book A Service Call

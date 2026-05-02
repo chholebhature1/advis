@@ -38,7 +38,6 @@ import {
   Landmark,
   Building2,
   ChevronRight,
-  Gem,
   PieChart as PieChartIcon,
 } from "lucide-react";
 const MiniSparkline = dynamic(() => import("@/components/charts/HomepageCharts").then((mod) => mod.MiniSparkline), {
@@ -52,6 +51,7 @@ const MainTrendChart = dynamic(() => import("@/components/charts/HomepageCharts"
 });
 import SiteHeader from "@/components/SiteHeader";
 import { blogPosts } from "@/app/learn/blog-data";
+
 const HeroPhoneMockup = dynamic(() => import("@/components/HeroPhoneMockup"), {
   ssr: false,
   loading: () => (
@@ -60,6 +60,8 @@ const HeroPhoneMockup = dynamic(() => import("@/components/HeroPhoneMockup"), {
     </div>
   ),
 });
+
+
 
 const CalendlyBookingSection = dynamic(() => import("@/components/CalendlyBookingSection"), {
   ssr: false,
@@ -181,15 +183,16 @@ const trustedPartners = [
     name: "ICICI Prudential Mutual Fund",
     subtitle: "Mutual Fund",
     logo: (
-      <div className="flex h-full w-full items-center justify-center bg-transparent">
-        <Image
-          src="/image/partners/icic-partner.png"
-          alt="ICICI Prudential Mutual Fund logo"
-          width={300}
-          height={100}
-          className="h-[72px] w-auto object-contain sm:h-[84px]"
-          sizes="(max-width: 640px) 140px, 180px"
-        />
+      <div className="flex h-full w-full items-center justify-center gap-2 bg-transparent">
+        <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
+           <div className="absolute inset-0 rotate-45 rounded-full border-[3.5px] border-[#da1f2f] border-b-transparent border-r-transparent" />
+           <div className="h-3 w-3 rounded-full bg-[#da1f2f]" />
+        </div>
+        <div className="flex flex-col leading-none">
+          <span className="text-[1.35rem] font-black italic tracking-tighter text-[#da1f2f]">ICICI</span>
+          <span className="-mt-0.5 text-[0.95rem] font-extrabold italic tracking-tighter text-[#da1f2f]">PRUDENTIAL</span>
+          <span className="mt-0.5 text-[0.5rem] font-bold tracking-[0.2em] text-[#143e7a]">MUTUAL FUND</span>
+        </div>
       </div>
     ),
   },
@@ -276,15 +279,15 @@ const trustedPartners = [
       <div className="flex h-full w-full items-center justify-center gap-2.5 bg-transparent">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-black bg-white shadow-sm">
           <div className="flex h-full w-full items-center justify-center bg-gray-100">
-            <div className="h-7 w-5 rounded-t-full bg-gray-400" />
+             <div className="h-7 w-5 rounded-t-full bg-gray-400" />
           </div>
         </div>
         <div className="flex flex-col justify-center leading-none">
           <p className="text-[1.05rem] font-bold uppercase text-black font-serif">Franklin Templeton</p>
           <div className="mt-1 flex items-center gap-1">
-            <div className="h-[0.5px] flex-1 bg-black" />
-            <p className="text-[0.45rem] font-bold uppercase tracking-[0.15em] text-black">Investments</p>
-            <div className="h-[0.5px] flex-1 bg-black" />
+             <div className="h-[0.5px] flex-1 bg-black" />
+             <p className="text-[0.45rem] font-bold uppercase tracking-[0.15em] text-black">Investments</p>
+             <div className="h-[0.5px] flex-1 bg-black" />
           </div>
         </div>
       </div>
@@ -296,10 +299,10 @@ const trustedPartners = [
     logo: (
       <div className="flex h-full w-full items-center justify-center gap-3 bg-transparent">
         <div className="grid h-8 w-8 shrink-0 rotate-45 grid-cols-2 gap-[2px]">
-          <span className="h-full w-full rounded-tl-[8px] bg-[#e22d2d]" />
-          <span className="h-full w-full rounded-tr-[8px] bg-[#e22d2d]" />
-          <span className="h-full w-full rounded-bl-[8px] bg-[#e22d2d]" />
-          <span className="h-full w-full rounded-br-[8px] bg-[#e22d2d]" />
+            <span className="h-full w-full rounded-tl-[8px] bg-[#e22d2d]" />
+            <span className="h-full w-full rounded-tr-[8px] bg-[#e22d2d]" />
+            <span className="h-full w-full rounded-bl-[8px] bg-[#e22d2d]" />
+            <span className="h-full w-full rounded-br-[8px] bg-[#e22d2d]" />
         </div>
         <div className="flex flex-col leading-none">
           <p className="text-[1.3rem] font-medium text-[#4a4a4a]">Nippon <span className="text-[#e22d2d]">india</span></p>
@@ -346,15 +349,19 @@ const trustedPartners = [
     name: "IndiaFirst Life Insurance",
     subtitle: "Promoted by Bank of Baroda",
     logo: (
-      <div className="flex h-full w-full items-center justify-center bg-transparent">
-        <Image
-          src="/image/partners/indiafirstlife-partner-logo.png"
-          alt="IndiaFirst Life Insurance logo"
-          width={300}
-          height={100}
-          className="h-[72px] w-auto object-contain sm:h-[84px]"
-          sizes="(max-width: 640px) 140px, 180px"
-        />
+      <div className="flex h-full w-full flex-col justify-center bg-transparent">
+        <div className="mx-auto mb-1 flex w-[88%] items-end justify-start gap-1.5">
+          <span className="h-2.5 w-8 -skew-x-[24deg] bg-[#ea1b2c]" />
+          <span className="h-3 w-9 -skew-x-[24deg] bg-[#1ea1df]" />
+          <span className="h-3.5 w-10 -skew-x-[24deg] bg-[#f36f21]" />
+        </div>
+        <p className="text-center text-[clamp(0.88rem,1.95vw,1.24rem)] font-extrabold leading-none text-[#174b90]">
+          IndiaFirst<span className="text-[#f36f21]">Life</span>
+        </p>
+        <p className="mt-1 text-center text-[0.63rem] font-semibold uppercase tracking-[0.14em] text-[#6a7d9f]">
+          Promoted by
+        </p>
+        <p className="text-center text-[0.82rem] font-bold leading-none text-[#f07e23]">Bank of Baroda</p>
       </div>
     ),
   },
@@ -793,15 +800,15 @@ export default function Home() {
               </div>
             </div>
 
-             {/* Right: Animated Phone Mockup */}
-             <motion.div
-               initial={{ opacity: 0, x: 20 }}
-               animate={{ opacity: 1, x: 0 }}
-               transition={{ duration: 0.8, delay: 0.2 }}
-               className="mt-1 flex w-full max-w-[18.5rem] flex-1 justify-center sm:max-w-[22rem] md:max-w-[27rem] lg:mt-0 lg:max-w-[30rem] lg:-translate-x-[80px] lg:justify-end xl:max-w-[34rem]"
-             >
-               <HeroPhoneMockup />
-             </motion.div>
+            {/* Right: Animated Phone Mockup */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="mt-1 flex w-full max-w-[18.5rem] flex-1 justify-center sm:max-w-[22rem] md:max-w-[27rem] lg:mt-0 lg:max-w-[30rem] lg:-translate-x-[80px] lg:justify-end xl:max-w-[34rem]"
+            >
+              <HeroPhoneMockup />
+            </motion.div>
           </div>
         </section>
 
@@ -1341,57 +1348,42 @@ export default function Home() {
               </div>
             </div>
 
-            <motion.div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" initial="hidden" whileInView="show" viewport={cardGridViewport}>
+            <motion.div className="mt-10 grid gap-4 md:grid-cols-3" initial="hidden" whileInView="show" viewport={cardGridViewport}>
               {[
                 {
-                  id: "hni",
-                  title: "HNI Services",
-                  icon: Gem,
-                  summary: "Dedicated wealth specialist for affluent families with quarterly strategy reviews.",
-                  metric: "Institutional grade",
-                },
-                {
-                  id: "mf-portfolio",
-                  title: "Mutual Fund Portfolio",
-                  icon: Landmark,
-                  summary: "Curated mutual fund portfolios built around risk profile and SIP capacity.",
-                  metric: "Goal-linked optimization",
-                },
-                {
-                  id: "corp-bonds",
-                  title: "Corporate Bonds",
-                  icon: Building2,
-                  summary: "Income-focused fixed income with transparent issuer evaluation.",
-                  metric: "Steady cash flows",
-                },
-                {
-                  id: "alts",
-                  title: "Alternative Products",
                   icon: Sparkles,
-                  summary: "Access to IPOs, Insurance, NFOs, and secure Corporate FDs.",
-                  metric: "Diversified returns",
+                  title: "Monthly Goal Focus",
+                  detail:
+                    "Pravix highlights the one goal area where your action this week will matter most.",
+                  metric: "Prioritized weekly",
                 },
-              ].map((service, index) => (
+                {
+                  icon: BellRing,
+                  title: "Smart Alerts",
+                  detail:
+                    "Timely nudges help you avoid missed SIPs, drift, and last-minute tax pressure.",
+                  metric: "Timely alerts",
+                },
+                {
+                  icon: MessageCircle,
+                  title: "Pravix AI Buddy",
+                  detail:
+                    "Get practical next actions in plain language, with clear reasoning and risk context.",
+                  metric: "Action-ready guidance",
+                },
+              ].map((item, index) => (
                 <motion.article
-                  key={service.title}
-                  className="group relative overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:bg-white/15 hover:shadow-[0_20px_40px_rgba(0,216,255,0.15)]"
+                  key={item.title}
+                  className="group rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 hover:bg-white/14"
                   variants={featureCardReveal}
                   custom={index}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#00d8ff]/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                  <div className="relative z-10">
-                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/30 bg-white/10 transition-transform duration-300 group-hover:scale-110 group-hover:bg-[#00d8ff]/20">
-                      <service.icon className="h-5 w-5 text-[#00d8ff]" />
-                    </div>
-                    <h4 className="mt-4 text-xl font-semibold text-white">{service.title}</h4>
-                    <p className="mt-2 text-sm leading-relaxed text-[#d9e6ff]">{service.summary}</p>
-                    <div className="mt-4 flex items-center justify-between">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#00d8ff]">{service.metric}</p>
-                      <Link href="/services" className="opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 flex items-center gap-1 text-[11px] font-bold text-white">
-                        Explore <ChevronRight className="h-3 w-3" />
-                      </Link>
-                    </div>
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/30 bg-white/10">
+                    <item.icon className="h-5 w-5 text-[#00d8ff]" />
                   </div>
+                  <h4 className="mt-4 text-xl font-semibold text-white">{item.title}</h4>
+                  <p className="mt-2 text-sm leading-relaxed text-[#d9e6ff]">{item.detail}</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#00d8ff]">{item.metric}</p>
                 </motion.article>
               ))}
             </motion.div>
@@ -1411,20 +1403,22 @@ export default function Home() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-semibold text-white">{indexItem.displayName}</p>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${indexItem.trend === "up"
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+                        indexItem.trend === "up"
                           ? "bg-[#10b981]/20 text-[#6ee7b7] shadow-[0_0_8px_rgba(16,185,129,0.15)]"
                           : indexItem.trend === "down"
                             ? "bg-[#ef4444]/20 text-[#fca5a5] shadow-[0_0_8px_rgba(239,68,68,0.15)]"
                             : "bg-white/15 text-[#dbe9ff]"
-                        }`}>
+                      }`}>
                         {indexItem.trend === "up" ? "▲" : indexItem.trend === "down" ? "▼" : ""} {indexItem.trend}
                       </span>
                     </div>
                     <p className="mt-3 text-2xl font-semibold text-white">
                       {indexItem.value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                     </p>
-                    <p className={`mt-1 text-xs font-medium ${indexItem.changePct > 0 ? "text-[#6ee7b7]" : indexItem.changePct < 0 ? "text-[#fca5a5]" : "text-[#d9e6ff]"
-                      }`}>
+                    <p className={`mt-1 text-xs font-medium ${
+                      indexItem.changePct > 0 ? "text-[#6ee7b7]" : indexItem.changePct < 0 ? "text-[#fca5a5]" : "text-[#d9e6ff]"
+                    }`}>
                       {changeAbsPrefix}{Math.abs(indexItem.changeAbs).toFixed(2)} • {changePctPrefix}{Math.abs(indexItem.changePct).toFixed(2)}%
                     </p>
                     <div className="mt-3 h-14">
@@ -1479,10 +1473,11 @@ export default function Home() {
                     type="button"
                     onClick={() => setSelectedHorizon(horizon)}
                     disabled={isInsightDataLoading}
-                    className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-semibold transition-colors ${selectedHorizon === horizon
+                    className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-semibold transition-colors ${
+                      selectedHorizon === horizon
                         ? "border-[#00d8ff] bg-[#00d8ff]/20 text-[#d9f8ff]"
                         : "border-white/25 bg-white/10 text-[#d9e6ff] hover:bg-white/15"
-                      } disabled:cursor-not-allowed disabled:opacity-70`}
+                    } disabled:cursor-not-allowed disabled:opacity-70`}
                   >
                     {horizon.toUpperCase()}
                   </button>
@@ -1515,7 +1510,7 @@ export default function Home() {
           <div className="pointer-events-none absolute -right-36 bottom-0 h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,rgba(0,216,255,0.04),transparent_65%)]" />
 
           <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
-            <motion.div className="w-full" variants={chartCardReveal} custom={0}>
+            <motion.div className="max-w-3xl" variants={chartCardReveal} custom={0}>
               <div className="mb-4 inline-flex items-center gap-2.5 rounded-full border border-[#2b5cff]/12 bg-[#edf4ff] px-4 py-1.5 shadow-[0_4px_16px_rgba(43,92,255,0.08)] backdrop-blur-sm">
                 <Sparkles className="h-3.5 w-3.5 text-[#2b5cff]" />
                 <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Partner Network</span>
@@ -1523,8 +1518,8 @@ export default function Home() {
               <h2 className="text-[clamp(1.9rem,4.6vw,3.35rem)] font-bold leading-[1.08] tracking-tight text-[#0a1930]">
                 Our Trusted Partners
               </h2>
-              <p className="mt-4 max-w-5xl text-base leading-relaxed text-[#50607d] md:text-lg">
-                We partner with India’s most respected financial institutions to ensure your wealth is managed by the best in the industry. By bringing these trusted names into one calm, unified space, we give you the clarity and confidence to stay focused on what truly matters—your family&apos;s future.
+              <p className="mt-4 max-w-3xl text-base leading-relaxed text-[#50607d] md:text-lg">
+                Pravix surfaces respected fund houses in a clean, scannable format so clients can compare trusted names while staying inside a calm, modern wealth-planning experience.
               </p>
             </motion.div>
 
@@ -1533,7 +1528,15 @@ export default function Home() {
               variants={chartCardReveal}
               custom={1}
             >
-
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#0a1930]">Fund Houses</p>
+                  <p className="mt-1 text-xs text-[#5f7396]">Official brand names shown in a premium tile layout.</p>
+                </div>
+                <span className="inline-flex items-center rounded-full border border-[#cfe0ff] bg-[#edf4ff] px-3 py-1 text-xs font-semibold text-[#2b5cff]">
+                  {trustedPartners.length} partner tiles
+                </span>
+              </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 {trustedPartners.map((partner, index) => (
@@ -1596,7 +1599,7 @@ export default function Home() {
                 </p>
                 <div className="mt-4 h-64">
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={sentimentChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="4 4" stroke="rgba(43,92,255,0.12)" />
                         <XAxis dataKey="label" stroke="#5f7396" fontSize={12} />
@@ -1632,7 +1635,7 @@ export default function Home() {
                 <p className="mt-1 text-xs text-[#50607d]">A balanced goal-first structure with diversification controls</p>
                 <div className="mt-4 h-56">
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={allocationMixData}
@@ -1687,7 +1690,7 @@ export default function Home() {
                 </p>
                 <div className="mt-4 h-56">
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={fxChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="sipGradient" x1="0" y1="0" x2="0" y2="1">

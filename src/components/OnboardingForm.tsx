@@ -19,22 +19,7 @@ import {
   Trophy,
   UserRound,
   Wallet,
-  Phone,
-  Globe,
-  X,
 } from "lucide-react";
-
-const COUNTRY_CODES = [
-  { code: "+91", country: "India" },
-  { code: "+1", country: "USA/Canada" },
-  { code: "+44", country: "UK" },
-  { code: "+971", country: "UAE" },
-  { code: "+65", country: "Singapore" },
-  { code: "+61", country: "Australia" },
-  { code: "+49", country: "Germany" },
-  { code: "+33", country: "France" },
-  { code: "+81", country: "Japan" },
-];
 import type { LucideIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ONBOARDING_QUESTIONNAIRE_FLOW, type OnboardingField, type OnboardingScreen } from "@/lib/onboarding/questionnaire-flow";
@@ -127,6 +112,14 @@ function compactStepTitle(title: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPersistedFieldValue(value: unknown): value is FieldValue {
+  if (typeof value === "string" || typeof value === "boolean") {
+    return true;
+  }
+
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 function buildInitialAnswers(): Answers {
@@ -344,13 +337,11 @@ export default function OnboardingForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [customCountryFields, setCustomCountryFields] = useState<Set<string>>(new Set());
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [didResumeSession, setDidResumeSession] = useState(false);
   const [isAuthenticatedUser, setIsAuthenticatedUser] = useState(false);
-  const [authPassword, setAuthPassword] = useState("");
   const [emailVerificationCode, setEmailVerificationCode] = useState("");
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
@@ -367,6 +358,29 @@ export default function OnboardingForm() {
   const completionPercent = Math.round(((currentStep + 1) / TOTAL_STEPS) * 100);
 
   useEffect(() => {
+    // hydrate answers from localStorage first so progress isn't lost on refresh
+    try {
+      const raw = localStorage.getItem("pravix_onboarding_answers");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (isRecord(parsed)) {
+          setAnswers((previous) => {
+            const next = { ...previous };
+
+            for (const [key, value] of Object.entries(parsed)) {
+              if (isPersistedFieldValue(value)) {
+                next[key] = value;
+              }
+            }
+
+            return next;
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     let isMounted = true;
 
     async function bootstrap() {
@@ -493,6 +507,15 @@ export default function OnboardingForm() {
     };
   }, []);
 
+  // persist answers to localStorage to survive refreshes
+  useEffect(() => {
+    try {
+      localStorage.setItem("pravix_onboarding_answers", JSON.stringify(answers));
+    } catch {
+      // ignore
+    }
+  }, [answers]);
+
   function getFieldValue(field: OnboardingField): FieldValue {
     return answers[field.key] ?? (field.type === "multi_choice" ? [] : "");
   }
@@ -520,50 +543,25 @@ export default function OnboardingForm() {
       return;
     }
 
-    if (authPassword.trim().length < 6) {
-      setEmailVerificationError("Create a password with at least 6 characters.");
-      return;
-    }
-
     setIsSendingVerification(true);
     setEmailVerificationError(null);
     setEmailVerificationMessage(null);
 
     try {
-      const registerResponse = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailValue, password: authPassword }),
-      });
-
-      const registerPayload = (await registerResponse.json().catch(() => ({}))) as {
-        error?: string;
-        verificationMode?: string;
-      };
-
-      if (!registerResponse.ok) {
-        throw new Error(registerPayload.error ?? "Unable to create account right now.");
-      }
-
-      if (registerPayload.verificationMode === "supabase-email") {
-        setEmailVerificationMessage("Account created. Verify from your Supabase email, then sign in to continue.");
-        return;
-      }
-
-      const verifySendResponse = await fetch("/api/auth/send-verification-email", {
+      const resp = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: emailValue }),
       });
 
-      const verifySendPayload = (await verifySendResponse.json().catch(() => ({}))) as { error?: string; message?: string };
+      const payload = (await resp.json().catch(() => ({}))) as { error?: string; success?: boolean };
 
-      if (!verifySendResponse.ok) {
-        throw new Error(verifySendPayload.error ?? "Unable to send verification code.");
+      if (!resp.ok) {
+        throw new Error(payload.error ?? "Unable to send verification code.");
       }
 
       setEmailVerificationSent(true);
-      setEmailVerificationMessage(verifySendPayload.message ?? "Verification code sent to your email.");
+      setEmailVerificationMessage("Verification code sent to your email.");
     } catch (error) {
       setEmailVerificationError(error instanceof Error ? error.message : "Unable to send verification code.");
     } finally {
@@ -590,32 +588,43 @@ export default function OnboardingForm() {
     setEmailVerificationMessage(null);
 
     try {
-      const verifyResponse = await fetch("/api/auth/verify-email", {
+      const resp = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: emailValue, token }),
       });
 
-      const verifyPayload = (await verifyResponse.json().catch(() => ({}))) as { error?: string };
-      if (!verifyResponse.ok) {
-        throw new Error(verifyPayload.error ?? "Verification failed.");
+      const payload = (await resp.json().catch(() => ({}))) as {
+        error?: string;
+        success?: boolean;
+        session?: { access_token?: string; refresh_token?: string };
+        warning?: string;
+      };
+
+      if (!resp.ok) {
+        throw new Error(payload.error ?? "Verification failed.");
       }
 
-      const supabase = getSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: emailValue,
-        password: authPassword,
-      });
+      if (payload.session?.access_token && payload.session.refresh_token) {
+        const supabase = getSupabaseBrowserClient();
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: payload.session.access_token,
+          refresh_token: payload.session.refresh_token,
+        });
 
-      if (signInError) {
-        throw signInError;
+        if (sessionError) {
+          console.warn("Could not set session locally:", sessionError.message);
+        }
       }
 
       setEmailVerified(true);
       setIsAuthenticatedUser(true);
       setAuthRequired(false);
       setSubmitError(null);
-      setEmailVerificationMessage("Email verified and account created. You can now submit your plan.");
+      setEmailVerificationMessage("Email verified and account created. Submitting your plan...");
+
+      await persistCurrentScreen();
+      await finalizeAuthenticatedSubmission();
     } catch (error) {
       setEmailVerificationError(error instanceof Error ? error.message : "Verification failed.");
     } finally {
@@ -753,54 +762,18 @@ export default function OnboardingForm() {
     setSubmitResult(responseBody.result ?? null);
   }
 
-  async function submitToFormspree(allAnswers: Record<string, any>) {
-    const FORMSPREE_ENDPOINT =
-      process.env.NEXT_PUBLIC_FORMSPREE_FORM_ENDPOINT ??
-      (process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID
-        ? `https://formspree.io/f/${process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID}`
-        : null);
+  async function finalizeAuthenticatedSubmission() {
+    let activeSessionId = sessionId;
 
-    if (!FORMSPREE_ENDPOINT) {
-      console.warn("Formspree not configured. Set NEXT_PUBLIC_FORMSPREE_FORM_ID or NEXT_PUBLIC_FORMSPREE_FORM_ENDPOINT.");
-      return;
+    if (!activeSessionId) {
+      activeSessionId = await createOnboardingSession();
+      setSessionId(activeSessionId);
     }
 
-    // Helper to format values for readability
-    const format = (val: any) => (Array.isArray(val) ? val.join(", ") : String(val || "N/A"));
+    await submitFinalPayload(activeSessionId);
 
-    // We create a "pretty" version of the keys so the email receiver sees clear labels
-    const prettyData = {
-      "Full Name": allAnswers.full_name,
-      "Email Address": allAnswers.email,
-      "Mobile Number": allAnswers.phone_e164,
-      "Primary Financial Goal": format(allAnswers.primary_financial_goal),
-      "Target Amount Choice": format(allAnswers.target_goal_amount_choice),
-      "Custom Target Amount": allAnswers.target_goal_custom_amount_inr ? `₹${allAnswers.target_goal_custom_amount_inr}` : "N/A",
-      "Time Horizon": format(allAnswers.time_horizon_band),
-      "Monthly Investment Capacity": format(allAnswers.monthly_investment_capacity_band),
-      "Risk Preference": format(allAnswers.risk_preference),
-      "Monthly Income": format(allAnswers.monthly_income_band),
-      "Has Existing Investments": format(allAnswers.has_existing_investments),
-      "Investment Types": format(allAnswers.existing_investment_types),
-    };
-
-    try {
-      await fetch(FORMSPREE_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          _subject: `💎 New Pravix Investor: ${allAnswers.full_name || "Lead"}`,
-          ...prettyData,
-          "_Metadata": "Submitted via Pravix Onboarding Flow",
-          "_Timestamp": new Date().toLocaleString("en-IN"),
-        }),
-      });
-    } catch (err) {
-      console.error("Formspree submission error:", err);
-    }
+    setSubmitSuccess(true);
+    setAuthRequired(false);
   }
 
   async function handleNext() {
@@ -845,21 +818,7 @@ export default function OnboardingForm() {
       await persistCurrentScreen();
 
       if (isLastStep) {
-        let activeSessionId = sessionId;
-
-        if (!activeSessionId) {
-          activeSessionId = await createOnboardingSession();
-          setSessionId(activeSessionId);
-        }
-
-        const allAnswers = buildAllAnswersPayload();
-        await Promise.allSettled([
-          submitFinalPayload(activeSessionId),
-          submitToFormspree(allAnswers),
-        ]);
-
-        setSubmitSuccess(true);
-        setAuthRequired(false);
+        await finalizeAuthenticatedSubmission();
       } else {
         setCurrentStep((previous) => previous + 1);
       }
@@ -879,7 +838,7 @@ export default function OnboardingForm() {
   function renderField(field: OnboardingField) {
     const value = getFieldValue(field);
     const sharedInputClass =
-      "w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3.5 text-sm text-finance-text shadow-[0_6px_16px_rgba(18,42,90,0.06)] outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20";
+      "w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3.5 text-finance-text shadow-[0_6px_16px_rgba(18,42,90,0.06)] outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20";
 
     if (field.key === "email") {
       return (
@@ -900,19 +859,12 @@ export default function OnboardingForm() {
 
           {!isAuthenticatedUser ? (
             <div className="rounded-2xl border border-[#d2dff7] bg-[#f8fbff] p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-finance-muted">Verify Email To Create Account</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-finance-muted">Verify Email To Continue</p>
 
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5 sm:col-span-2">
-                  <span className="text-xs font-semibold text-finance-text">Create Password *</span>
-                  <input
-                    type="password"
-                    value={authPassword}
-                    onChange={(event) => setAuthPassword(event.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className={`h-11 ${sharedInputClass}`}
-                  />
-                </label>
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-finance-muted">We’ll send a 6-digit code to your email to sign you in without a password.</p>
+                </div>
 
                 <button
                   type="button"
@@ -920,7 +872,7 @@ export default function OnboardingForm() {
                   disabled={isSendingVerification}
                   className="inline-flex h-11 items-center justify-center rounded-full bg-gradient-to-r from-[#2b5cff] to-[#1d4ed8] px-4 text-sm font-semibold text-white disabled:opacity-60"
                 >
-                  {isSendingVerification ? "Sending..." : "Verify Email"}
+                  {isSendingVerification ? "Sending..." : emailVerificationSent ? "Resend Code" : "Send Code"}
                 </button>
 
                 {emailVerificationSent ? (
@@ -938,7 +890,7 @@ export default function OnboardingForm() {
                       disabled={isVerifyingEmail}
                       className="inline-flex h-11 items-center justify-center rounded-full border border-[#b8ccf7] bg-white px-4 text-sm font-semibold text-finance-text disabled:opacity-60"
                     >
-                      {isVerifyingEmail ? "Checking..." : "Confirm"}
+                      {isVerifyingEmail ? "Checking..." : "Verify & Continue"}
                     </button>
                   </div>
                 ) : null}
@@ -973,11 +925,10 @@ export default function OnboardingForm() {
                   key={option.value}
                   type="button"
                   onClick={() => setFieldValue(field, option.value)}
-                  className={`group rounded-2xl border px-3.5 py-3 text-left text-sm font-semibold transition-all duration-200 ${
-                    isSelected
-                      ? "border-transparent bg-gradient-to-br from-[#2b5cff] via-[#4d6fff] to-[#00beff] text-white shadow-[0_14px_26px_rgba(43,92,255,0.28)]"
-                      : "border-[#d4e2fb] bg-white text-finance-text shadow-[0_8px_18px_rgba(18,42,90,0.06)] hover:-translate-y-0.5 hover:border-[#8aa8ff] hover:shadow-[0_12px_24px_rgba(35,74,177,0.14)]"
-                  }`}
+                  className={`group rounded-2xl border px-3.5 py-3 text-left text-sm font-semibold transition-all duration-200 ${isSelected
+                    ? "border-transparent bg-gradient-to-br from-[#2b5cff] via-[#4d6fff] to-[#00beff] text-white shadow-[0_14px_26px_rgba(43,92,255,0.28)]"
+                    : "border-[#d4e2fb] bg-white text-finance-text shadow-[0_8px_18px_rgba(18,42,90,0.06)] hover:-translate-y-0.5 hover:border-[#8aa8ff] hover:shadow-[0_12px_24px_rgba(35,74,177,0.14)]"
+                    }`}
                 >
                   <span className="block leading-relaxed">{option.label}</span>
                 </button>
@@ -1007,11 +958,10 @@ export default function OnboardingForm() {
                   key={option.value}
                   type="button"
                   onClick={() => toggleMultiChoiceValue(field, option.value)}
-                  className={`rounded-2xl border px-3.5 py-3 text-left text-sm font-semibold transition-all duration-200 ${
-                    isSelected
-                      ? "border-[#3d67ff] bg-[#eff4ff] text-[#1f49d9] shadow-[0_10px_20px_rgba(43,92,255,0.14)]"
-                      : "border-[#d4e2fb] bg-white text-finance-text shadow-[0_8px_18px_rgba(18,42,90,0.06)] hover:-translate-y-0.5 hover:border-[#8aa8ff]"
-                  }`}
+                  className={`rounded-2xl border px-3.5 py-3 text-left text-sm font-semibold transition-all duration-200 ${isSelected
+                    ? "border-[#3d67ff] bg-[#eff4ff] text-[#1f49d9] shadow-[0_10px_20px_rgba(43,92,255,0.14)]"
+                    : "border-[#d4e2fb] bg-white text-finance-text shadow-[0_8px_18px_rgba(18,42,90,0.06)] hover:-translate-y-0.5 hover:border-[#8aa8ff]"
+                    }`}
                 >
                   {option.label}
                 </button>
@@ -1023,104 +973,14 @@ export default function OnboardingForm() {
       );
     }
 
-    if (field.type === "phone") {
-      const fullValue = typeof value === "string" ? value : "";
-      const isCustom = customCountryFields.has(field.key);
-      // Find matching country code, or default to +91
-      const matchingCode = COUNTRY_CODES.find((c) => fullValue.startsWith(c.code))?.code || "+91";
-      const localPart = fullValue.startsWith(matchingCode) ? fullValue.slice(matchingCode.length) : fullValue;
-
-      return (
-        <div key={field.key} className="flex flex-col gap-2.5">
-          <label className="text-sm font-semibold text-finance-text">
-            {field.label}
-            {field.required ? " *" : ""}
-          </label>
-          <div className="flex gap-2">
-            <div className="relative w-[80px] flex-shrink-0">
-              {isCustom ? (
-                <div className="relative">
-                  <input
-                    autoFocus
-                    type="text"
-                    value={matchingCode}
-                    onChange={(e) => {
-                      let val = e.target.value;
-                      if (val && !val.startsWith("+")) val = "+" + val.replace(/[^\d]/g, "");
-                      setFieldValue(field, val + localPart);
-                    }}
-                    placeholder="+.."
-                    className="h-12 w-full rounded-2xl border border-[#d2dff7] bg-white/95 px-3 text-sm font-bold text-finance-text outline-none focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCustomCountryFields((prev) => {
-                        const next = new Set(prev);
-                        next.delete(field.key);
-                        return next;
-                      });
-                      setFieldValue(field, "+91" + localPart);
-                    }}
-                    className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors shadow-sm"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <select
-                    value={matchingCode}
-                    onChange={(e) => {
-                      if (e.target.value === "custom") {
-                        setCustomCountryFields((prev) => new Set(prev).add(field.key));
-                        setFieldValue(field, "+" + localPart);
-                      } else {
-                        setFieldValue(field, e.target.value + localPart);
-                      }
-                    }}
-                    className="h-11 w-full appearance-none rounded-2xl border border-[#d2dff7] bg-white/95 px-2.5 text-xs font-bold text-finance-text outline-none transition-all focus:border-[#5676ff] focus:ring-4 focus:ring-[#7ea5ff]/20 cursor-pointer"
-                  >
-                    {COUNTRY_CODES.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code}
-                      </option>
-                    ))}
-                    <option value="custom">Other...</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                    <Globe className="h-3.5 w-3.5 text-slate-400" />
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="relative flex-1">
-              <input
-                type="tel"
-                value={localPart}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                  setFieldValue(field, matchingCode + val);
-                }}
-                placeholder="98765 43210"
-                className={`h-11 w-full pr-10 ${sharedInputClass}`}
-              />
-              <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
-                <Phone className="h-4 w-4 text-[#2b5cff]/40" />
-              </div>
-            </div>
-          </div>
-          {field.helpText ? <span className="text-xs text-finance-muted">{field.helpText}</span> : null}
-        </div>
-      );
-    }
-
     const inputType =
       field.type === "currency" || field.type === "number"
         ? "number"
-        : field.type === "email"
-          ? "email"
-          : "text";
+        : field.type === "phone"
+          ? "tel"
+          : field.type === "email"
+            ? "email"
+            : "text";
 
     return (
       <label key={field.key} className="flex flex-col gap-2.5">
@@ -1136,6 +996,7 @@ export default function OnboardingForm() {
           min={field.min}
           max={field.max}
           step={field.step ?? (field.type === "currency" ? 0.01 : undefined)}
+          maxLength={field.type === "phone" ? 10 : undefined}
           className={`h-12 ${sharedInputClass}`}
         />
         {field.helpText ? <span className="text-xs text-finance-muted">{field.helpText}</span> : null}
@@ -1250,18 +1111,16 @@ export default function OnboardingForm() {
               return (
                 <div
                   key={screen.id}
-                  className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-all ${
-                    isActive
-                      ? "border-transparent bg-gradient-to-r from-[#2b5cff] to-[#00bbff] text-white shadow-[0_10px_20px_rgba(43,92,255,0.28)]"
-                      : isDone
-                        ? "border-[#a8c0f5] bg-[#eff5ff] text-[#2b5cff]"
-                        : "border-[#d5e2fa] bg-white/90 text-finance-muted"
-                  }`}
+                  className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-all ${isActive
+                    ? "border-transparent bg-gradient-to-r from-[#2b5cff] to-[#00bbff] text-white shadow-[0_10px_20px_rgba(43,92,255,0.28)]"
+                    : isDone
+                      ? "border-[#a8c0f5] bg-[#eff5ff] text-[#2b5cff]"
+                      : "border-[#d5e2fa] bg-white/90 text-finance-muted"
+                    }`}
                 >
                   <span
-                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                      isActive ? "bg-white/18" : isDone ? "bg-[#dbe7ff]" : "bg-[#eef3ff]"
-                    }`}
+                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${isActive ? "bg-white/18" : isDone ? "bg-[#dbe7ff]" : "bg-[#eef3ff]"
+                      }`}
                   >
                     {isDone ? "✓" : index + 1}
                   </span>

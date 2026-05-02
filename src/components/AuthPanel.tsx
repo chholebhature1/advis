@@ -45,7 +45,6 @@ function parseWaitSeconds(message: string): number | null {
 export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) {
   const [step, setStep] = useState<AuthStep>("credentials");
   const [email, setEmail] = useState(defaultEmail ?? "");
-  const [password, setPassword] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState<"signin" | "signup" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,31 +56,19 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
 
   useEffect(() => {
-    if (signupRetrySeconds <= 0) {
-      return;
-    }
-
+    if (signupRetrySeconds <= 0) return;
     const timer = window.setInterval(() => {
       setSignupRetrySeconds((current) => Math.max(0, current - 1));
     }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
+    return () => window.clearInterval(timer);
   }, [signupRetrySeconds]);
 
   useEffect(() => {
-    if (verifyRetrySeconds <= 0) {
-      return;
-    }
-
+    if (verifyRetrySeconds <= 0) return;
     const timer = window.setInterval(() => {
       setVerifyRetrySeconds((current) => Math.max(0, current - 1));
     }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
+    return () => window.clearInterval(timer);
   }, [verifyRetrySeconds]);
 
   async function sendVerificationEmail() {
@@ -106,6 +93,7 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
 
       setMessage("Verification code sent! Check your email.");
       setVerificationCode("");
+      setStep("verification");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to send verification email";
       const waitSeconds = parseWaitSeconds(message);
@@ -134,8 +122,7 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
-          token: verificationCode,
-          password,
+          token: verificationCode
         }),
       });
 
@@ -157,97 +144,27 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
           refresh_token: session.refresh_token,
         });
 
-        if (sessionError) {
-          throw sessionError;
-        }
+        if (sessionError) throw sessionError;
       }
 
-      setMessage("Account created and signed in successfully.");
-      setPassword("");
+      setMessage("Signed in successfully.");
       setStep("credentials");
       onSignedIn?.();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Verification failed";
       setError(errorMsg);
-      setVerifyRetrySeconds(60);
     } finally {
       setIsSubmitting(null);
     }
   }
 
-  async function handleSignIn(event: FormEvent<HTMLFormElement>) {
+  async function handleGetCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!normalizedEmail || !normalizedEmail.includes("@") || !password) {
-      setError("Please enter a valid email and password.");
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setError("Please enter a valid email.");
       return;
     }
-
-    setIsSubmitting("signin");
-    setError(null);
-    setMessage(null);
-
-    try {
-      const supabase = getSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
-
-      if (signInError) {
-        throw signInError;
-      }
-
-      setMessage("Signed in successfully.");
-      setPassword("");
-      onSignedIn?.();
-    } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "Unable to sign in right now.");
-    } finally {
-      setIsSubmitting(null);
-    }
-  }
-
-  async function handleCreateAccount() {
-    if (!normalizedEmail || !normalizedEmail.includes("@") || password.length < 6) {
-      setError("Use a valid email and a password with at least 6 characters.");
-      return;
-    }
-
-    setIsSubmitting("signup");
-    setError(null);
-    setMessage(null);
-
-    try {
-      const registerResponse = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
-
-      const registerPayload = await registerResponse.json();
-
-      if (!registerResponse.ok) {
-        throw new Error(registerPayload.error || "Unable to create account right now.");
-      }
-
-      if (registerPayload.verificationMode === "supabase-email") {
-        setMessage("Account created. Please verify from the Supabase email, then sign in.");
-        setPassword("");
-        return;
-      }
-
-      setStep("verification");
-      await sendVerificationEmail();
-    } catch (authError) {
-      const rawMessage = authError instanceof Error ? authError.message : "Unable to create account right now.";
-      if (isRateLimitError(rawMessage)) {
-        setSignupRetrySeconds((current) => (current > 0 ? current : 60));
-      }
-      setError(toFriendlyAuthError(rawMessage, true));
-    } finally {
-      setIsSubmitting(null);
-    }
+    await sendVerificationEmail();
   }
 
   if (step === "verification") {
@@ -309,7 +226,7 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
             disabled={isBusy || verifyRetrySeconds > 0 || verificationCode.length !== 6}
             className="inline-flex items-center gap-2 rounded-full bg-finance-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isSubmitting === "signup" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
             {verifyRetrySeconds > 0 ? `Try again in ${verifyRetrySeconds}s` : "Verify Email"}
           </button>
 
@@ -327,10 +244,10 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
   }
 
   return (
-    <form onSubmit={handleSignIn} className="mt-4 rounded-xl border border-finance-border bg-finance-surface p-4">
+    <form onSubmit={handleGetCode} className="mt-4 rounded-xl border border-finance-border bg-finance-surface p-4">
       <p className="text-xs uppercase tracking-[0.14em] text-finance-muted">Account Access</p>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <div className="mt-3">
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold text-finance-text">Email</span>
           <input
@@ -341,20 +258,6 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
             onChange={(event) => setEmail(event.target.value)}
             className="h-10 rounded-lg border border-finance-border px-3 text-sm text-finance-text bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
             placeholder="you@example.com"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-finance-text">Password</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="h-10 rounded-lg border border-finance-border px-3 text-sm text-finance-text bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
-            placeholder="Minimum 6 characters"
           />
         </label>
       </div>
@@ -372,20 +275,10 @@ export default function AuthPanel({ defaultEmail, onSignedIn }: AuthPanelProps) 
         <button
           type="submit"
           disabled={isBusy}
-          className="inline-flex items-center gap-2 rounded-full bg-finance-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+          className="inline-flex items-center gap-2 rounded-full bg-finance-accent px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {isSubmitting === "signin" ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-          Sign In
-        </button>
-
-        <button
-          type="button"
-          onClick={handleCreateAccount}
-          disabled={isBusy || signupRetrySeconds > 0}
-          className="inline-flex items-center gap-2 rounded-full border border-finance-border px-4 py-2 text-sm font-semibold text-finance-text hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {isSubmitting === "signup" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-          {signupRetrySeconds > 0 ? `Try again in ${signupRetrySeconds}s` : "Create Account"}
+          {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+          Get Secure Code
         </button>
       </div>
     </form>

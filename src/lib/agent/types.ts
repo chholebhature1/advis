@@ -31,6 +31,45 @@ export type AgentStructuredAdvice = {
   }>;
 };
 
+export type DashboardAISummary = {
+  intro: string;
+  why: string;
+  nextStep: string;
+};
+
+export type AgentExplanationTone =
+  | "positive"
+  | "neutral"
+  | "caution"
+  | "direct";
+
+export type ExplanationReasoning = {
+  constraint: string; // identified main constraint (timeline, income, shortfall)
+  cause: string; // why this constraint exists
+  implication: string; // what it means for the plan
+};
+
+export type AdvisoryRecommendation = {
+  primary: string; // required primary action
+  optional?: string; // optional secondary action (e.g. step-up)
+  tradeoffs?: string[]; // trade-offs (if depth=detailed)
+};
+
+export type AgentExplanationOutput = {
+  summary: string;
+  insight: string;
+  suggestion: {
+    primary: string;
+    optional?: string;
+  };
+  reason: string;
+  reasoning?: ExplanationReasoning;
+  recommendation?: AdvisoryRecommendation;
+  tone: AgentExplanationTone;
+  isCritical?: boolean; // new: true when plan is not viable and actions are required
+  debugInfo?: string;
+};
+
 export type AgentProfileSnapshot = {
   full_name: string;
   email: string;
@@ -52,15 +91,22 @@ export type AgentProfileSnapshot = {
   liquidity_needs_notes: string | null;
   risk_appetite: string | null;
   target_horizon_years: number | null;
+  target_amount_inr: number | null;
   tax_regime: string | null;
   kyc_status: string | null;
   onboarding_completed_at: string | null;
   primary_financial_goal?: string | null;
+  experienceLevel?: "beginner" | "advanced" | null;
   target_goal_horizon_band?: string | null;
   monthly_investment_capacity_band?: string | null;
   monthly_income_band?: string | null;
+  income_input_type?: "exact" | "range" | null;
+  income_range_min_inr?: number | null;
+  income_range_max_inr?: number | null;
   has_existing_investments?: boolean | null;
   existing_investment_types?: string[] | null;
+  target_goal_amount_choice?: string | null;
+  target_goal_custom_amount_inr?: number | null;
 };
 
 export type AgentRiskSnapshot = {
@@ -100,12 +146,21 @@ export type AgentHoldingSnapshot = {
   current_price_inr: number;
 };
 
+export type DataQualitySnapshot = {
+  hasFallbacks: boolean;
+  missingFields: string[];
+  confidence: "high" | "medium" | "low";
+  fallbackCount: number;
+  defaultedFields: string[];
+};
+
 export type AgentContext = {
   profile: AgentProfileSnapshot | null;
   latestRiskAssessment: AgentRiskSnapshot | null;
   goals: AgentGoalSnapshot[];
   communicationPreferences: AgentCommunicationSnapshot | null;
   holdings: AgentHoldingSnapshot[];
+  dataQuality?: DataQualitySnapshot;
 };
 
 export type AgentReadiness = {

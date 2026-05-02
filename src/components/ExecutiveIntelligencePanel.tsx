@@ -457,7 +457,7 @@ export default function ExecutiveIntelligencePanel({
 
                   <div className="mt-3 h-14">
                     {miniTrendPoints.length > 1 ? (
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <AreaChart data={miniTrendPoints} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
                           <defs>
                             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -539,7 +539,7 @@ export default function ExecutiveIntelligencePanel({
             </div>
             <div className="mt-3 h-56">
               {trendPoints.length > 1 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <AreaChart data={trendPoints} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="executiveTrendFill" x1="0" y1="0" x2="0" y2="1">

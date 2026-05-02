@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { invalidateAgentContext } from "@/lib/agent/context";
 
 type SubmitBody = {
   sessionId?: unknown;
@@ -84,6 +85,9 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    // Invalidate agent context cache to ensure fresh data on next AI interaction
+    invalidateAgentContext(authData.user.id);
 
     return NextResponse.json({ ok: true, result: data }, { status: 200 });
   } catch (error) {

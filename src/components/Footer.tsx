@@ -6,7 +6,7 @@ const quickLinks = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Learn", href: "/learn" },
   { label: "Team Pravix", href: "/about" },
-  { label: "Book Discovery Call", href: "/#send-inquiry" },
+  { label: "Book Discovery Call", href: "/#book-discovery-call" },
   { label: "Get Started", href: "/onboarding" },
 ];
 
@@ -16,7 +16,7 @@ const resourceLinks = [
   { label: "Member Profile", href: "/profile" },
   { label: "Smart Insights", href: "/#insights" },
   { label: "How It Works", href: "/#how-it-works" },
-  { label: "Book a Call", href: "/#send-inquiry" },
+  { label: "Book a Call", href: "/#book-discovery-call" },
 ];
 
 const supportLinks = [
@@ -44,7 +44,7 @@ export default function Footer() {
 
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/#send-inquiry"
+                href="/#book-discovery-call"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2b5cff] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(43,92,255,0.32)] transition-transform hover:-translate-y-0.5"
               >
                 Book a discovery call

@@ -5,6 +5,7 @@ import type {
   FocusConfidence,
   MarketIntelligenceSnapshot,
   ModulePriority,
+  FinancialSnapshot,
 } from "@/lib/agent/types";
 
 const FEAR_GREED_ENDPOINT = "https://api.alternative.me/fng/?limit=1&format=json";
@@ -249,16 +250,17 @@ function buildPriority(
   };
 }
 
-function buildModulePriorities(context: AgentContext, market: MarketIntelligenceSnapshot): ModulePriority[] {
-  const holdingsStats = computeHoldingsStats(context);
+function buildModulePriorities(snapshot: FinancialSnapshot, market: MarketIntelligenceSnapshot): ModulePriority[] {
+  const holdingsStats = snapshot.holdingsAnalysis;
   const daysToFyEnd = getDaysToFinancialYearEnd();
 
   const fearGreed = market.fearGreedIndex;
   const fxMove = market.usdInrChangePct;
 
+  // Calculate profile score based on snapshot data completeness
   const profileScore = 34 + 
-    ([context.profile?.monthly_income_inr, context.profile?.monthly_investable_surplus_inr, context.profile?.risk_appetite, context.profile?.emergency_fund_months].filter(v => v == null).length * 10) +
-    (!context.profile?.onboarding_completed_at ? 14 : 0);
+    (snapshot.feasibility.confidence === 'low' ? 20 : snapshot.feasibility.confidence === 'medium' ? 10 : 0) +
+    (snapshot.emergencyFund.priority === 'critical' ? 14 : 0);
 
   const profilePriority = buildPriority(
     "profile",
@@ -269,7 +271,7 @@ function buildModulePriorities(context: AgentContext, market: MarketIntelligence
   );
 
   let holdingsScore = 36;
-  if (holdingsStats.holdingsCount > 0) {
+  if (holdingsStats && holdingsStats.holdingsCount > 0) {
     holdingsScore += 16 + (holdingsStats.topHoldingPct >= 45 ? 26 : holdingsStats.topHoldingPct >= 30 ? 14 : 0) + (holdingsStats.holdingsCount < 5 ? 8 : 0);
   }
 
@@ -277,16 +279,16 @@ function buildModulePriorities(context: AgentContext, market: MarketIntelligence
     "holdings",
     holdingsScore,
     "Portfolio concentration risk",
-    `Top position concentration is ${holdingsStats.topHoldingPct}% across ${holdingsStats.holdingsCount} holdings.`,
+    holdingsStats ? `Top position concentration is ${holdingsStats.topHoldingPct}% across ${holdingsStats.holdingsCount} holdings.` : "No holdings data available.",
     "Review allocation and trim concentration if one position exceeds your risk policy."
   );
 
   const advisorPriority = buildPriority(
     "advisor",
-    40 + (context.goals.length >= 3 ? 10 : 0),
+    40 + (snapshot.strategyOptions.length >= 3 ? 10 : 0),
     "Cross-module decision synthesis",
     "Your dashboard has multi-domain signals that benefit from one integrated AI action sequence.",
-    "Use Pravix Copilot to convert today’s priorities into a step-by-step monthly execution plan."
+    "Use Pravix Copilot to convert today's priorities into a step-by-step monthly execution plan."
   );
 
   return [holdingsPriority, profilePriority, advisorPriority].sort((a, b) => b.score - a.score);
@@ -348,17 +350,24 @@ function buildExecutiveSummary(
   return [fearGreedPhrase, fxPhrase, priorityPhrase].join(" ");
 }
 
-export async function buildDashboardIntelligence(context: AgentContext): Promise<DashboardIntelligenceSnapshot> {
+export async function buildDashboardIntelligence(snapshot: FinancialSnapshot): Promise<DashboardIntelligenceSnapshot> {
   const [fearGreed, fx] = await Promise.all([fetchFearGreedSnapshot(), fetchFxSnapshot()]);
   const market = buildMarketSnapshot({ fearGreed, fx });
 
-  const priorities = buildModulePriorities(context, market);
+  const priorities = buildModulePriorities(snapshot, market);
   const recommendedFocus = priorities[0]?.module ?? "profile";
   const focusConfidence = deriveFocusConfidence(priorities);
 
+  // Build executive summary using snapshot data
+  const feasibility = snapshot.feasibility;
+  const goalSummary = `Goal: ${snapshot.goal.title} ₹${snapshot.goal.targetAmount.toLocaleString()} in ${Math.round(snapshot.goal.timeHorizonMonths/12)} years.`;
+  const planStatus = feasibility.isFeasible 
+    ? `Plan is feasible with ${feasibility.achievementProbability}% success probability.` 
+    : `Gap of ₹${feasibility.gapAmount.toLocaleString()} (${feasibility.gapPercentage.toFixed(0)}% shortfall).`;
+
   return {
     generatedAt: new Date().toISOString(),
-    executiveSummary: buildExecutiveSummary(market, priorities),
+    executiveSummary: `${goalSummary} ${planStatus} ${buildExecutiveSummary(market, priorities)}`,
     market,
     priorities,
     recommendedFocus,

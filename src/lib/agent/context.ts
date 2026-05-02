@@ -8,6 +8,14 @@ import type {
   AgentReadiness,
   AgentRiskSnapshot,
 } from "@/lib/agent/types";
+import {
+  normalizeBands,
+  resolveHorizonBand,
+  resolveIncomeBand,
+  resolveMonthlyCapacityBand,
+  resolveTargetAmount,
+} from "./band-resolver";
+import { validateProfileSchema, ensureProfileValid } from "./schema-validation";
 
 const CONTEXT_CACHE_TTL_MS = 15_000;
 
@@ -40,7 +48,7 @@ function storeCachedContext(userId: string, context: AgentContext) {
   });
 }
 
-export async function loadAgentContext(supabase: SupabaseClient, userId: string): Promise<AgentContext> {
+export async function loadAgentContext(supabase: SupabaseClient, userId: string, debug = false): Promise<AgentContext> {
   const cached = getFreshCachedContext(userId);
   if (cached) {
     return cached;
@@ -54,9 +62,7 @@ export async function loadAgentContext(supabase: SupabaseClient, userId: string)
   const loadPromise = (async () => {
     const profileQuery = supabase
       .from("profiles")
-      .select(
-        "full_name,email,phone_e164,date_of_birth,city,state,country_code,tax_residency_country,occupation_title,employment_type,monthly_income_inr,monthly_expenses_inr,monthly_emi_inr,monthly_investable_surplus_inr,current_savings_inr,emergency_fund_months,loss_tolerance_pct,liquidity_needs_notes,risk_appetite,target_horizon_years,tax_regime,kyc_status,onboarding_completed_at,primary_financial_goal,target_goal_horizon_band,monthly_investment_capacity_band,monthly_income_band,has_existing_investments,existing_investment_types",
-      )
+      .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -119,16 +125,68 @@ export async function loadAgentContext(supabase: SupabaseClient, userId: string)
       throw holdingsResult.error;
     }
 
-    const context: AgentContext = {
-      profile: (profileResult.data ?? null) as AgentProfileSnapshot | null,
+    const rawProfile = (profileResult.data ?? null) as AgentProfileSnapshot | null;
+    if (debug) {
+      console.log("RAW PROFILE", rawProfile, {
+        sip: rawProfile?.monthly_investable_surplus_inr ?? resolveMonthlyCapacityBand(rawProfile?.monthly_investment_capacity_band),
+        income: rawProfile?.monthly_income_inr ?? resolveIncomeBand(rawProfile?.monthly_income_band),
+        horizon: rawProfile?.target_horizon_years ?? resolveHorizonBand(rawProfile?.target_goal_horizon_band),
+        target: rawProfile ? resolveTargetAmount(rawProfile) : null,
+      });
+    }
+
+    // SCHEMA VALIDATION: Check for missing fields before processing
+    const schemaValidation = validateProfileSchema(rawProfile);
+    if (debug || schemaValidation.warnings.length > 0) {
+      console.log("SCHEMA VALIDATION", {
+        isValid: schemaValidation.isValid,
+        missingFields: schemaValidation.missingFields,
+        appliedDefaults: schemaValidation.appliedDefaults,
+        warnings: schemaValidation.warnings,
+      });
+    }
+
+    const dataQuality = {
+      hasFallbacks: !schemaValidation.isValid,
+      missingFields: schemaValidation.missingFields,
+      confidence: schemaValidation.defaultedFields.includes("income_input_type")
+        ? "low"
+        : schemaValidation.fallbackCount > 0
+          ? "medium"
+          : "high",
+      fallbackCount: schemaValidation.fallbackCount,
+      defaultedFields: schemaValidation.defaultedFields,
+    } as const;
+
+    const rawContext: AgentContext = {
+      profile: rawProfile,
       latestRiskAssessment: (riskResult.data ?? null) as AgentRiskSnapshot | null,
       goals: (goalsResult.data ?? []) as AgentGoalSnapshot[],
       communicationPreferences: (communicationResult.data ?? null) as AgentCommunicationSnapshot | null,
       holdings: (holdingsResult.data ?? []) as AgentHoldingSnapshot[],
+      dataQuality,
     };
 
-    storeCachedContext(userId, context);
-    return context;
+    // Normalize band values to actual numbers for Financial Engine
+    const context = normalizeBands(rawContext, debug);
+
+    // TYPE GUARDS: Ensure all required fields are defined (not undefined)
+    const safeContext: AgentContext = {
+      ...context,
+      profile: context.profile ? ensureProfileValid(context.profile) : null,
+    };
+
+    if (debug) {
+      console.log("CONTEXT AFTER TYPE GUARDS", {
+        profileValid: safeContext.profile !== null,
+        incomeInputType: safeContext.profile?.income_input_type,
+        incomeRangeMin: safeContext.profile?.income_range_min_inr,
+        incomeRangeMax: safeContext.profile?.income_range_max_inr,
+      });
+    }
+
+    storeCachedContext(userId, safeContext);
+    return safeContext;
   })();
 
   inFlightContextLoads.set(userId, loadPromise);
@@ -147,4 +205,12 @@ export function getAgentReadiness(context: AgentContext): AgentReadiness {
     hasGoals: context.goals.length > 0,
     hasHoldings: context.holdings.length > 0,
   };
+}
+
+/**
+ * Invalidate cached agent context for a user
+ * Call this when profile, goals, or holdings are updated
+ */
+export function invalidateAgentContext(userId: string): void {
+  contextCache.delete(userId);
 }

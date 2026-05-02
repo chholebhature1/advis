@@ -48,9 +48,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<FormStep>("credentials");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [signUpPassword, setSignUpPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,31 +59,19 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const isSignUp = mode === "signup";
 
   useEffect(() => {
-    if (signupRetrySeconds <= 0) {
-      return;
-    }
-
+    if (signupRetrySeconds <= 0) return;
     const timer = window.setInterval(() => {
       setSignupRetrySeconds((current) => Math.max(0, current - 1));
     }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
+    return () => window.clearInterval(timer);
   }, [signupRetrySeconds]);
 
   useEffect(() => {
-    if (verifyRetrySeconds <= 0) {
-      return;
-    }
-
+    if (verifyRetrySeconds <= 0) return;
     const timer = window.setInterval(() => {
       setVerifyRetrySeconds((current) => Math.max(0, current - 1));
     }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
+    return () => window.clearInterval(timer);
   }, [verifyRetrySeconds]);
 
   async function sendVerificationEmail() {
@@ -110,6 +95,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
       setMessage("Verification code sent! Check your email.");
       setVerificationCode("");
+      setStep("verification");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to send verification email";
       const waitSeconds = parseWaitSeconds(message);
@@ -138,8 +124,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
-          token: verificationCode,
-          password: signUpPassword || password,
+          token: verificationCode
         }),
       });
 
@@ -161,18 +146,14 @@ export default function AuthForm({ mode }: AuthFormProps) {
           refresh_token: session.refresh_token,
         });
 
-        if (sessionError) {
-          throw sessionError;
-        }
+        if (sessionError) throw sessionError;
       }
 
       router.push("/dashboard");
       router.refresh();
-      setSignUpPassword("");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Verification failed";
       setError(errorMsg);
-      setVerifyRetrySeconds(60);
     } finally {
       setIsSubmitting(false);
     }
@@ -180,76 +161,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!normalizedEmail || !normalizedEmail.includes("@") || !normalizedEmail.includes(".")) {
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
       setError("Please provide a valid email address.");
       return;
     }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (isSignUp && password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      if (isSignUp) {
-        const registerResponse = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: normalizedEmail, password }),
-        });
-
-        const registerPayload = await registerResponse.json();
-
-        if (!registerResponse.ok) {
-          throw new Error(registerPayload.error || "Unable to create account right now.");
-        }
-
-        if (registerPayload.verificationMode === "supabase-email") {
-          setMessage("Account created. Please verify from the Supabase email, then sign in.");
-          setPassword("");
-          setConfirmPassword("");
-          setSignUpPassword("");
-          return;
-        }
-
-        setSignUpPassword(password);
-        setStep("verification");
-        setConfirmPassword("");
-        await sendVerificationEmail();
-        return;
-      }
-
-      const supabase = getSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
-
-      if (signInError) {
-        throw signInError;
-      }
-
-      router.push("/dashboard");
-      router.refresh();
-    } catch (authError) {
-      const rawMessage = authError instanceof Error ? authError.message : "Authentication failed.";
-      if (isSignUp && isRateLimitError(rawMessage)) {
-        setSignupRetrySeconds((current) => (current > 0 ? current : 60));
-      }
-      setError(toFriendlyAuthError(rawMessage, isSignUp));
-    } finally {
-      setIsSubmitting(false);
-    }
+    await sendVerificationEmail();
   }
 
   if (step === "verification") {
@@ -344,13 +260,13 @@ export default function AuthForm({ mode }: AuthFormProps) {
       </h1>
       <p className="mt-2 text-sm text-finance-muted">
         {isSignUp
-          ? "Create your account to save profiles and access your dashboard anytime."
+          ? "Enter your email to receive a secure login code."
           : "Sign in to access your latest profile and planning inputs."}
       </p>
 
       <div className="mt-6 space-y-4">
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-finance-text">Email</span>
+          <span className="text-sm font-semibold text-finance-text">Email Address</span>
           <input
             type="email"
             autoComplete="email"
@@ -361,36 +277,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
             placeholder="you@example.com"
           />
         </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-finance-text">Password</span>
-          <input
-            type="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
-            required
-            minLength={6}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="h-11 rounded-lg border border-finance-border px-3 text-finance-text bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
-            placeholder="Minimum 6 characters"
-          />
-        </label>
-
-        {isSignUp && (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-semibold text-finance-text">Confirm Password</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={6}
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              className="h-11 rounded-lg border border-finance-border px-3 text-finance-text bg-white focus:outline-none focus:ring-2 focus:ring-finance-accent/25"
-              placeholder="Re-enter password"
-            />
-          </label>
-        )}
       </div>
 
       {error && (
@@ -408,11 +294,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
         className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-finance-accent px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {isSignUp
-          ? signupRetrySeconds > 0
-            ? `Try again in ${signupRetrySeconds}s`
-            : "Create Account"
-          : "Sign In"}
+        {isSignUp 
+          ? (signupRetrySeconds > 0 ? `Try again in ${signupRetrySeconds}s` : "Get Verification Code")
+          : "Get Secure Code"}
       </button>
 
       <p className="mt-4 text-center text-sm text-finance-muted">

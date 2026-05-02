@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Loader2, MessageCircle, PhoneCall, Send, Sparkles, X } from "lucide-react";
+import { CalendarDays, MessageCircle, PhoneCall, Send, Sparkles, X } from "lucide-react";
+import LoadingSpinner from "./LoadingSpinner";
 import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AgentStructuredAdvice } from "@/lib/agent/types";
@@ -21,7 +22,6 @@ type ChatPayload = {
   reply?: string;
   structured?: AgentStructuredAdvice;
   error?: string;
-  isSimpleAnswer?: boolean;
 };
 
 type ChatMessage = {
@@ -29,7 +29,7 @@ type ChatMessage = {
   content: string;
   sentAt: string;
   structured?: AgentStructuredAdvice;
-  isSimple?: boolean;
+  loading?: boolean;
 };
 
 const CONTACT_PHONE_NUMBER = "+91 89369 82996";
@@ -193,23 +193,15 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
     };
 
     setMessages((previous) => [...previous, userMessage]);
+    setMessages((previous) => [...previous, { role: "assistant", content: "", sentAt: new Date().toISOString(), loading: true }]);
     setInput("");
 
     try {
       const token = await getAccessToken();
-      const historyItems: { role: "user" | "assistant"; content: string }[] = [];
-      for (const item of messages.slice(-10)) {
-        if (item.role === "user") {
-          historyItems.push({ role: "user", content: item.content });
-        } else {
-          const assistantContent =
-            item.structured?.recommendation && item.structured?.reason
-              ? `${item.structured.recommendation}\n\n${item.structured.reason}${item.structured.nextAction ? "\n\nNext step: " + item.structured.nextAction : ""}`
-              : item.content;
-          historyItems.push({ role: "assistant", content: assistantContent });
-        }
-      }
-      historyItems.push({ role: "user", content: next });
+      const history = messages
+        .slice(-10)
+        .map((item) => ({ role: item.role, content: item.content }))
+        .concat({ role: "user" as const, content: next });
 
       const response = await fetch("/api/agent/chat", {
         method: "POST",
@@ -219,7 +211,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
         },
         body: JSON.stringify({
           message: next,
-          history: historyItems,
+          history,
         }),
       });
 
@@ -228,18 +220,15 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
         throw new Error(payload.error ?? "Could not get a response from Pravix AI.");
       }
 
-      setMessages((previous) => [
-        ...previous,
-        {
-          role: "assistant",
-          content: payload.reply ?? "I could not generate a response right now.",
-          sentAt: new Date().toISOString(),
-          structured: payload.structured,
-          isSimple: payload.isSimpleAnswer ?? false,
-        },
-      ]);
+      setMessages((previous) => previous.slice(0, -1).concat({
+        role: "assistant",
+        content: payload.reply ?? "I could not generate a response right now.",
+        sentAt: new Date().toISOString(),
+        structured: payload.structured,
+      }));
     } catch (chatError) {
       setError(chatError instanceof Error ? chatError.message : "Could not send message.");
+      setMessages((previous) => previous.slice(0, -1));
     } finally {
       setIsSending(false);
     }
@@ -283,40 +272,33 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
                   {messages.length === 0 ? (
                     <p className="text-xs text-finance-muted">Start with a quick prompt below.</p>
                   ) : (
-                    messages.map((message, index) =>
-                      message.role === "assistant" ? (
-                        message.isSimple ? (
-                          <article
-                            key={`${message.role}-${index}-${message.sentAt}`}
-                            className="rounded-xl border border-finance-accent/20 bg-gradient-to-br from-finance-accent/5 to-white px-3 py-2.5 text-sm text-finance-text"
-                          >
-                            <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                            <p className="mt-1 text-[10px] text-finance-muted">{formatTime(message.sentAt)}</p>
-                          </article>
+                    messages.map((message, index) => (
+                      <article
+                        key={`${message.role}-${index}-${message.sentAt}`}
+                        className={`rounded-xl px-3 py-2.5 text-sm ${
+                          message.role === "assistant"
+                            ? "bg-finance-surface/70 text-finance-text"
+                            : "ml-auto max-w-[85%] bg-finance-accent text-white"
+                        }`}
+                      >
+                        {message.loading ? (
+                          <div className="flex items-center gap-2">
+                            <LoadingSpinner className="h-3 w-3" />
+                            <span>Thinking...</span>
+                          </div>
                         ) : (
-                          <article
-                            key={`${message.role}-${index}-${message.sentAt}`}
-                            className="rounded-xl bg-finance-surface/70 px-3 py-2.5 text-sm text-finance-text"
-                          >
-                            <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                            {message.structured?.nextAction ? (
-                              <div className="mt-2 rounded-lg border border-finance-border bg-white px-2.5 py-2 text-xs text-finance-text">
-                                <p><span className="font-semibold">Next:</span> {message.structured.nextAction}</p>
-                              </div>
-                            ) : null}
-                            <p className="mt-1 text-[10px] text-finance-muted">{formatTime(message.sentAt)}</p>
-                          </article>
-                        )
-                      ) : (
-                        <article
-                          key={`${message.role}-${index}-${message.sentAt}`}
-                          className="ml-auto max-w-[85%] rounded-xl bg-finance-accent px-3 py-2.5 text-sm text-white"
-                        >
                           <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                          <p className="mt-1 text-[10px] text-white/80">{formatTime(message.sentAt)}</p>
-                        </article>
-                      )
-                    )
+                        )}
+                        {message.role === "assistant" && message.structured && !message.loading ? (
+                          <div className="mt-2 rounded-lg border border-finance-border bg-white px-2.5 py-2 text-xs text-finance-text">
+                            <p><span className="font-semibold">Next:</span> {message.structured.nextAction}</p>
+                          </div>
+                        ) : null}
+                        <p className={`mt-1 text-[10px] ${message.role === "assistant" ? "text-finance-muted" : "text-white/80"}`}>
+                          {formatTime(message.sentAt)}
+                        </p>
+                      </article>
+                    ))
                   )}
                 </div>
 
@@ -356,7 +338,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
                     className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-finance-accent text-white transition-all duration-150 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
                     aria-label="Send message to Pravix AI"
                   >
-                    {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {isSending ? <LoadingSpinner /> : <Send className="h-4 w-4" />}
                   </button>
                 </form>
               </>
@@ -412,7 +394,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
             </a>
 
             <a
-              href="/#send-inquiry"
+              href="/#book-discovery-call"
               className="flex items-center gap-3 rounded-2xl border border-[#d8e7ff] bg-[#f8fbff] px-3 py-3 transition-all hover:-translate-y-0.5 hover:border-[#c1d4fb] hover:bg-white"
               onClick={() => setIsQuickMenuOpen(false)}
             >
@@ -453,7 +435,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
           >
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
               {isBootstrapping ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <LoadingSpinner />
               ) : (
                 <>
                   <Sparkles className="h-4 w-4 text-[#7af5ff] sm:hidden" />

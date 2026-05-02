@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAuthedSupabaseClient, getBearerToken, resolveAuthedUser } from "@/lib/agent/server";
+import { invalidateAgentContext } from "@/lib/agent/context";
 
 export const runtime = "nodejs";
 
@@ -496,6 +497,9 @@ export async function POST(request: Request) {
     if (upsertResult.error) {
       return NextResponse.json({ error: upsertResult.error.message }, { status: 400 });
     }
+
+    // Invalidate agent context cache after holdings update
+    invalidateAgentContext(user.id);
 
     const rows = await fetchHoldingRows(supabase, user.id);
     const snapshot = buildSnapshot(rows);
