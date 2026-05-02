@@ -71,25 +71,43 @@ export async function POST(request: Request) {
 
     const context = await loadAgentContext(supabase, user.id, debug);
     const snapshot = generateFinancialSnapshot(context, debug);
-    const advisorReply = await generateAdvisorChatReplyV2({
-      message: body.message.trim(),
-      history,
-      snapshot,
-    });
+    
+    try {
+      const advisorReply = await generateAdvisorChatReplyV2({
+        message: body.message.trim(),
+        history,
+        snapshot,
+      });
 
-    return NextResponse.json(
-      {
-        ok: true,
-        reply: advisorReply.reply,
-        raw: advisorReply.raw,
-        structured: advisorReply.structured,
-        disclaimer:
-          "Educational guidance only. This is not guaranteed return advice. Validate suitability before investing.",
-      },
-      { status: 200 },
-    );
+      return NextResponse.json(
+        {
+          ok: true,
+          reply: advisorReply.reply,
+          raw: advisorReply.raw,
+          structured: advisorReply.structured,
+          disclaimer:
+            "Educational guidance only. This is not guaranteed return advice. Validate suitability before investing.",
+        },
+        { status: 200 },
+      );
+    } catch (innerError) {
+      console.error("ADVISOR CHAT GENERATION ERROR:", innerError);
+      return NextResponse.json(
+        {
+          ok: true,
+          reply: "I'm sorry, I couldn't generate an answer at this time.",
+          raw: "",
+          structured: {},
+          disclaimer: "Unable to process your request. Please try again.",
+        },
+        { status: 200 },
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected chat error.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message, reply: "I'm sorry, I couldn't generate an answer at this time." },
+      { status: 500 },
+    );
   }
 }
