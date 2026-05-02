@@ -35,9 +35,60 @@ class OpenRouterApiError extends Error {
 class ProviderQualityError extends Error {
   provider: "OpenRouter";
 
-  constructor(provider: "OpenRouter", message: string) {
-    super(message);
-    this.name = "ProviderQualityError";
+type AllocationPlan = {
+  equityPct: number;
+  debtPct: number;
+  goldPct: number;
+  liquidPct: number;
+  note: string;
+};
+
+type AdvisorChatReply = {
+  reply: string;
+  raw: string;
+  structured: AgentStructuredAdvice;
+};
+
+const CHAT_PRIMARY_TIMEOUT_MS = 12_000;
+const CHAT_SECONDARY_TIMEOUT_MS = 9_000;
+const CHAT_PRIMARY_MAX_RETRIES = 1;
+const CHAT_SECONDARY_MAX_RETRIES = 1;
+const CHAT_REQUEST_DEADLINE_MS = 18_000;
+
+const DASHBOARD_PRIMARY_TIMEOUT_MS = 6_000;
+const DASHBOARD_SECONDARY_TIMEOUT_MS = 4_500;
+const DASHBOARD_PRIMARY_MAX_RETRIES = 0;
+const DASHBOARD_SECONDARY_MAX_RETRIES = 0;
+const DASHBOARD_REQUEST_DEADLINE_MS = 8_000;
+
+const RETRY_BASE_DELAY_MS = 300;
+const RETRY_JITTER_MS = 150;
+const RETRY_AFTER_MAX_MS = 2_000;
+
+const CIRCUIT_OPEN_MS = 90_000;
+const CIRCUIT_SAMPLE_SIZE = 20;
+const CIRCUIT_RATE_LIMIT_THRESHOLD = 0.3;
+const CIRCUIT_CONSECUTIVE_FAILURES = 5;
+const CIRCUIT_HALF_OPEN_PROBE_TARGET = 2;
+
+type ProviderName = "openrouter";
+type CircuitMode = "closed" | "open" | "half-open";
+
+type ProviderCircuit = {
+  mode: CircuitMode;
+  openUntil: number;
+  consecutiveRetryableFailures: number;
+  recentStatuses: number[];
+  halfOpenProbeAttempts: number;
+  halfOpenProbeSuccesses: number;
+};
+
+class ProviderCircuitOpenError extends Error {
+  provider: ProviderName;
+
+  constructor(provider: ProviderName, retryAfterMs: number) {
+    super(`Provider circuit open for ${provider}. Retry after ${Math.ceil(retryAfterMs / 1000)}s.`);
+    this.name = "ProviderCircuitOpenError";
     this.provider = provider;
   }
 }
@@ -87,18 +138,41 @@ function isNimCapacityError(error: unknown): boolean {
   );
 }
 
-function normalizeErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
+function getAllocationPlan(riskBucket: string): AllocationPlan {
+  if (riskBucket.includes("aggressive") || riskBucket.includes("high")) {
+    return {
+      equityPct: 75,
+      debtPct: 15,
+      goldPct: 10,
+      liquidPct: 0,
+      note: "Higher equity mix can be volatile; keep a long horizon and avoid panic exits.",
+    };
+  }
+
+  if (riskBucket.includes("conservative") || riskBucket.includes("low")) {
+    return {
+      equityPct: 30,
+      debtPct: 55,
+      goldPct: 10,
+      liquidPct: 5,
+      note: "Conservative allocation prioritizes stability and smoother drawdowns over max growth.",
+    };
+  }
+
+  return {
+    equityPct: 55,
+    debtPct: 30,
+    goldPct: 10,
+    liquidPct: 5,
+    note: "Balanced allocation targets growth with risk control through debt and gold diversification.",
+  };
 }
 
-async function callOpenRouter(
-  messages: NimMessage[],
-  options: { temperature: number; maxOutputTokens: number },
-  timeoutMs: number,
-): Promise<string> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+function formatAllocationLine(monthlyAmount: number, plan: AllocationPlan): string {
+  const equity = Math.round((monthlyAmount * plan.equityPct) / 100);
+  const debt = Math.round((monthlyAmount * plan.debtPct) / 100);
+  const gold = Math.round((monthlyAmount * plan.goldPct) / 100);
+  const liquid = Math.round((monthlyAmount * plan.liquidPct) / 100);
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -118,26 +192,8 @@ async function callOpenRouter(
       }),
     });
 
-    if (!response.ok) {
-      const body = await response.text();
-      const retryAfter = response.headers.get("Retry-After");
-      throw new OpenRouterApiError(response.status, summarizeNimErrorBody(body), parseRetryAfterMs(retryAfter));
-    }
-
-    const data = (await response.json()) as NimChatCompletionsResponse;
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error("Empty response from OpenRouter");
-    }
-
-    if (Array.isArray(content)) {
-      return content.find((c) => c.type === "text")?.text || "";
-    }
-
-    return content;
-  } finally {
-    clearTimeout(timeoutId);
+  if (plan.liquidPct > 0) {
+    parts.push(`${plan.liquidPct}% liquid reserve (${formatInr(liquid)})`);
   }
 }
 
@@ -684,7 +740,28 @@ function buildSystemInstruction(mode: "chat" | "dashboard"): string {
     base.push("Output plain text only.");
   }
 
-  return base.join("\n");
+  for (const goal of context.goals) {
+    if (Number.isFinite(goal.target_amount_inr) && goal.target_amount_inr > 0) {
+      values.push(goal.target_amount_inr);
+    }
+  }
+
+  if (feasibility) {
+    values.push(feasibility.targetAmountInr, feasibility.requiredSipInr, feasibility.projectedCorpusAtSurplusInr);
+    if (feasibility.monthlySurplusInr) {
+      values.push(feasibility.monthlySurplusInr);
+
+      const plan = getAllocationPlan(resolveRiskBucket(context));
+      values.push(
+        Math.round((feasibility.monthlySurplusInr * plan.equityPct) / 100),
+        Math.round((feasibility.monthlySurplusInr * plan.debtPct) / 100),
+        Math.round((feasibility.monthlySurplusInr * plan.goldPct) / 100),
+        Math.round((feasibility.monthlySurplusInr * plan.liquidPct) / 100),
+      );
+    }
+  }
+
+  return values;
 }
 
 function ensurePersonalizedAdvice(advice: AgentStructuredAdvice, context: AgentContext): AgentStructuredAdvice {
@@ -993,10 +1070,187 @@ function buildFallbackDashboardActionPlan(context: AgentContext, reason: string)
     "3) Review tax optimization for Section 80C/80D utilization quarterly.",
   ];
 
-  const cautionLines = [
-    `CAUTION: AI is temporarily unavailable due to limits${retryIn ? ` (retry in ~${retryIn})` : ""}.`,
-    "This is a rules-based fallback summary.",
-    `Risk note: ${plan.note}`,
+  const deadlineAt = Date.now() + CHAT_REQUEST_DEADLINE_MS;
+
+  try {
+    const raw = await callProviderWithRetry({
+      provider: "openrouter",
+      attempt: (timeoutMs) =>
+        callOpenRouter(
+          messages,
+          {
+            temperature: 0.15,
+            maxOutputTokens: 2000,
+          },
+          timeoutMs,
+        ),
+      preferredTimeoutMs: CHAT_PRIMARY_TIMEOUT_MS,
+      maxRetries: CHAT_PRIMARY_MAX_RETRIES,
+      deadlineAt,
+    });
+
+    const parsed = parseExplanationOutput(raw);
+
+    const snapshotValidation = validateNumbersAgainstSnapshot(raw, snapshotBlock);
+
+    if (parsed.valid && parsed.data && snapshotValidation.valid) {
+      // Ensure the AI explanation references the deterministic decision reasoning
+      const referenced = hasReasoningOverlap(snapshot.decision?.reasoning ?? "", parsed.data.reason || "");
+      if (!referenced) {
+        console.warn("[PRAVIX] AI explanation does not reference deterministic reasoning; rejecting output.");
+      } else {
+        return parsed.data;
+      }
+    }
+
+    if (!snapshotValidation.valid) {
+      console.warn("[PRAVIX] AI dashboard summary contained unexpected numbers:", snapshotValidation.reason);
+    }
+
+    return generateFallbackExplanation(snapshot, input.message);
+
+  } catch (error) {
+    console.warn("[PRAVIX] AI explanation failed, using fallback:", error);
+    return generateFallbackExplanation(snapshot, input.message);
+  }
+}
+
+export async function generateAdvisorChatReplyV2(input: {
+  message: string;
+  history: AgentChatHistoryItem[];
+  snapshot: FinancialSnapshot;
+}): Promise<AdvisorChatReply> {
+  const explanation = await generateAdvisorExplanation({ 
+    message: input.message, 
+    history: input.history, 
+    snapshot: input.snapshot 
+  });
+
+  const snapshot = input.snapshot;
+  const recommendedStrategy = snapshot.strategyOptions.find((s) => s.isRecommended);
+
+  const totalAlloc = snapshot.sipOriginal || 1;
+  const eqPct = Math.round((snapshot.allocation.equity / totalAlloc) * 100);
+  const dbPct = Math.round((snapshot.allocation.debt / totalAlloc) * 100);
+
+  const structured: AgentStructuredAdvice = {
+    recommendation: explanation.answer,
+    reason: explanation.reason,
+    riskWarning: "Returns are market-linked and not guaranteed. Past performance does not predict future results.",
+    nextAction: explanation.action,
+    intro: explanation.answer.substring(0, 200),
+    step1Title: "Your Financial Reality",
+    assumptionBullets: [
+      `Required monthly investment: ₹${snapshot.feasibility.requiredSip.toLocaleString()}`,
+      `Your current capacity: ₹${snapshot.feasibility.currentSip.toLocaleString()}`,
+      `Gap to bridge: ₹${snapshot.feasibility.gapAmount.toLocaleString()}`,
+    ],
+    bestAssumption: recommendedStrategy?.label || "Maintain current SIP",
+    monthlySipRange: `₹${snapshot.feasibility.currentSip.toLocaleString()} - ₹${snapshot.feasibility.requiredSip.toLocaleString()}`,
+    monthlySipBreakdown: snapshot.strategyOptions.slice(0, 3).map((s) => s.label),
+    step2Title: "Recommended Strategy",
+    portfolioBuckets: [
+      {
+        heading: `${eqPct}% Equity Allocation`,
+        expectedReturn: "Growth engine for long-term wealth creation",
+        instruments: ["Index funds", "Diversified equity funds"],
+        allocationHint: snapshot.allocation.rationale,
+      },
+      {
+        heading: `${dbPct}% Debt Stability`,
+        expectedReturn: "Capital preservation and steady returns",
+        instruments: ["Debt mutual funds", "PPF", "FDs"],
+        allocationHint: `Based on ${snapshot.userProfile.riskProfile} risk profile`,
+      },
+    ],
+    step3Title: "Action Items",
+    actionPlanRows: [
+      {
+        category: "Immediate",
+        amount: explanation.action.substring(0, 50),
+        whereToInvest: recommendedStrategy?.tradeOffs[0] || "Start SIP today",
+      },
+    ],
+  };
+
+  return {
+    reply: explanation.answer,
+    raw: JSON.stringify(explanation),
+    structured,
+  };
+}
+
+// V2: Dashboard action plan using FinancialSnapshot (snapshot-first architecture)
+export async function generateDashboardActionPlanV2(input: {
+  snapshot: FinancialSnapshot;
+}): Promise<DashboardAISummary> {
+  const { snapshot } = input;
+  const s = snapshot;
+  const f = snapshot.feasibility;
+
+  // Build snapshot block for AI context — includes decision + constraints so the
+  // narrator sees exactly what the deterministic engine concluded.
+  const d = s.decision;
+  const c = s.constraints;
+  const ao = s.actualOutcome;
+    const eqPctS = Math.round((s.allocation.equity / (s.sipOriginal || 1)) * 100);
+    const dbPctS = Math.round((s.allocation.debt / (s.sipOriginal || 1)) * 100);
+    const gdPctS = Math.round((s.allocation.gold / (s.sipOriginal || 1)) * 100);
+    const lqPctS = Math.round((s.allocation.liquid / (s.sipOriginal || 1)) * 100);
+    const snapshotBlock = [
+    "=== FINANCIAL SNAPSHOT (READ ONLY - DO NOT CALCULATE) ===",
+    `Goal: ${s.goal.title}`,
+    `Target Amount: ₹${s.goal.targetAmount.toLocaleString()}`,
+    `Time Horizon: ${Math.round(s.goal.timeHorizonMonths / 12)} years`,
+    `Required SIP: ₹${f.requiredSip.toLocaleString()}/month`,
+    `Current SIP: ₹${f.currentSip.toLocaleString()}/month`,
+    `Gap: ₹${f.gapAmount.toLocaleString()}/month (${f.gapPercentage.toFixed(0)}%)`,
+    `Expected Corpus (current SIP): ₹${ao.withCurrentSip.toLocaleString()} = ${ao.percentageOfGoal}% of goal`,
+    `Achievement Probability: ${f.achievementProbability}%`,
+    `Feasibility: ${d.feasibility}`,
+    `Allocation: ${eqPctS}% equity / ${dbPctS}% debt / ${gdPctS}% gold / ${lqPctS}% liquid`,
+    `Risk Profile: ${s.userProfile.riskProfile}`,
+    `Hard Constraint Verdict: ${c?.feasibilityVerdict ?? "none"}`,
+    c?.reasons?.length ? `Constraint Reasons: ${c.reasons.join(" | ")}` : "",
+    `Action Category: ${d.primaryActionType}`,
+    `Deterministic Action: ${d.primaryAction}`,
+    "",
+    "=== END SNAPSHOT ===",
+  ].filter(Boolean).join("\n");
+
+  const systemContent = [
+    "You are a financial explanation engine. You are a NARRATOR, not a calculator.",
+    "",
+    "STRICT RULES:",
+    "- You MUST NOT calculate, estimate, approximate, or invent any number.",
+    "- You MUST use ONLY the numbers provided in the snapshot, verbatim.",
+    "- You MUST NOT invent a new action. Paraphrase 'Deterministic Action' from the snapshot.",
+    "- If a field is missing or zero, do not fabricate one.",
+    "",
+    "Output exactly 3 lines as JSON:",
+    "  intro    — Reality: goal vs projected corpus.",
+    "  why      — Why: gap and the binding constraint.",
+    "  nextStep — Action: paraphrase Deterministic Action.",
+    "             - increase_sip   → tell user to raise the monthly SIP.",
+    "             - extend_timeline→ tell user to extend the goal horizon.",
+    "             - reduce_goal    → tell user to lower the target or grow income.",
+    "             - optimize       → tell user to add a step-up or rebalance.",
+    "             - noop           → repeat the Deterministic Action verbatim.",
+    "",
+    "Return JSON ONLY:",
+    '{ "intro": "...", "why": "...", "nextStep": "..." }',
+  ].join("\n");
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemContent },
+    {
+      role: "user",
+      content: [
+        snapshotBlock,
+        "",
+        "Based on the snapshot above, provide a concise summary.",
+      ].join("\n"),
+    },
   ];
 
   return ["ACTIONS", ...actions, "", ...cautionLines].join("\n");

@@ -397,15 +397,176 @@ export default function DashboardPage() {
   const [intelligenceSnapshot, setIntelligenceSnapshot] = useState<DashboardIntelligenceSnapshot | null>(null);
   const [holdingsAnalytics, setHoldingsAnalytics] = useState<HoldingsAnalyticsSnapshot | null>(null);
   const [holdingsCount, setHoldingsCount] = useState(0);
-  const [advisorSummary, setAdvisorSummary] = useState<string | null>(null);
-  const [aiAllocation, setAiAllocation] = useState<AgentStructuredAdvice | null>(null);
-  const [isAiAllocationLoading, setIsAiAllocationLoading] = useState(false);
-  const [aiAllocationError, setAiAllocationError] = useState<string | null>(null);
-  const [followUpQuestion, setFollowUpQuestion] = useState("");
-  const [followUpThread, setFollowUpThread] = useState<FollowUpQaItem[]>([]);
-  const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
-  const [followUpError, setFollowUpError] = useState<string | null>(null);
-  const [selectedHorizon, setSelectedHorizon] = useState<DashboardHorizon>("1y");
+  const [advisorSummary, setAdvisorSummary] =
+    useState<DashboardAISummary | null>(null);
+  const [explanation, setExplanation] = useState<AgentExplanationOutput | null>(
+    null,
+  );
+  const [financialSummary, setFinancialSummary] = useState<{
+    sipOriginal: number;
+    sipUsed: number;
+    maxAllowedSip: number | null;
+    isOverLimit: boolean;
+    utilizationPercent: number;
+    utilization: {
+      type: "range" | "exact";
+      minPercent?: number;
+      maxPercent?: number;
+      exactPercent?: number;
+    };
+    requiredSip: number;
+    projectedCorpus: number;
+    gapAmount: number;
+    goalDeltaPercent: number;
+    userCapacity: number;
+    isFeasible: boolean;
+    goalAmount: number;
+    goalYears: number;
+    // Advisor-quality fields
+    timeHorizon: {
+      band: string;
+      resolvedYears: number;
+      label: string;
+    };
+    expectedReturn: number;
+    scenarioOutcomes: {
+      conservative: number;
+      moderate: number;
+      optimistic: number;
+    };
+    actualOutcome: {
+      withCurrentSip: number;
+      shortfall: number;
+      percentageOfGoal: number;
+    };
+    gapStrategies: Array<{
+      id: string;
+      title: string;
+      description: string;
+      outcome: string;
+      feasibility: "achievable" | "partial" | "stretch";
+      tradeoffs: string[];
+      monthlySip: number;
+      years?: number;
+      projectedCorpus: number;
+    }>;
+    stepUpSuggestion?: {
+      yearlyIncrease: number;
+      finalMonthlySip: number;
+      projectedCorpus: number;
+      vsFixedSip: number;
+    };
+    // Phase 1: Income Utilization
+    utilizationInsight: {
+      level: "low" | "healthy" | "aggressive" | "risky" | "unsustainable";
+      ratio: number;
+      message: string;
+      potential: number | null;
+    };
+    // Phase 10: Action Plan
+    actionPlan: Array<{
+      priority: number;
+      action: string;
+      impact: string;
+      timeframe: string;
+    }>;
+    // Phase 5: Milestone Roadmap
+    milestoneRoadmap: Array<{
+      year: number;
+      projectedValue: number;
+      milestone: string;
+      label?: string;
+    }>;
+    // Phase 11: Behavioral Profile
+    behavioralProfile: {
+      archetype: string;
+      summary: string;
+      insight: string;
+      recommendation: string;
+    };
+    // User profile info
+    userProfile: {
+      income: number;
+      currentSavings: number;
+      investmentCapacity?: number;
+      riskProfile?: "conservative" | "moderate" | "aggressive";
+    };
+    // Allocation — single source of truth from backend
+    allocation?: {
+      equity: number;
+      debt: number;
+      gold: number;
+      liquid: number;
+    };
+    // Decision layer - single source of truth
+    decision: {
+      feasibility: "comfortable" | "tight" | "stretched" | "not_viable";
+      sustainability: "safe" | "aggressive" | "risky" | "unsustainable";
+      incomeUtilization: number;
+      gapAmount: number;
+      likelyCorpus: number;
+      goalAmount: number;
+      timeYears: number;
+      percentageOfGoal: number;
+      gapPercentage?: number;
+      primaryAction?: string;
+      secondaryAction?: string;
+      optionalAction?: string;
+      reasoning?: string;
+      primaryActionType?:
+      | "increase_sip"
+      | "extend_timeline"
+      | "reduce_goal"
+      | "optimize"
+      | "noop";
+      sipBufferPercent?: number;
+      sipBufferLabel?: string;
+      stepUpMode?: "optional" | "recommended";
+      safetyMargin?: number;
+      safetyTier?: "safe" | "tight" | "risky";
+      headerTone?:
+      | "strongly_on_track"
+      | "slightly_short"
+      | "needs_improvement"
+      | "far_off";
+      riskNote?: string;
+    };
+    // Root snapshot fields required by follow-up API
+    goal: any;
+    feasibility: any;
+    // Reality Normalizer outputs
+    goalIntent?: {
+      kind: string;
+      isCorpusGoal: boolean;
+      rawTargetAmount: number;
+      derivedCorpus: number;
+      annualIncomeTarget?: number;
+      taxSavingTarget?: number;
+      termCoverTarget?: number;
+      healthCoverTarget?: number;
+      note?: string;
+      warnings?: string[];
+    };
+    constraints?: {
+      feasibilityVerdict:
+      | "feasible"
+      | "high_risk"
+      | "not_viable"
+      | "extreme_mismatch";
+      tone: string;
+      confidenceTag: string;
+      reasons: string[];
+    };
+    dataQuality: {
+      hasFallbacks: boolean;
+      missingFields: string[];
+      confidence: "high" | "medium" | "low";
+      fallbackCount: number;
+      defaultedFields: string[];
+    };
+  } | null>(null);
+  const [selectedHorizon, setSelectedHorizon] =
+    useState<DashboardHorizon>("1y");
   const [customHorizonYears, setCustomHorizonYears] = useState(5);
   const [selectedLens, setSelectedLens] = useState<DashboardLens>("goal");
   const [selectedKpiId, setSelectedKpiId] = useState<string | null>(null);
@@ -1701,16 +1862,44 @@ export default function DashboardPage() {
   );
 
   const allocationArchitecture = useMemo(() => {
-    if (!profile) return [];
-    
-    const surplus = profile.monthly_investable_surplus_inr || 15000;
-    const risk = profile.risk_appetite;
-    
-    let split = [
-      { name: "Equity Index Funds", pct: 30, color: "#2b5cff", theme: "blue", detail: "Long-term growth assets" },
-      { name: "Short/Medium Debt", pct: 55, color: "#7aaafc", theme: "sky", detail: "Capital preservation & stability" },
-      { name: "Gold ETF / Funds", pct: 10, color: "#f5cc73", theme: "gold", detail: "Inflation & currency hedge" },
-      { name: "Liquid Reserve", pct: 5, color: "#69c8ad", theme: "green", detail: "Immediate liquidity access" },
+    if (!financialSummary?.allocation) return [];
+
+    const sip = financialSummary.sipOriginal || 0;
+    const allocation = financialSummary.allocation;
+
+    return [
+      {
+        name: "Equity",
+        pct: sip > 0 ? Math.round((Number(allocation.equity) / sip) * 100) : 0,
+        color: "#2b5cff",
+        theme: "blue",
+        detail: "Growth allocation",
+        amount: Number(allocation.equity) || 0,
+      },
+      {
+        name: "Debt",
+        pct: sip > 0 ? Math.round((Number(allocation.debt) / sip) * 100) : 0,
+        color: "#7aaafc",
+        theme: "sky",
+        detail: "Stability allocation",
+        amount: Number(allocation.debt) || 0,
+      },
+      {
+        name: "Gold",
+        pct: sip > 0 ? Math.round((Number(allocation.gold) / sip) * 100) : 0,
+        color: "#f5cc73",
+        theme: "gold",
+        detail: "Diversification allocation",
+        amount: Number(allocation.gold) || 0,
+      },
+      {
+        name: "Cash",
+        pct: sip > 0 ? Math.round((Number(allocation.liquid) / sip) * 100) : 0,
+        color: "#69c8ad",
+        theme: "green",
+        detail: "Liquidity allocation",
+        amount: Number(allocation.liquid) || 0,
+      },
     ];
     
     if (risk === 'aggressive') {
@@ -1736,98 +1925,78 @@ export default function DashboardPage() {
   }, [profile]);
 
   const corpusProjection = useMemo(() => {
-    if (!allocationArchitecture.length || !profile) return null;
-    
+    if (!financialSummary || !profile || allocationArchitecture.length === 0) return null;
+
+    const sip = financialSummary.sipOriginal || 0;
+    const savings = profile.current_savings_inr || 0;
+    const annualReturn = financialSummary.expectedReturn; // e.g. 0.12
     const months = projectionYears * 12;
-    const initialCorpus = profile.current_savings_inr + (holdingsAnalytics?.totalMarketValueInr ?? 0);
-    
-    // Conservative-leaning estimated annual returns for each bucket
-    const assetYields: Record<string, number> = {
-      "Equity Index Funds": 0.138,
-      "Short/Medium Debt": 0.072,
-      "Gold ETF / Funds": 0.095,
-      "Liquid Reserve": 0.042
+
+    // Helper to project value - using same logic as financial-engine for consistency
+    const project = (s: number, p: number, r: number, m: number) => {
+      if (m <= 0) return s;
+      const rate = r / 12;
+      const corpusGrowth = s * Math.pow(1 + rate, m);
+      const sipGrowth = p > 0 ? p * ((Math.pow(1 + rate, m) - 1) / rate) : 0;
+      return corpusGrowth + sipGrowth;
     };
-    
-    let totalInvested = 0;
-    let totalValue = 0;
-    
-    const layers = allocationArchitecture.map(item => {
-      const monthlyAmount = item.amount;
-      const annualRate = assetYields[item.name] || 0.10;
-      const monthlyRate = annualRate / 12;
+
+    const totalValue = project(savings, sip, annualReturn, months);
+    const totalInvested = savings + (sip * months);
+    const totalProfit = totalValue - totalInvested;
+
+    // Map the layers with individual growth projections
+    const layers = allocationArchitecture.map((item) => {
+      // Split initial savings and SIP according to current architecture
+      const layerSip = item.amount;
+      const layerSavings = (savings * (item.pct / 100));
       
-      const principalInvested = monthlyAmount * months;
-      
-      // Future Value of an Annuity: P * [((1 + r)^n - 1) / r] * (1 + r)
-      const futureValue = monthlyRate === 0 
-        ? principalInvested 
-        : monthlyAmount * (((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate));
-        
-      totalInvested += principalInvested;
-      totalValue += futureValue;
-      
+      // Use asset-class specific rates for high-fidelity layer performance
+      const rateMap: Record<string, number> = {
+        Equity: 0.12,
+        Debt: 0.075,
+        Gold: 0.065,
+        Cash: 0.04
+      };
+      const layerRate = rateMap[item.name] || annualReturn;
+
+      const futureValue = project(layerSavings, layerSip, layerRate, months);
+      const principal = layerSavings + (layerSip * months);
+      const netProfit = futureValue - principal;
+      const yieldPct = principal > 0 ? (netProfit / principal) * 100 : 0;
+
       return {
         ...item,
-        principalInvested,
-        futureValue,
-        netProfit: futureValue - principalInvested,
-        yieldPct: ((futureValue - principalInvested) / principalInvested) * 100
+        principalInvested: principal,
+        futureValue: Math.round(futureValue),
+        netProfit: Math.round(netProfit),
+        yieldPct: Math.round(yieldPct),
       };
     });
 
-    // Generate realistic year-by-year growth data for the graph
-    const graphData = [];
-    const numPoints = Math.min(12, Math.max(6, Math.floor(projectionYears) + 1));
-    const yrInterval = projectionYears / (numPoints - 1);
-    
-    for (let i = 0; i < numPoints; i++) {
-      // Ensure the last point is exactly projectionYears and intermediate points are strictly increasing
-      const yr = i === numPoints - 1 ? projectionYears : i * yrInterval;
-      const mths = Math.round(yr * 12);
-      
-      let yrInvested = 0;
-      let yrValue = 0;
-      
-      layers.forEach(layer => {
-        const annualRate = assetYields[layer.name] || 0.10;
-        const monthlyRate = annualRate / 12;
-        const principal = layer.amount * mths;
-        const value = monthlyRate === 0 
-          ? principal 
-          : layer.amount * (((Math.pow(1 + monthlyRate, mths) - 1) / monthlyRate) * (1 + monthlyRate));
-        
-        yrInvested += principal;
-        yrValue += value;
-      });
-      
-      const yrInitialAppreciated = initialCorpus * Math.pow(1 + 0.095, yr);
-      const yrTotalValue = yrValue + yrInitialAppreciated;
-      const yrTotalInvested = yrInvested + initialCorpus;
-      
-      graphData.push({
-        label: yr === 0 ? "Now" : `${yr.toFixed(yr > 0 && yr < 1 ? 1 : 0)}Y`,
-        totalValue: yrTotalValue,
-        invested: yrTotalInvested,
-        profit: yrTotalValue - yrTotalInvested
-      });
-    }
+    // Generate 13 points (every month/year depending on scale) for the AreaChart
+    const graphData = Array.from({ length: 13 }, (_, i) => {
+      const m = Math.round((i * months) / 12);
+      const val = project(savings, sip, annualReturn, m);
+      const inv = savings + (sip * m);
+      return {
+        label: m === 0 ? "Now" : m % 12 === 0 ? `Y${m / 12}` : `M${m}`,
+        totalValue: Math.round(val),
+        invested: Math.round(inv),
+        profit: Math.round(val - inv),
+      };
+    });
 
-    // Add initial corpus appreciation at a blended rate (assume balanced 10%)
-    const initialCorpusAppreciated = initialCorpus * Math.pow(1 + 0.10, projectionYears);
-    const totalFinalCorpus = totalValue + initialCorpusAppreciated;
-    
     return {
-      totalInvested,
-      totalValue,
-      initialCorpus,
-      initialCorpusAppreciated,
-      totalFinalCorpus,
-      totalProfit: (totalValue - totalInvested) + (initialCorpusAppreciated - initialCorpus),
+      totalInvested: Math.round(totalInvested),
+      totalValue: Math.round(totalValue),
+      initialCorpus: savings,
+      totalFinalCorpus: Math.round(totalValue),
+      totalProfit: Math.round(totalProfit),
       layers,
-      graphData
+      graphData,
     };
-  }, [allocationArchitecture, profile, projectionYears, holdingsAnalytics?.totalMarketValueInr]);
+  }, [allocationArchitecture, financialSummary, profile, projectionYears]);
 
   const aiMarketLab = useMemo(() => {
     if (!profile || !profileIntelligence) {
@@ -2591,36 +2760,8 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Decision + Allocation Infographic */}
-                  {financialSummary?.decision?.primaryAction &&
-                    financialSummary?.allocation &&
+                  {financialSummary && financialSummary.sipOriginal > 0 ? (
                     (() => {
-                      const totalSip =
-                        financialSummary.sipUsed ||
-                        financialSummary.userCapacity ||
-                        0;
-                      if (!totalSip) return null;
-                      const a = financialSummary.allocation;
-                      const buckets: Array<{
-                        type: AllocationItem["type"];
-                        pct: number;
-                      }> = [
-                          { type: "equity", pct: a.equity },
-                          { type: "debt", pct: a.debt },
-                          { type: "gold", pct: a.gold },
-                          { type: "liquid", pct: a.cash },
-                        ];
-                      const allocations: AllocationItem[] = buckets.map(
-                        (b) => ({
-                          type: b.type,
-                          pct: b.pct,
-                          amount: Math.round((totalSip * b.pct) / 100),
-                        }),
-                      );
-                      const sum = allocations.reduce((s, x) => s + x.amount, 0);
-                      if (sum !== totalSip && allocations.length) {
-                        allocations[allocations.length - 1].amount +=
-                          totalSip - sum;
-                      }
                       const fz = financialSummary.decision.feasibility;
                       const prefix =
                         fz === "not_viable"
@@ -2643,14 +2784,12 @@ export default function DashboardPage() {
                           />
                           <DecisionWithAllocation
                             totalSip={financialSummary.sipOriginal}
-                            allocations={Object.entries(financialSummary.allocation || {}).map(([type, amount]) => {
-                              const amt = Number(amount) || 0;
+                            allocations={Object.entries(financialSummary.allocation || {}).map(([type, amountValue]) => {
+                              const amount = Number(amountValue) || 0;
                               return {
                                 type: type as any,
-                                amount: amt,
-                                pct: financialSummary.sipOriginal > 0 
-                                  ? Math.round((amt / financialSummary.sipOriginal) * 100) 
-                                  : 0
+                                amount,
+                                pct: financialSummary.sipOriginal > 0 ? Math.round((amount / financialSummary.sipOriginal) * 100) : 0
                               };
                             })}
                             prefix={prefix}
@@ -2673,7 +2812,20 @@ export default function DashboardPage() {
                           )}
                         </div>
                       );
-                    })()}
+                    })()
+                  ) : financialSummary && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-5">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600 flex-shrink-0" />
+                        <div>
+                          <p className="font-semibold text-amber-900">Allocation unavailable due to insufficient investment data</p>
+                          <p className="mt-1 text-sm text-amber-800">
+                            Please ensure your monthly surplus is greater than zero to generate a personalized allocation plan.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* FOLLOW UP Q&A */}
                   {financialSummary && explanation && (

@@ -149,3 +149,351 @@ export type DashboardIntelligenceSnapshot = {
   focusConfidence: FocusConfidence;
   disclaimer: string;
 };
+
+// ============================================================
+// FINANCIAL ENGINE TYPES - Comprehensive deterministic calculations
+// ============================================================
+
+export type UserFinancialProfile = {
+  income: number;
+  incomeInputType?: "exact" | "range";
+  incomeRangeMinInr?: number | null;
+  incomeRangeMaxInr?: number | null;
+  expenses: number;
+  emi: number;
+  investmentCapacity: number;
+  currentSavings: number;
+  emergencyFundMonths: number;
+  riskProfile: "conservative" | "moderate" | "aggressive";
+  employmentType: string | null;
+  hasExistingInvestments: boolean;
+  existingInvestmentTypes: string[];
+  age: number | null;
+  taxRegime: string | null;
+};
+
+export type GoalSpec = {
+  title: string;
+  targetAmount: number;
+  timeHorizonMonths: number;
+  priority: string;
+  category: string;
+};
+
+export type ReturnScenario = {
+  rate: number;
+  label: string;
+  projectedCorpus: number;
+  achievementProbability: "low" | "medium" | "high";
+};
+
+export type StepUpSipPlan = {
+  startSip: number;
+  annualIncreasePct: number;
+  finalSip: number;
+  avgSip: number;
+  projectedCorpus: number;
+  isFeasible: boolean;
+};
+
+export type StrategyOption = {
+  type:
+    | "increase_sip"
+    | "extend_timeline"
+    | "step_up_sip"
+    | "reduce_goal"
+    | "lump_sum_boost";
+  label: string;
+  description: string;
+  requiredSip: number | null;
+  extendedMonths: number | null;
+  stepUpPlan: StepUpSipPlan | null;
+  reducedTarget: number | null;
+  lumpSumRequired: number | null;
+  isRecommended: boolean;
+  tradeOffs: string[];
+};
+
+export type FeasibilityAnalysis = {
+  isFeasible: boolean;
+  confidence: "high" | "medium" | "low";
+  requiredSip: number;
+  currentSip: number;
+  gapAmount: number;
+  gapPercentage: number;
+  expectedCorpus: number;
+  shortfall: number;
+  achievementProbability: number;
+  returnScenarios: ReturnScenario[];
+};
+
+export type SmartAllocation = {
+  equity: number;
+  debt: number;
+  gold: number;
+  liquid: number;
+  rationale: string;
+  rebalancingNeeded: boolean;
+};
+
+export type EmergencyFundAnalysis = {
+  requiredMonths: number;
+  requiredAmount: number;
+  currentAmount: number;
+  shortfall: number;
+  isAdequate: boolean;
+  priority: "critical" | "recommended" | "adequate";
+};
+
+export type TimeHorizonInfo = {
+  band: string;
+  resolvedYears: number;
+  label: string;
+};
+
+export type ScenarioOutcomes = {
+  conservative: number; // 8% returns
+  moderate: number; // 12% returns
+  optimistic: number; // 15% returns
+};
+
+export type GapStrategy = {
+  id: string;
+  title: string;
+  description: string;
+  outcome: string;
+  feasibility: "achievable" | "partial" | "stretch";
+  tradeoffs: string[];
+  monthlySip: number;
+  years?: number;
+  projectedCorpus: number;
+};
+
+export type StepUpSuggestion = {
+  yearlyIncrease: number;
+  finalMonthlySip: number;
+  projectedCorpus: number;
+  vsFixedSip: number;
+};
+
+export type IncomeUtilizationInsight = {
+  level: "low" | "healthy" | "aggressive" | "risky" | "unsustainable";
+  ratio: number;
+  message: string;
+  potential: number | null;
+};
+
+export type ActionPlanItem = {
+  priority: number;
+  action: string;
+  impact: string;
+  timeframe: string;
+};
+
+/** Strict, single-choice action enum. UI/AI must paraphrase this — never invent a new action. */
+export type PrimaryActionType =
+  | "increase_sip" // gap exists and required SIP is within reach
+  | "extend_timeline" // required SIP unaffordable but timeline can absorb it
+  | "reduce_goal" // hard constraint blocks both SIP and timeline paths
+  | "optimize" // already feasible — minor tuning (step-up, rebalance)
+  | "noop"; // non-corpus goal (insurance, tax_saving) — no SIP decision
+
+export type PlanDecision = {
+  feasibility: "comfortable" | "tight" | "stretched" | "not_viable";
+  sustainability: "safe" | "aggressive" | "risky" | "unsustainable";
+  incomeUtilization: number;
+  gapAmount: number;
+  likelyCorpus: number;
+  goalAmount: number;
+  timeYears: number;
+  percentageOfGoal: number;
+  gapPercentage?: number;
+  /** Free-text rationale (deterministic, built by the engine). */
+  primaryAction?: string;
+  secondaryAction?: string;
+  optionalAction?: string;
+  reasoning: string;
+  /** The single canonical action category. AI/UI paraphrase this only. */
+  primaryActionType: PrimaryActionType;
+  sipBufferPercent?: number;
+  sipBufferLabel?: string;
+  stepUpMode?: "optional" | "recommended";
+  safetyMargin?: number;
+  safetyTier?: "safe" | "tight" | "risky";
+  headerTone?:
+    | "strongly_on_track"
+    | "slightly_short"
+    | "needs_improvement"
+    | "far_off";
+  riskNote?: string;
+};
+
+export type BehavioralProfile = {
+  archetype: string;
+  summary: string;
+  insight: string;
+  recommendation: string;
+};
+
+export type Milestone = {
+  year: number;
+  projectedValue: number;
+  investedPrincipal: number;
+  milestone: string;
+  label?: string;
+};
+
+// ============================================================
+// REALITY NORMALIZER TYPES
+// ============================================================
+
+export type GoalKind =
+  | "wealth_creation"
+  | "retirement_planning"
+  | "child_education"
+  | "tax_saving"
+  | "passive_income"
+  | "insurance_planning";
+
+export type GoalIntent = {
+  kind: GoalKind;
+  /** Raw target amount as the user entered it (or resolved from a choice token). */
+  rawTargetAmount: number | null;
+  /** Corpus the engine should plan against (may differ from rawTargetAmount, e.g. passive_income → ×25). */
+  derivedCorpus: number | null;
+  /** Annual passive income target (only set for kind = passive_income). */
+  annualIncomeTarget: number | null;
+  /** Annual 80C investment target (only set for kind = tax_saving). */
+  taxSavingTarget: number | null;
+  /** Term insurance cover suggestion (only set for kind = insurance_planning). */
+  termCoverTarget: number | null;
+  /** Health insurance cover suggestion (only set for kind = insurance_planning). */
+  healthCoverTarget: number | null;
+  /** True when goal is non-corpus (insurance, tax_saving) and SIP feasibility math doesn't apply. */
+  isCorpusGoal: boolean;
+  /** Human-readable transparency note shown on the dashboard. */
+  note: string | null;
+  /** Soft warnings (e.g. retirement horizon mismatched with age). */
+  warnings: string[];
+};
+
+export type PlanConstraints = {
+  /** Hard verdict from rule layer; engine + AI must respect this. null = no override. */
+  feasibilityVerdict:
+    | "feasible"
+    | "high_risk"
+    | "not_viable"
+    | "extreme_mismatch"
+    | null;
+  flags: {
+    maxAllowedSip: number | null;
+    isOverLimit: boolean;
+    overLimitAmount: number | null;
+    utilizationPercent: number;
+    highSipRisk: boolean;
+    stepUpCappedAtIncome: boolean;
+    expensesInferred: boolean;
+  };
+  /** Sip-to-income ratio derived label. */
+  confidenceTag: "safe" | "balanced" | "aggressive" | "unsafe";
+  /** Tone directive for header / advice. */
+  tone: "confidence" | "cautious_optimism" | "direct_corrective";
+  /** Reasons backing each hard rule that fired. */
+  reasons: string[];
+};
+
+export type NormalizedPlanInput = {
+  profile: UserFinancialProfile;
+  goalIntent: GoalIntent;
+  /** Goal time horizon in months (resolved from band/year). */
+  timeHorizonMonths: number;
+  constraints: PlanConstraints;
+  /** True when we don't have enough data to plan; engine should surface a "missing input" snapshot. */
+  requiresInput: boolean;
+};
+
+export type FinancialSnapshot = {
+  sipOriginal: number;
+  sipUsed: number;
+  maxAllowedSip: number | null;
+  isOverLimit: boolean;
+  utilizationPercent: number;
+  utilization:
+    | {
+        type: "range";
+        minPercent: number;
+        maxPercent: number;
+      }
+    | {
+        type: "exact";
+        exactPercent: number;
+      };
+  requiredSip: number;
+  projectedCorpus: number;
+  gapAmount: number;
+  goalDeltaPercent: number;
+  userProfile: UserFinancialProfile;
+  goal: GoalSpec;
+  feasibility: FeasibilityAnalysis;
+  allocation: SmartAllocation;
+  emergencyFund: EmergencyFundAnalysis;
+  strategyOptions: StrategyOption[];
+  warnings: string[];
+  recommendations: string[];
+  inflationAdjustedGoal: number;
+  generatedAt: string;
+  holdingsAnalysis?: HoldingsAnalysis;
+  rebalancingNeeded: boolean;
+  rebalancingAdvice?: string[];
+  version: string;
+  // Advisor-quality additions
+  timeHorizon: TimeHorizonInfo;
+  expectedReturn: number;
+  scenarioOutcomes: ScenarioOutcomes;
+  actualOutcome: {
+    withCurrentSip: number;
+    shortfall: number;
+    percentageOfGoal: number;
+  };
+  gapStrategies: GapStrategy[];
+  stepUpSuggestion?: StepUpSuggestion;
+  // Phase 1: Income Utilization
+  utilizationInsight: IncomeUtilizationInsight;
+  // Phase 10: Action Plan
+  actionPlan: ActionPlanItem[];
+  // Phase 5: Milestone Roadmap
+  milestoneRoadmap: Milestone[];
+  // Phase 11: Behavioral Profile
+  behavioralProfile: BehavioralProfile;
+  // Decision layer - single source of truth
+  decision: PlanDecision;
+  // Reality Normalizer outputs (transparency + hard constraints)
+  goalIntent: GoalIntent;
+  constraints: PlanConstraints;
+  // Data quality transparency for profile reliability
+  dataQuality: DataQualitySnapshot;
+};
+
+export type HoldingsAnalysis = {
+  totalValue: number;
+  topHoldingPct: number;
+  concentrationRisk: "low" | "medium" | "high";
+  assetAllocation: Record<string, number>;
+  sectorExposure: Record<string, number>;
+  unrealizedPnlPct: number | null;
+  holdingsCount: number;
+};
+
+export type AIExplanationInput = {
+  financialSnapshot: FinancialSnapshot;
+  userQuestion: string;
+  conversationHistory: AgentChatHistoryItem[];
+};
+
+export type AIExplanationOutput = {
+  answer: string;
+  action: string;
+  reason: string;
+  confidence: "high" | "medium" | "low";
+  caveats: string[];
+};
