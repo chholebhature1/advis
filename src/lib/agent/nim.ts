@@ -41,7 +41,7 @@ class OpenRouterApiError extends Error {
   }
 }
 
-const OPENROUTER_MODEL = "openai/gpt-3.5-turbo";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL ?? "openai/gpt-5.3-chat";
 // No hardcoded API key. Use process.env.OPENROUTER_API_KEY only.
 
 type AllocationPlan = {

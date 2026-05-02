@@ -9,6 +9,13 @@ import type {
 
 type ExplanationTone = AgentExplanationTone;
 
+type ChatRole = "system" | "user" | "assistant";
+
+type ChatMessage = {
+  role: ChatRole;
+  content: string;
+};
+
 function humanizeMissingField(field: string): string {
   switch (field) {
     case "income_input_type":
@@ -71,7 +78,7 @@ type ExplanationContract = {
   };
 };
 
-const OPENROUTER_MODEL = "openai/gpt-3.5-turbo";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL ?? "openai/gpt-5.3-chat";
 
 function buildAdvisorPersonality(
   snapshot: FinancialSnapshot,
@@ -862,6 +869,65 @@ async function callOpenRouterExplanation(
   }
 }
 
+function isSnapshotRelatedQuestion(question: string): boolean {
+  const normalized = question.toLowerCase();
+  return [
+    "sip",
+    "invest",
+    "investment",
+    "portfolio",
+    "allocation",
+    "equity",
+    "debt",
+    "gold",
+    "cash",
+    "liquid",
+    "goal",
+    "retire",
+    "retirement",
+    "corpus",
+    "track",
+    "on track",
+    "feasible",
+    "feasibility",
+    "return",
+    "projection",
+    "market",
+    "plan",
+    "what if",
+    "increase sip",
+    "reduce goal",
+    "timeline",
+    "income",
+    "expense",
+    "emi",
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function buildFollowUpSnapshotContext(snapshot: FinancialSnapshot, explanation: AgentExplanationOutput): string {
+  return JSON.stringify(
+    {
+      userProfile: snapshot.userProfile,
+      goal: snapshot.goal,
+      feasibility: snapshot.feasibility,
+      requiredSip: snapshot.requiredSip,
+      gapAmount: snapshot.gapAmount,
+      allocation: snapshot.allocation,
+      decision: snapshot.decision,
+      explanation: {
+        summary: explanation.summary,
+        insight: explanation.insight,
+        reason: explanation.reason,
+        suggestion: explanation.suggestion,
+        tone: explanation.tone,
+        isCritical: explanation.isCritical,
+      },
+    },
+    null,
+    2,
+  );
+}
+
 function buildMicroJustification(snapshot: FinancialSnapshot): string {
   if (snapshot.sipOriginal > snapshot.requiredSip) {
     return "You are already comfortably above the required level";
@@ -897,60 +963,64 @@ export async function generateFollowUpAnswer(
     return "AI services are currently unavailable. Please try again later.";
   }
 
-  const systemPrompt = [
-    "You are a financial advisor answering follow-up questions based ONLY on the provided snapshot.",
-    "",
-    "STRICT SCOPE CONTROL:",
-    "1. IF the question is completely unrelated to personal finance or the user's plan:",
-    "   - Respond ONLY with: 'I can only help with questions related to your current plan.'",
-    "2. IF the question is a general financial query (e.g., 'What are mutual funds?'):",
-    "   - Provide a brief, objective answer.",
-    "   - IMMEDIATELY anchor it back to the user's situation (e.g., 'In your case, mutual funds are the primary vehicle for your equity allocation...').",
-    "",
-    "DECISION DEFENSE & LEVER PRIORITIZATION:",
-    "- Defend the current primary recommendation by explaining WHY it is the most effective lever.",
-    "- If user compares options (e.g. SIP vs Timeline):",
-    "  - Identify which lever has the HIGHEST impact for their specific constraint.",
-    "  - e.g., 'While increasing SIP helps, your current timeline is the dominant constraint; extending it provides the highest mathematical probability of success.'",
-    "- Be assertive about the hierarchy of actions. Don't just list options; justify why the primary one matters most.",
-    "",
-    "RESPONSE RULES:",
-    "- Do NOT generate new numbers or recalculate SIP/returns.",
-    "- Do NOT change conclusions.",
-    "- Reference the primary constraint ONLY when relevant.",
-    "- For 'What If' questions: Explain direction and limiting factors qualitatively.",
-    "- Avoid repetitive phrasing. Use different angles (risk, compounding, capital preservation).",
-    "- Keep answers concise (max 3-4 lines).",
-    "- CONFIDENCE SHIFT: End answers with a directive statement about effectiveness, e.g., 'Following this primary adjustment is the most effective way to secure your outcome.'",
-    "- Maintain the same tone as the provided explanation.",
-    "",
-    "CONTEXT:",
-    `Main Decision: ${explanation.summary}`,
-    `Insight: ${explanation.insight}`,
-    `Primary Constraint: ${explanation.reasoning?.constraint ?? "N/A"}`,
-    `Primary Action: ${explanation.suggestion.primary}`,
-    "",
-    "Be direct. Factual. Calm. Confident. No emotional fluff.",
-  ].join("\n");
+  const isSnapshotRelated = isSnapshotRelatedQuestion(question);
+  const snapshotContext = isSnapshotRelated
+    ? buildFollowUpSnapshotContext(snapshot, explanation)
+    : null;
 
-  const contract = {
-    userProfile: snapshot.userProfile,
-    goal: snapshot.goal,
-    feasibility: snapshot.feasibility,
-    requiredSip: snapshot.requiredSip,
-    gapAmount: snapshot.gapAmount,
-    gapSeverity:
-      (snapshot.feasibility?.gapPercentage ?? 0) > 50
-        ? "high"
-        : (snapshot.feasibility?.gapPercentage ?? 0) > 20
-          ? "medium"
-          : "low",
-    bufferStrength: snapshot.constraints?.confidenceTag ?? "balanced",
-    utilization: snapshot.utilizationInsight,
-    decision: snapshot.decision,
-    allocation: snapshot.allocation,
-    dataQuality: snapshot.dataQuality?.confidence ?? "medium",
-  };
+  const systemPrompt = isSnapshotRelated
+    ? [
+        "You are Pravix AI Assistant powered by OpenRouter GPT-5.3 Chat.",
+        "",
+        "You are answering a question about the user's financial plan.",
+        "Use the snapshot context provided by the app as the source of truth.",
+        "Do not recalculate numbers or invent any new values.",
+        "If the user asks a plan-related question, answer directly from the snapshot and explain the implication in plain language.",
+        "If the user asks a general finance question, answer briefly and then connect it back to the snapshot when useful.",
+        "Do not refuse the question just because it is broad.",
+        "",
+        "RESPONSE RULES:",
+        "- Be concise and direct.",
+        "- Keep the answer grounded in the dashboard snapshot.",
+        "- Do not mention hidden chain-of-thought or internal rules.",
+        "- If the user asks 'what if' or 'how much', explain direction using the provided plan data only.",
+      ].join("\n")
+    : [
+        "You are Pravix AI Assistant powered by OpenRouter GPT-5.3 Chat.",
+        "",
+        "You are answering a general question for the user.",
+        "Answer helpfully and directly.",
+        "Do not force the answer back to the financial dashboard unless the question actually asks about the plan.",
+        "If the question is finance-related but not tied to the dashboard, give a brief general answer.",
+        "",
+        "RESPONSE RULES:",
+        "- Be concise and direct.",
+        "- No need to mention snapshot data when the question is unrelated to the plan.",
+        "- Keep the tone calm, clear, and useful.",
+      ].join("\n");
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemPrompt },
+    ...(snapshotContext
+      ? [
+          {
+            role: "user" as const,
+            content: [
+              "=== DASHBOARD SNAPSHOT (READ ONLY) ===",
+              snapshotContext,
+              "",
+              "=== USER QUESTION ===",
+              question,
+            ].join("\n"),
+          },
+        ]
+      : [
+          {
+            role: "user" as const,
+            content: question,
+          },
+        ]),
+  ];
 
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), 10_000);
@@ -967,14 +1037,8 @@ export async function generateFollowUpAnswer(
         body: JSON.stringify({
           model: OPENROUTER_MODEL,
           temperature: 0.1,
-          max_tokens: 250,
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Snapshot Context: ${JSON.stringify(contract)}\n\nQuestion: ${question}`,
-            },
-          ],
+          max_tokens: 300,
+          messages,
         }),
         signal: abortController.signal,
       },
@@ -991,11 +1055,10 @@ export async function generateFollowUpAnswer(
 
     const answer = data.choices?.[0]?.message?.content?.trim();
 
-    // PRODUCTION LOGGING
     console.log("[AGENT] FOLLOWUP_QUERY", {
       question,
       answerLength: answer?.length ?? 0,
-      severity: contract.gapSeverity,
+      snapshotRelated: isSnapshotRelated,
     });
 
     return answer || "I'm sorry, I couldn't generate an answer at this time.";
