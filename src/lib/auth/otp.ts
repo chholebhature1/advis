@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcryptjs";
 
 export const OTP_TTL_MS = 5 * 60 * 1000;
 export const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
