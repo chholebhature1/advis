@@ -32,8 +32,8 @@ type ChatMessage = {
   loading?: boolean;
 };
 
-const CONTACT_PHONE_NUMBER = "+91 89369 82996";
-const CONTACT_PHONE_URI = "+918936982996";
+const CONTACT_PHONE_NUMBER = "+91 87962 15599";
+const CONTACT_PHONE_URI = "+918796215599";
 const WHATSAPP_MESSAGE = encodeURIComponent(
   "Hi Pravix, I want to connect regarding wealth planning, the AI dashboard, and a discovery call."
 );

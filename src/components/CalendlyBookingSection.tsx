@@ -394,7 +394,7 @@ export default function CalendlyBookingSection() {
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                           type="tel"
-                          placeholder="+91 98765 43210"
+                          placeholder="+91 87962 15599"
                           className="w-full px-5 py-4 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] placeholder-[#94a3b8] focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                         />
                       </div>
