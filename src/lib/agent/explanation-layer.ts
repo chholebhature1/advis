@@ -534,35 +534,33 @@ function buildFallbackExplanation(
   explanationDepth: "short" | "detailed" = "short",
   debug = false,
 ): AgentExplanationOutput {
-  const utilization =
-    snapshot.utilization.type === "range"
-      ? `~${snapshot.utilization.minPercent?.toFixed(1)}%–${snapshot.utilization.maxPercent?.toFixed(1)}%`
-      : `${snapshot.utilization.exactPercent?.toFixed(1)}%`;
-  const simple = userProfile?.experienceLevel === "beginner";
-  const stepUpText =
-    snapshot.decision.stepUpMode === "optional"
-      ? "can accelerate growth"
-      : "is needed to reach the goal";
+  // ── Safe value extraction with fallback guards ──
+  const sipOriginal = Number.isFinite(snapshot.sipOriginal) ? snapshot.sipOriginal : 0;
+  const requiredSip = Number.isFinite(snapshot.requiredSip) ? snapshot.requiredSip : 0;
+  const income = Number.isFinite(snapshot.userProfile?.income) ? snapshot.userProfile.income : 0;
+  const gapAmount = Number.isFinite(snapshot.gapAmount) ? snapshot.gapAmount : 0;
+  const goalAmount = Number.isFinite(snapshot.goal?.targetAmount) ? snapshot.goal.targetAmount : 0;
+  const horizonYears = snapshot.timeHorizon?.resolvedYears ?? Math.round((snapshot.goal?.timeHorizonMonths ?? 60) / 12);
 
-  const extraDetail =
-    explanationDepth === "detailed"
-      ? " Review the timeline and consider small step-ups if comfortable."
-      : "";
-  const accuracyImprovementNote =
-    "Providing exact income and goal details will improve SIP recommendations and make the plan more reliable.";
+  // ── Computed metrics ──
+  const incomeUtilPct = income > 0 ? Math.round((sipOriginal / income) * 1000) / 10 : 0;
+  const sipBuffer = sipOriginal > 0 && requiredSip > 0 ? sipOriginal - requiredSip : 0;
+
+  const fmt = formatCurrencyLocal;
+  const fmtPct = (v: number) => `${v.toFixed(1)}%`;
+
   const { note: qualityNote, debugInfo: dataQualityDebug } = buildDataQualityNote(
     snapshot,
     debug,
   );
   const debugInfo = `Fallback version: ${snapshot.version}${dataQualityDebug ? ` | ${dataQualityDebug}` : ""}`;
   const mainConstraint = extractMainConstraint(snapshot);
-  const viabilityNote = snapshot.decision.feasibility === "not_viable" ? "A major adjustment is needed." : "";
   const addDataQualityNote = (text: string) =>
     qualityNote ? `${text} ${qualityNote}` : text;
 
-  // STEP 1: Build reasoning structure with return assumption context
+  // ── Reasoning structure ──
   const returnAssumption = getReturnAssumptionText(snapshot);
-  const timelineImpact = getTimelineContext(snapshot.timeHorizon?.resolvedYears ?? 0);
+  const timelineImpact = getTimelineContext(horizonYears);
   const reasoning: ExplanationReasoning = {
     constraint: mainConstraint,
     cause:
@@ -571,10 +569,10 @@ function buildFallbackExplanation(
     implication:
       snapshot.decision.feasibility === "comfortable"
         ? "Your plan is secure under this scenario. Stay consistent with your current SIP and monitor returns."
-        : "This plan may not reach your goal under all market conditions. You should consider adjusting timeline, reducing goal, or increasing income.",
+        : "This plan may not reach your goal under all market conditions. Consider adjusting timeline, reducing goal, or increasing income.",
   };
 
-  // STEP 4: Build flexible suggestion structure
+  // ── Recommendation structure ──
   const tradeoffsForDetailed =
     explanationDepth === "detailed"
       ? [
@@ -593,39 +591,52 @@ function buildFallbackExplanation(
     tradeoffs: tradeoffsForDetailed,
   };
 
-  if (snapshot.sipOriginal > snapshot.requiredSip) {
-    const sipAboveTone = resolveTone(snapshot);
-    const insightText = addDataQualityNote(
-      snapshot.decision.reasoning || "Your SIP is above the required amount.",
-    );
+  // ──────────────────────────────────────────────────
+  // BRANCH 1: SIP exceeds required — comfortable surplus
+  // ──────────────────────────────────────────────────
+  if (sipOriginal > 0 && sipOriginal > requiredSip) {
+    const hasSolidNumbers = income > 0 && requiredSip > 0;
+
+    const summaryText = hasSolidNumbers
+      ? `Your current SIP of ${fmt(sipOriginal)}/month is well above the required ${fmt(requiredSip)}/month — you are comfortably ahead of your goal.`
+      : "Your current plan is comfortably above the required level.";
+
+    const insightText = hasSolidNumbers
+      ? `You are investing ${fmtPct(incomeUtilPct)} of your income, giving you a strong buffer of ${fmt(sipBuffer)}/month even under market fluctuations.`
+      : "Your plan has a healthy buffer built in. Stay consistent.";
+
     return {
-      summary:
-        snapshot.decision.primaryAction || "Keep the current plan steady.",
-      insight: emphasizeUncertainty(insightText),
+      summary: summaryText,
+      insight: addDataQualityNote(emphasizeUncertainty(insightText)),
       suggestion: {
-        primary: snapshot.decision.secondaryAction ?? "Keep the buffer intact.",
+        primary: snapshot.decision.secondaryAction ?? "Maintain your current SIP and let compounding work in your favour.",
         optional: snapshot.decision.optionalAction ?? undefined,
       },
       reason: buildMicroJustification(snapshot),
       reasoning,
       recommendation,
-      tone: sipAboveTone,
+      tone: resolveTone(snapshot),
       debugInfo,
     };
   }
 
+  // ──────────────────────────────────────────────────
+  // BRANCH 2: Comfortable feasibility
+  // ──────────────────────────────────────────────────
   if (snapshot.decision.feasibility === "comfortable") {
-    const insightText = addDataQualityNote(
-      snapshot.decision.reasoning ||
-        "Your plan has a good chance of reaching your goal with your current SIP.",
-    );
+    const summaryText = sipOriginal > 0
+      ? `Your SIP of ${fmt(sipOriginal)}/month over ${horizonYears} years puts you on track to reach your ${fmt(goalAmount)} goal.`
+      : "Your current plan is on track to reach your goal.";
+
+    const insightText = income > 0
+      ? `At ${fmtPct(incomeUtilPct)} of your income committed, the plan is sustainable with room for life's expenses.`
+      : "The plan is sustainable with your current allocation.";
+
     return {
-      summary:
-        snapshot.decision.primaryAction || "Keep the current plan steady.",
-      insight: emphasizeUncertainty(insightText),
+      summary: summaryText,
+      insight: addDataQualityNote(emphasizeUncertainty(insightText)),
       suggestion: {
-        primary:
-          `${snapshot.decision.secondaryAction ?? "Stay consistent."} ${extraDetail}`.trim(),
+        primary: snapshot.decision.secondaryAction ?? "Stay consistent with your SIP.",
         optional: snapshot.decision.optionalAction ?? undefined,
       },
       reason: buildMicroJustification(snapshot),
@@ -636,6 +647,9 @@ function buildFallbackExplanation(
     };
   }
 
+  // ──────────────────────────────────────────────────
+  // BRANCH 3: Not viable / Stretched
+  // ──────────────────────────────────────────────────
   if (
     snapshot.decision.feasibility === "not_viable" ||
     snapshot.decision.feasibility === "stretched"
@@ -644,25 +658,26 @@ function buildFallbackExplanation(
     let secondaryRecovery = "";
 
     if (mainConstraint === "timeline") {
-      primaryRecovery = "Extend your timeline to make this goal achievable.";
-      secondaryRecovery =
-        "Or reduce your target amount to fit the current window.";
+      primaryRecovery = "Extend your timeline to give compounding more room to work.";
+      secondaryRecovery = "Alternatively, reduce your target amount to fit the current window.";
     } else if (mainConstraint === "income") {
-      primaryRecovery =
-        "Increase your investable income through secondary sources.";
-      secondaryRecovery = "Or reduce your goal target to a manageable level.";
+      primaryRecovery = "Increase your investable surplus or explore secondary income sources.";
+      secondaryRecovery = "Alternatively, lower your goal target to a realistic level.";
     } else {
-      primaryRecovery =
-        "Increase your monthly investment to meet the requirement.";
-      secondaryRecovery =
-        "Or extend your timeline to lower the monthly burden.";
+      primaryRecovery = requiredSip > 0
+        ? `Increase your monthly SIP to at least ${fmt(requiredSip)}/month to close the gap.`
+        : "Increase your monthly investment to meet the requirement.";
+      secondaryRecovery = "Alternatively, extend your timeline to reduce the monthly burden.";
     }
 
+    const summaryText = gapAmount > 0
+      ? `Your plan falls short by ${fmt(gapAmount)}/month. The current setup needs adjustment to reach ${fmt(goalAmount)}.`
+      : "This plan cannot reach your goal under current conditions. A significant adjustment is needed.";
+
     return {
-      summary:
-        "This plan cannot reach your goal under current conditions. The current setup is not viable.",
+      summary: summaryText,
       insight: addDataQualityNote(
-        "Plan requirements exceed available resources. A major adjustment is required.",
+        "Plan requirements exceed available resources. A clear adjustment is required.",
       ),
       suggestion: {
         primary: primaryRecovery,
@@ -679,16 +694,28 @@ function buildFallbackExplanation(
     };
   }
 
-  const finalExplanation = {
-    summary: snapshot.decision.primaryAction || "Adjust your plan to reach the goal.",
-    insight: addDataQualityNote(
-      snapshot.decision.reasoning || "Your current SIP is below the amount needed.",
-    ),
+  // ──────────────────────────────────────────────────
+  // BRANCH 4: Tight — needs a nudge
+  // ──────────────────────────────────────────────────
+  const summaryText = sipOriginal > 0 && requiredSip > 0
+    ? `Your SIP of ${fmt(sipOriginal)}/month is close to the required ${fmt(requiredSip)}/month — a small increase will secure your goal.`
+    : snapshot.decision.primaryAction || "A small adjustment will bring your plan on track.";
+
+  const insightText = income > 0
+    ? `At ${fmtPct(incomeUtilPct)} income utilisation, there is room to increase your SIP without straining your budget.`
+    : snapshot.decision.reasoning || "Your current SIP is slightly below the amount needed.";
+
+  const extraDetail =
+    explanationDepth === "detailed"
+      ? " Review the timeline and consider small step-ups if comfortable."
+      : "";
+
+  return {
+    summary: summaryText,
+    insight: addDataQualityNote(emphasizeUncertainty(insightText)),
     suggestion: {
       primary: `${
-        snapshot.decision.stepUpMode === "recommended"
-          ? (snapshot.decision.secondaryAction ?? "Increase your SIP to close the gap.")
-          : (snapshot.decision.secondaryAction ?? "Increase your SIP to close the gap.")
+        snapshot.decision.secondaryAction ?? "Increase your SIP to close the gap."
       } ${extraDetail}`.trim(),
       optional: snapshot.decision.optionalAction ?? undefined,
     },
@@ -698,8 +725,6 @@ function buildFallbackExplanation(
     tone: resolveTone(snapshot),
     debugInfo,
   };
-
-  return finalExplanation;
 }
 
 function buildSystemPrompt(
@@ -1135,28 +1160,13 @@ export async function generateExplanation(
       : finalEx;
   }
 
+  // Fallback text uses only deterministic snapshot values — safe to display as-is.
   const fallback = buildFallbackExplanation(
     snapshot,
     userProfile,
     explanationDepth,
     debug,
   );
-  // If the AI produced a response that included numbers but was rejected,
-  // redact numeric values from fallback to avoid echoing AI-injected numbers.
-  const attemptedAI = !!process.env.OPENROUTER_API_KEY;
-  if (hadContentWithNumbers || attemptedAI) {
-    const redact = (s: string) => s.replace(/[\d₹,]+/g, "").replace(/\s{2,}/g, " ").trim();
-    const redacted = {
-      ...fallback,
-      summary: redact(fallback.summary),
-      insight: redact(fallback.insight),
-      suggestion: {
-        primary: redact(fallback.suggestion.primary),
-        optional: fallback.suggestion.optional ? redact(fallback.suggestion.optional) : undefined,
-      },
-    };
-    return { ...redacted, reason };
-  }
 
   return { ...fallback, reason };
 }
