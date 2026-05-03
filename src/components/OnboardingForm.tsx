@@ -372,8 +372,19 @@ function validateField(field: OnboardingField, value: FieldValue): string | null
     }
   }
 
+  if (field.type === "phone") {
+    const val = typeof value === "string" ? value.replace(/\D/g, "") : "";
+    if (field.required && val.length === 0) {
+      return `${field.label} is required.`;
+    }
+    if (val.length > 0 && val.length < 10) {
+      return "Enter valid 10-digit mobile number";
+    }
+  }
+
   return null;
 }
+
 
 function isAuthSessionMessage(message: string): boolean {
   const normalized = message.toLowerCase();
@@ -406,6 +417,15 @@ export default function OnboardingForm() {
   const visibleFields = useMemo(() => getVisibleFields(currentScreen, answers), [currentScreen, answers]);
   const isLastStep = currentStep === TOTAL_STEPS - 1;
   const completionPercent = Math.round(((currentStep + 1) / TOTAL_STEPS) * 100);
+
+  const isCurrentScreenValid = useMemo(() => {
+    for (const field of visibleFields) {
+      if (validateField(field, answers[field.key])) {
+        return false;
+      }
+    }
+    return true;
+  }, [visibleFields, answers]);
 
   useEffect(() => {
     // hydrate answers from localStorage first so progress isn't lost on refresh
@@ -755,6 +775,14 @@ export default function OnboardingForm() {
       result.target_horizon_years = result.time_horizon_custom_years;
       result.time_horizon_years = result.time_horizon_custom_years;
       console.log("[Onboarding Form] Horizon custom override: time_horizon_custom_years =", result.time_horizon_custom_years, "→ target_horizon_years");
+    }
+
+    // Phone normalization: ensure +91 prefix
+    if (typeof result.phone_e164 === "string") {
+      const cleanDigits = result.phone_e164.replace(/\D/g, "");
+      if (cleanDigits.length === 10) {
+        result.phone_e164 = `+91${cleanDigits}`;
+      }
     }
 
     // Log complete payload for debugging
@@ -1145,16 +1173,45 @@ export default function OnboardingForm() {
               return;
             }
 
+            if (field.type === "phone") {
+              const val = event.target.value.replace(/\D/g, "").slice(0, 10);
+              setFieldValue(field, val);
+              return;
+            }
+
             setFieldValue(field, event.target.value);
           }}
-          placeholder={field.placeholder}
+          onKeyDown={(event) => {
+            if (field.type === "phone") {
+              // Allow: backspace, delete, tab, escape, enter, and .
+              if ([46, 8, 9, 27, 13, 110].includes(event.keyCode) ||
+                // Allow: Ctrl+A, Command+A
+                (event.keyCode === 65 && (event.ctrlKey === true || event.metaKey === true)) ||
+                // Allow: home, end, left, right, down, up
+                (event.keyCode >= 35 && event.keyCode <= 40)) {
+                return;
+              }
+              // Ensure that it is a number and stop the keypress
+              if ((event.shiftKey || (event.keyCode < 48 || event.keyCode > 57)) && (event.keyCode < 96 || event.keyCode > 105)) {
+                event.preventDefault();
+              }
+            }
+          }}
+          placeholder={field.type === "phone" ? "Enter 10-digit mobile number" : field.placeholder}
           min={field.min}
           max={field.max}
           step={field.step ?? (field.type === "number" ? 1 : field.type === "currency" ? 0.01 : undefined)}
           inputMode={field.type === "phone" ? "tel" : undefined}
-          maxLength={field.type === "phone" ? 15 : undefined}
-          className={`h-12 ${sharedInputClass}`}
+          maxLength={field.type === "phone" ? 10 : undefined}
+          className={`h-12 ${sharedInputClass} ${
+            field.type === "phone" && typeof value === "string" && value.length > 0 && value.length < 10
+              ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
+              : ""
+          }`}
         />
+        {field.type === "phone" && typeof value === "string" && value.length > 0 && value.length < 10 && (
+          <p className="mt-1.5 text-[11px] font-medium text-red-500">Enter valid 10-digit mobile number</p>
+        )}
         {field.helpText ? <span className="text-xs text-finance-muted">{field.helpText}</span> : null}
       </label>
     );
@@ -1377,7 +1434,7 @@ export default function OnboardingForm() {
           <button
             type="button"
             onClick={() => void handleNext()}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isCurrentScreenValid}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#2b5cff] via-[#4668ff] to-[#00bbff] px-6 text-sm font-semibold text-white shadow-[0_14px_26px_rgba(43,92,255,0.3)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

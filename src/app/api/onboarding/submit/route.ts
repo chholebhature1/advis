@@ -216,7 +216,22 @@ export async function POST(request: Request) {
       monthly_income_band: answers.monthly_income_band,
       monthly_investment_capacity_band: answers.monthly_investment_capacity_band,
       time_horizon_band: answers.time_horizon_band,
+      phone_e164: answers.phone_e164,
     });
+
+    // Phone validation (STRICT)
+    const phone = answers.phone_e164;
+    if (typeof phone === "string") {
+      const phoneRegex = /^(\+91)?[6-9]\d{9}$/;
+      if (!phoneRegex.test(phone)) {
+        return NextResponse.json(
+          { error: "Invalid mobile number. Please enter a valid 10-digit Indian mobile number." },
+          { status: 400 }
+        );
+      }
+    } else {
+      return NextResponse.json({ error: "Mobile number is required." }, { status: 400 });
+    }
 
     const { supabaseUrl, supabasePublishableKey } = getSupabaseServerCredentials();
     const supabase = createClient(supabaseUrl, supabasePublishableKey, {
