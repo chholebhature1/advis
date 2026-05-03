@@ -212,11 +212,9 @@ type MarketPulseItem = {
 
 const motionEase = [0.22, 1, 0.36, 1] as const;
 
-const SCENARIO_RETURN_PCT = {
-  conservative: 8,
-  moderate: 11,
-  aggressive: 14,
-} as const;
+// SCENARIO_RETURN_PCT removed — now using engine values:
+// - financialSummary.expectedReturn (blended return for user's risk profile)
+// - financialSummary.scenarioSpread (± spread for conservative/optimistic scenarios)
 type MarketTrendPoint = { label: string; close: number };
 type MarketTrendResponse = {
   ok: true;
@@ -432,6 +430,13 @@ export default function DashboardPage() {
       label: string;
     };
     expectedReturn: number;
+    assetReturns: {
+      equity: number;
+      debt: number;
+      gold: number;
+      liquid: number;
+    };
+    scenarioSpread: number;
     scenarioOutcomes: {
       conservative: number;
       moderate: number;
@@ -995,6 +1000,8 @@ export default function DashboardPage() {
               goalYears: Math.round(snapshot.goal.timeHorizonMonths / 12),
               timeHorizon: snapshot.timeHorizon,
               expectedReturn: snapshot.expectedReturn,
+              assetReturns: snapshot.assetReturns,
+              scenarioSpread: snapshot.scenarioSpread,
               scenarioOutcomes: snapshot.scenarioOutcomes,
               actualOutcome: snapshot.actualOutcome,
               gapStrategies: snapshot.gapStrategies || [],
@@ -1981,7 +1988,7 @@ export default function DashboardPage() {
   }, [scenarioProjectionData]);
 
   const scenarioOutcomeRows = useMemo(() => {
-    if (!scenarioEndPoint) {
+    if (!scenarioEndPoint || !financialSummary) {
       return [] as Array<{
         name: string;
         annualReturn: number;
@@ -1990,27 +1997,31 @@ export default function DashboardPage() {
       }>;
     }
 
+    // Use engine-derived values: expectedReturn is the blended base, scenarioSpread is ±
+    const baseReturn = financialSummary.expectedReturn * 100; // convert to %
+    const spread = financialSummary.scenarioSpread ?? 2; // default 2pp if missing
+
     return [
       {
         name: "Conservative",
-        annualReturn: SCENARIO_RETURN_PCT.conservative,
+        annualReturn: Math.round((baseReturn - spread) * 10) / 10,
         value: scenarioEndPoint.conservative,
         excess: scenarioEndPoint.conservative - scenarioBaselineCorpus,
       },
       {
         name: "Moderate",
-        annualReturn: SCENARIO_RETURN_PCT.moderate,
+        annualReturn: Math.round(baseReturn * 10) / 10,
         value: scenarioEndPoint.moderate,
         excess: scenarioEndPoint.moderate - scenarioBaselineCorpus,
       },
       {
         name: "Aggressive",
-        annualReturn: SCENARIO_RETURN_PCT.aggressive,
+        annualReturn: Math.round((baseReturn + spread) * 10) / 10,
         value: scenarioEndPoint.aggressive,
         excess: scenarioEndPoint.aggressive - scenarioBaselineCorpus,
       },
     ];
-  }, [scenarioBaselineCorpus, scenarioEndPoint]);
+  }, [scenarioBaselineCorpus, scenarioEndPoint, financialSummary]);
 
   const allocationPalette = [
     "#2b5cff",
@@ -2172,12 +2183,13 @@ export default function DashboardPage() {
       const layerSip = item.amount;
       const layerSavings = (savings * (item.pct / 100));
       
-      // Use asset-class specific rates for high-fidelity layer performance
+      // Use asset-class specific rates from engine snapshot (respects user's risk profile)
+      // Fallback to blended annualReturn if assetReturns is missing (legacy safety)
       const rateMap: Record<string, number> = {
-        Equity: 0.12,
-        Debt: 0.075,
-        Gold: 0.065,
-        Cash: 0.04
+        Equity: financialSummary.assetReturns?.equity ?? annualReturn,
+        Debt: financialSummary.assetReturns?.debt ?? annualReturn,
+        Gold: financialSummary.assetReturns?.gold ?? annualReturn,
+        Cash: financialSummary.assetReturns?.liquid ?? annualReturn
       };
       const layerRate = rateMap[item.name] || annualReturn;
 
@@ -2238,11 +2250,12 @@ export default function DashboardPage() {
     );
     const currentCorpus = Math.max(profileIntelligence.totalVisibleCorpus, 0);
     const baseAnnualReturn = financialSummary.expectedReturn * 100;
+    const spread = financialSummary.scenarioSpread ?? 2; // use engine spread, default 2pp
 
     const scenarioCards: ScenarioCard[] = [
       {
         label: "Stress case",
-        annualReturnPct: Math.max(baseAnnualReturn - 3.5, 4.5),
+        annualReturnPct: Math.max(baseAnnualReturn - spread, 4.5),
         projectedValue: conservativeProjected,
         gainInr: conservativeProjected - currentCorpus,
         gainPct:
@@ -2253,7 +2266,7 @@ export default function DashboardPage() {
       },
       {
         label: "Plan case",
-        annualReturnPct: baseAnnualReturn,
+        annualReturnPct: Math.round(baseAnnualReturn * 10) / 10,
         projectedValue: moderateProjected,
         gainInr: moderateProjected - currentCorpus,
         gainPct:
@@ -2264,7 +2277,7 @@ export default function DashboardPage() {
       },
       {
         label: "Upside case",
-        annualReturnPct: baseAnnualReturn + 3.5,
+        annualReturnPct: Math.round((baseAnnualReturn + spread) * 10) / 10,
         projectedValue: optimisticProjected,
         gainInr: optimisticProjected - currentCorpus,
         gainPct:
@@ -2287,18 +2300,13 @@ export default function DashboardPage() {
       holdingsAnalytics?.concentrationWarnings ?? []
     ).reduce((max, warning) => Math.max(max, warning.metricPct ?? 0), 0);
 
-    const goalProbability = clamp(
-      Math.round(
-        40 +
-        Math.min(profileIntelligence.goalCoveragePct * 0.18, 25) +
-        Math.min(fundingMomentum * 0.3, 30) +
-        Math.min(profileIntelligence.savingsRatePct * 0.15, 15) +
-        (profile.emergency_fund_months >= 6 ? 5 : -3) -
-        Math.min(concentrationCount * 5, 16),
-      ),
-      8,
-      98,
-    );
+    // Use engine's achievementProbability instead of hand-rolled formula.
+    // Falls back to actualOutcome.percentageOfGoal if engine value missing (legacy safety).
+    const engineAchievementProb = financialSummary.feasibility?.achievementProbability;
+    const goalProbability =
+      typeof engineAchievementProb === "number" && engineAchievementProb > 0
+        ? clamp(Math.round(engineAchievementProb), 8, 98)
+        : clamp(financialSummary.actualOutcome?.percentageOfGoal ?? 0, 8, 98);
 
     const marketPulseItems: MarketPulseItem[] = orderedMarketIndicators
       .slice(0, 3)
@@ -2780,7 +2788,7 @@ export default function DashboardPage() {
                           {financialSummary.requiredSip.toLocaleString()}
                         </p>
                         <p className="text-[10px] text-[#8a9dbe]">
-                          Based on 12% return assumption
+                          Based on {Math.round(financialSummary.expectedReturn * 100)}% blended return
                         </p>
                       </div>
 
@@ -3461,7 +3469,7 @@ export default function DashboardPage() {
                         Your monthly investable surplus of{" "}
                         <strong className="text-finance-text">
                           {formatCurrency(
-                            profile.monthly_investable_surplus_inr,
+                            financialSummary?.sipOriginal ?? profile.monthly_investable_surplus_inr,
                           )}
                         </strong>{" "}
                         is architected across four distinct asset layers to
@@ -3544,7 +3552,7 @@ export default function DashboardPage() {
                         </p>
                         <p className="mt-1 text-2xl font-black text-finance-text">
                           {formatCompactCurrency(
-                            profile.monthly_investable_surplus_inr,
+                            financialSummary?.sipOriginal ?? profile.monthly_investable_surplus_inr,
                           )}
                         </p>
                         <div className="mt-2 h-1 w-8 rounded-full bg-finance-accent/20" />

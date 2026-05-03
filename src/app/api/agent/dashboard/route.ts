@@ -80,6 +80,8 @@ export async function GET(request: Request) {
           // Advisor-quality fields
           timeHorizon: snapshot.timeHorizon,
           expectedReturn: snapshot.expectedReturn,
+          assetReturns: snapshot.assetReturns,
+          scenarioSpread: snapshot.scenarioSpread,
           scenarioOutcomes: snapshot.scenarioOutcomes,
           actualOutcome: snapshot.actualOutcome,
           gapStrategies: snapshot.gapStrategies,

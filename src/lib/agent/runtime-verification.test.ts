@@ -61,6 +61,8 @@ function makeTestSnapshot(): FinancialSnapshot {
     version: "1.0.0",
     timeHorizon: { band: "5_10_years", resolvedYears: 7, label: "7 years" },
     expectedReturn: 0.12,
+    assetReturns: { equity: 0.12, debt: 0.075, gold: 0.065, liquid: 0.04 },
+    scenarioSpread: 2,
     scenarioOutcomes: { conservative: 4500000, moderate: 4800000, optimistic: 5100000 },
     actualOutcome: { withCurrentSip: 4800000, shortfall: 200000, percentageOfGoal: 96 },
     gapStrategies: [],

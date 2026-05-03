@@ -82,6 +82,8 @@ function createBaseSnapshot(): FinancialSnapshot {
       label: "7 years",
     },
     expectedReturn: 0.12,
+    assetReturns: { equity: 0.12, debt: 0.075, gold: 0.065, liquid: 0.04 },
+    scenarioSpread: 2,
     scenarioOutcomes: {
       conservative: 4_500_000,
       moderate: 4_800_000,

@@ -1060,6 +1060,16 @@ export function generateFinancialSnapshot(context: AgentContext, debug = false):
       label: timeHorizonLabel,
     },
     expectedReturn: blendedReturn / 100,
+    // Per-asset-class return assumptions used by the engine for this risk profile.
+    // UI components MUST use these instead of hardcoding rates.
+    assetReturns: {
+      equity: returns.equity / 100,
+      debt: returns.debt / 100,
+      gold: returns.gold / 100,
+      liquid: returns.liquid / 100,
+    },
+    // The ± spread (in percentage points) used around blendedReturn for scenarios.
+    scenarioSpread: 2,
     scenarioOutcomes: {
       conservative: scenarioOutcomes.conservative,
       moderate: scenarioOutcomes.moderate,

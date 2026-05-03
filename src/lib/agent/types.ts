@@ -507,6 +507,13 @@ export type FinancialSnapshot = {
   // Advisor-quality additions
   timeHorizon: TimeHorizonInfo;
   expectedReturn: number;
+  assetReturns: {
+    equity: number;
+    debt: number;
+    gold: number;
+    liquid: number;
+  };
+  scenarioSpread: number;
   scenarioOutcomes: ScenarioOutcomes;
   actualOutcome: {
     withCurrentSip: number;
