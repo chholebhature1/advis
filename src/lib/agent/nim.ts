@@ -1725,20 +1725,22 @@ function buildPersonalizationSnippet(context: AgentContext): string | null {
   const parts: string[] = [];
   const firstName = context.profile?.full_name?.trim().split(/\s+/)[0] ?? null;
   const riskBucket = resolveRiskBucket(context);
-  const surplus = resolveMonthlySurplus(context);
   const topGoal = context.goals[0]?.title ?? null;
   const taxRegime = context.profile?.tax_regime ?? null;
   const primaryGoal = context.profile?.primary_financial_goal ?? null;
   const horizonBand = context.profile?.target_goal_horizon_band ?? null;
   const monthlyCapacityBand = context.profile?.monthly_investment_capacity_band ?? null;
+  const monthlyIncome = context.profile?.monthly_income_inr ?? context.profile?.monthlyIncomeInr ?? null;
+  const monthlyCapacity = context.profile?.monthly_investable_surplus_inr ?? context.profile?.sipCapacityInr ?? null;
+  const horizonYears = context.profile?.target_horizon_years ?? context.profile?.timeHorizonYears ?? null;
   const existingInvestments = context.profile?.existing_investment_types ?? [];
 
   if (firstName) {
     parts.push(`${firstName}, this aligns with your current profile.`);
   }
 
-  if (typeof surplus === "number" && Number.isFinite(surplus) && surplus > 0) {
-    parts.push(`Your monthly investable surplus is around ${formatInr(surplus)}.`);
+  if (typeof monthlyCapacity === "number" && Number.isFinite(monthlyCapacity) && monthlyCapacity > 0) {
+    parts.push(`Your monthly investable surplus is around ${formatInr(monthlyCapacity)}.`);
   }
 
   if (riskBucket) {
@@ -1757,8 +1759,16 @@ function buildPersonalizationSnippet(context: AgentContext): string | null {
     parts.push(`You chose a ${horizonBand.replaceAll("_", " ")} horizon for this goal.`);
   }
 
+  if (typeof horizonYears === "number" && Number.isFinite(horizonYears) && horizonYears > 0) {
+    parts.push(`Your goal horizon is ${horizonYears} years.`);
+  }
+
   if (monthlyCapacityBand) {
     parts.push(`Your monthly investment capacity band is ${monthlyCapacityBand.replaceAll("_", " ")}.`);
+  }
+
+  if (typeof monthlyIncome === "number" && Number.isFinite(monthlyIncome) && monthlyIncome > 0) {
+    parts.push(`Your monthly income is around ${formatInr(monthlyIncome)}.`);
   }
 
   if (existingInvestments.length > 0) {
@@ -1836,6 +1846,9 @@ export function buildContextBlock(context: AgentContext): string {
     ? {
         primaryFinancialGoal: profile.primary_financial_goal ?? null,
         targetGoalAmountInr: context.goals[0]?.target_amount_inr ?? null,
+        monthlyIncomeInr: profile.monthly_income_inr ?? profile.monthlyIncomeInr ?? null,
+        sipCapacityInr: profile.monthly_investable_surplus_inr ?? profile.sipCapacityInr ?? null,
+        timeHorizonYears: profile.target_horizon_years ?? profile.timeHorizonYears ?? null,
         targetHorizonBand: profile.target_goal_horizon_band ?? null,
         monthlyInvestmentCapacityBand: profile.monthly_investment_capacity_band ?? null,
         monthlyIncomeBand: profile.monthly_income_band ?? null,

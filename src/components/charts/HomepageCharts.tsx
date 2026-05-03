@@ -21,7 +21,7 @@ export function MiniSparkline({ data, trend, gradientId }: { data: MarketTrendPo
   const strokeColor = trend === "down" ? "#f87171" : "#34d399";
   
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <AreaChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -46,7 +46,7 @@ export function MainTrendChart({ data }: { data: MarketTrendPoint[] }) {
   if (!data || data.length < 2) return null;
   
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="niftyTrendGradient" x1="0" y1="0" x2="0" y2="1">

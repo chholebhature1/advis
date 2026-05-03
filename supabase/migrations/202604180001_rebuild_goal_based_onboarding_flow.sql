@@ -232,37 +232,68 @@ begin
     raise exception 'target amount is required';
   end if;
 
-  v_target_horizon_band := lower(trim(coalesce(p_payload ->> 'time_horizon_band', '')));
-  case v_target_horizon_band
-    when '1_3_years' then v_target_horizon_years := 2;
-    when '3_5_years' then v_target_horizon_years := 4;
-    when '5_10_years' then v_target_horizon_years := 8;
-    when '10_plus_years' then v_target_horizon_years := 12;
-    else
-      raise exception 'time_horizon_band is required';
-  end case;
+  -- Prefer explicit numeric horizon when provided, otherwise fall back to band mapping
+  v_target_horizon_years := coalesce(
+    nullif(p_payload ->> 'time_horizon_years', '')::smallint,
+    nullif(p_payload ->> 'target_horizon_years', '')::smallint
+  );
 
-  v_monthly_capacity_band := lower(trim(coalesce(p_payload ->> 'monthly_investment_capacity_band', '')));
-  case v_monthly_capacity_band
-    when '5000_10000' then v_monthly_capacity_inr := 7500;
-    when '10000_25000' then v_monthly_capacity_inr := 17500;
-    when '25000_50000' then v_monthly_capacity_inr := 37500;
-    when '50000_plus' then v_monthly_capacity_inr := 60000;
-    when 'not_sure' then v_monthly_capacity_inr := 0;
-    else
-      raise exception 'monthly_investment_capacity_band is required';
-  end case;
+  if v_target_horizon_years is null then
+    v_target_horizon_band := lower(trim(coalesce(p_payload ->> 'time_horizon_band', '')));
+    case v_target_horizon_band
+      when '1_3_years' then v_target_horizon_years := 2;
+      when '3_5_years' then v_target_horizon_years := 4;
+      when '5_10_years' then v_target_horizon_years := 8;
+      when '10_plus_years' then v_target_horizon_years := 12;
+      else
+        raise exception 'time_horizon_years or time_horizon_band is required';
+    end case;
+  else
+    -- clear band when explicit numeric provided
+    v_target_horizon_band := null;
+  end if;
 
-  v_monthly_income_band := lower(trim(coalesce(p_payload ->> 'monthly_income_band', '')));
-  case v_monthly_income_band
-    when 'below_25000' then v_monthly_income_inr := 20000;
-    when '25000_50000' then v_monthly_income_inr := 37500;
-    when '50000_100000' then v_monthly_income_inr := 75000;
-    when '100000_300000' then v_monthly_income_inr := 200000;
-    when '300000_plus' then v_monthly_income_inr := 350000;
-    else
-      raise exception 'monthly_income_band is required';
-  end case;
+  -- Prefer explicit numeric monthly capacity when provided, otherwise fall back to band mapping
+  v_monthly_capacity_inr := coalesce(
+    nullif(p_payload ->> 'monthly_investable_surplus_inr', '')::numeric,
+    nullif(p_payload ->> 'sip_capacity_inr', '')::numeric
+  );
+
+  if v_monthly_capacity_inr is null then
+    v_monthly_capacity_band := lower(trim(coalesce(p_payload ->> 'monthly_investment_capacity_band', '')));
+    case v_monthly_capacity_band
+      when '5000_10000' then v_monthly_capacity_inr := 7500;
+      when '10000_25000' then v_monthly_capacity_inr := 17500;
+      when '25000_50000' then v_monthly_capacity_inr := 37500;
+      when '50000_plus' then v_monthly_capacity_inr := 75000;
+      when 'not_sure' then v_monthly_capacity_inr := 0;
+      else
+        raise exception 'monthly_investable_surplus_inr or monthly_investment_capacity_band is required';
+    end case;
+  else
+    v_monthly_capacity_band := null;
+  end if;
+
+  -- Prefer explicit numeric monthly income when provided, otherwise fall back to band mapping
+  v_monthly_income_inr := coalesce(
+    nullif(p_payload ->> 'monthly_income_inr', '')::numeric,
+    nullif(p_payload ->> 'monthlyIncomeInr', '')::numeric
+  );
+
+  if v_monthly_income_inr is null then
+    v_monthly_income_band := lower(trim(coalesce(p_payload ->> 'monthly_income_band', '')));
+    case v_monthly_income_band
+      when 'below_25000' then v_monthly_income_inr := 20000;
+      when '25000_50000' then v_monthly_income_inr := 37500;
+      when '50000_100000' then v_monthly_income_inr := 75000;
+      when '100000_300000' then v_monthly_income_inr := 200000;
+      when '300000_plus' then v_monthly_income_inr := 350000;
+      else
+        raise exception 'monthly_income_inr or monthly_income_band is required';
+    end case;
+  else
+    v_monthly_income_band := null;
+  end if;
 
   v_has_existing_investments := lower(trim(coalesce(p_payload ->> 'has_existing_investments', 'no'))) = 'yes';
 

@@ -100,6 +100,9 @@ export type AgentProfileSnapshot = {
   target_goal_horizon_band?: string | null;
   monthly_investment_capacity_band?: string | null;
   monthly_income_band?: string | null;
+  monthlyIncomeInr?: number | null;
+  sipCapacityInr?: number | null;
+  timeHorizonYears?: number | null;
   income_input_type?: "exact" | "range" | null;
   income_range_min_inr?: number | null;
   income_range_max_inr?: number | null;

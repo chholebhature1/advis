@@ -40,6 +40,8 @@ import {
   ChevronRight,
   PieChart as PieChartIcon,
 } from "lucide-react";
+import { FaInstagram, FaLinkedin, FaYoutube, FaFacebook } from "react-icons/fa";
+import { SocialCard } from "@/components/SocialCard";
 const MiniSparkline = dynamic(() => import("@/components/charts/HomepageCharts").then((mod) => mod.MiniSparkline), {
   ssr: false,
   loading: () => <div className="h-full w-full bg-white/5 animate-pulse rounded-lg" />,
@@ -797,6 +799,26 @@ export default function Home() {
                     <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1.5" />
                   </Link>
                 </div>
+
+                <div className="mt-8 flex flex-col items-center justify-center gap-3 group/social">
+                  <div className="flex items-center gap-4">
+                    <Link href="https://www.instagram.com/pravixwealth/" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                      <FaInstagram className="h-5 w-5" />
+                    </Link>
+                    <Link href="https://www.linkedin.com/company/pravix-wealth-management/" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                      <FaLinkedin className="h-5 w-5" />
+                    </Link>
+                    <Link href="https://www.youtube.com/@PRAVIXwealth" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                      <FaYoutube className="h-5 w-5" />
+                    </Link>
+                    <Link href="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                      <FaFacebook className="h-5 w-5" />
+                    </Link>
+                  </div>
+                  <p className="text-[11px] font-medium text-blue-50/70 tracking-wide">
+                    Join 10,000+ investors learning with Pravix
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1421,7 +1443,7 @@ export default function Home() {
                     }`}>
                       {changeAbsPrefix}{Math.abs(indexItem.changeAbs).toFixed(2)} • {changePctPrefix}{Math.abs(indexItem.changePct).toFixed(2)}%
                     </p>
-                    <div className="mt-3 h-14">
+                    <div className="mt-3 h-14 w-full">
                       {miniTrendPoints.length > 1 ? (
                         <MiniSparkline data={miniTrendPoints} trend={indexItem.trend} gradientId={gradientId} />
                       ) : (
@@ -1486,7 +1508,7 @@ export default function Home() {
               <p className="mt-2 text-xs text-[#d9e6ff]">
                 {isInsightDataLoading ? "Loading trend feed..." : trendSourceLabel}
               </p>
-              <div className="mt-4 h-56">
+              <div className="mt-4 h-56 w-full" style={{ aspectRatio: '16 / 9' }}>
                 {isHeroReady && trendPoints.length > 1 ? (
                   <MainTrendChart data={trendPoints} />
                 ) : (
@@ -1560,6 +1582,84 @@ export default function Home() {
           </div>
         </motion.section>
 
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION: SOCIAL INTEGRATION
+            ═══════════════════════════════════════════════════════════════════ */}
+        <motion.section
+          id="social-connect"
+          className="relative overflow-hidden py-24 md:py-32"
+          style={{ background: "linear-gradient(175deg, #f0f5ff 0%, #e4edff 35%, #f7f9ff 70%, #eef4ff 100%)" }}
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={denseSectionViewport}
+        >
+          <div className="pointer-events-none absolute -left-40 top-0 h-[400px] w-[400px] rounded-full bg-[radial-gradient(circle,rgba(43,92,255,0.05),transparent_70%)]" />
+          <div className="pointer-events-none absolute -right-32 bottom-0 h-[300px] w-[300px] rounded-full bg-[radial-gradient(circle,rgba(0,216,255,0.05),transparent_70%)]" />
+
+          <div className="relative mx-auto w-full max-w-7xl px-6 md:px-10 lg:px-14">
+            <motion.div
+              className="mx-auto max-w-3xl text-center"
+              variants={chartCardReveal}
+              custom={0}
+            >
+              <div className="mx-auto mb-5 inline-flex items-center gap-2.5 rounded-full border border-[#2b5cff]/15 bg-white/80 px-4 py-1.5 shadow-[0_4px_16px_rgba(43,92,255,0.08)] backdrop-blur-sm">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2b5cff] opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#2b5cff]" />
+                </span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#2b5cff]">Community</span>
+              </div>
+              <h2 className="text-[clamp(1.8rem,4.5vw,3.2rem)] font-bold leading-[1.1] tracking-tight text-[#0a1930]">
+                Stay Connected With <span className="bg-[linear-gradient(120deg,#2b5cff,#0099ff)] bg-clip-text text-transparent">Pravix</span>
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[#50607d] md:text-lg">
+                Get smarter with money — daily insights, strategies, and real-world financial clarity.
+              </p>
+            </motion.div>
+
+            <motion.div
+              className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
+              initial="hidden"
+              whileInView="show"
+              viewport={cardGridViewport}
+            >
+              <SocialCard
+                platform="Instagram"
+                url="https://www.instagram.com/pravixwealth/"
+                icon={FaInstagram}
+                bio="Daily money insights, reels, and quick financial breakdowns you can actually understand."
+                ctaText="Follow"
+                color="#E1306C"
+              />
+              <SocialCard
+                platform="LinkedIn"
+                url="https://www.linkedin.com/company/pravix-wealth-management/"
+                icon={FaLinkedin}
+                bio="Deep financial strategies, industry insights, and professional wealth-building frameworks."
+                ctaText="Connect"
+                color="#0A66C2"
+              />
+              <SocialCard
+                platform="YouTube"
+                url="https://www.youtube.com/@PRAVIXwealth"
+                icon={FaYoutube}
+                bio="Step-by-step financial education, portfolio breakdowns, and real investing strategies."
+                ctaText="Subscribe"
+                color="#FF0000"
+              />
+              <SocialCard
+                platform="Facebook"
+                url="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/"
+                icon={FaFacebook}
+                bio="Community discussions, updates, and simplified financial learning for everyone."
+                ctaText="Follow"
+                color="#1877F2"
+              />
+            </motion.div>
+          </div>
+        </motion.section>
+
         <motion.section
           id="market-signals"
           className="relative overflow-hidden bg-white py-24 md:py-28"
@@ -1597,9 +1697,9 @@ export default function Home() {
                 <p className="mt-1 text-xs text-[#50607d]">
                   {isLiveMarketLoading ? "Loading live sentiment feed..." : sentimentSourceLabel}
                 </p>
-                <div className="mt-4 h-64">
+                <div className="mt-4 w-full" style={{ height: '256px', aspectRatio: '2' }}>
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={sentimentChartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="4 4" stroke="rgba(43,92,255,0.12)" />
                         <XAxis dataKey="label" stroke="#5f7396" fontSize={12} />
@@ -1633,9 +1733,9 @@ export default function Home() {
                   <p className="text-sm font-semibold text-[#0a1930]">Allocation Mix</p>
                 </div>
                 <p className="mt-1 text-xs text-[#50607d]">A balanced goal-first structure with diversification controls</p>
-                <div className="mt-4 h-56">
+                <div className="mt-4 w-full" style={{ height: '224px', aspectRatio: '1' }}>
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <PieChart>
                         <Pie
                           data={allocationMixData}
@@ -1688,9 +1788,9 @@ export default function Home() {
                 <p className="mt-1 text-xs text-[#50607d]">
                   {isLiveMarketLoading ? "Loading live FX feed..." : fxSourceLabel}
                 </p>
-                <div className="mt-4 h-56">
+                <div className="mt-4 w-full" style={{ height: '224px', aspectRatio: '2' }}>
                   {isHeroReady ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <AreaChart data={fxChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="sipGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1813,9 +1913,32 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  <p className="mt-4 text-sm leading-relaxed text-[#5f7396]">
-                    This space now works as a real explanation panel, so the About section reads like a finished story rather than an empty column.
-                  </p>
+                  <div className="mt-6 flex flex-col items-center gap-4 rounded-xl border border-[#d8e7ff]/60 bg-[linear-gradient(120deg,#f8fbff,#ffffff)] p-4 shadow-[0_4px_16px_rgba(43,92,255,0.03)] sm:flex-row sm:justify-between">
+                    <div>
+                      <p className="text-[13px] font-bold text-[#0a1930] flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#26d790] opacity-75" />
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1dbd7b]" />
+                        </span>
+                        Join the community
+                      </p>
+                      <p className="mt-0.5 text-[11px] font-medium text-[#5f7396]">10,000+ investors learning daily</p>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Link href="https://www.instagram.com/pravixwealth/" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#E1306C] hover:bg-[#E1306C] hover:shadow-[0_4px_12px_rgba(225,48,108,0.3)]">
+                        <FaInstagram className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
+                      </Link>
+                      <Link href="https://www.linkedin.com/company/pravix-wealth-management/" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#0A66C2] hover:bg-[#0A66C2] hover:shadow-[0_4px_12px_rgba(10,102,194,0.3)]">
+                        <FaLinkedin className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
+                      </Link>
+                      <Link href="https://www.youtube.com/@PRAVIXwealth" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#FF0000] hover:bg-[#FF0000] hover:shadow-[0_4px_12px_rgba(255,0,0,0.3)]">
+                        <FaYoutube className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
+                      </Link>
+                      <Link href="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#1877F2] hover:bg-[#1877F2] hover:shadow-[0_4px_12px_rgba(24,119,242,0.3)]">
+                        <FaFacebook className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               </motion.article>
 
@@ -1949,6 +2072,25 @@ export default function Home() {
           </div>
         </motion.section>
 
+        {/* Soft Push Banner */}
+        <motion.div
+          className="relative z-10 mx-auto -mt-8 mb-16 w-full max-w-4xl px-6 md:px-10"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.8 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-[#d8e7ff] bg-white px-6 py-5 shadow-[0_8px_24px_rgba(43,92,255,0.06)] md:flex-row md:px-8">
+            <p className="text-[15px] font-semibold text-[#0a1930]">Follow Pravix for real-time financial insights <span className="hidden md:inline">→</span></p>
+            <div className="flex items-center gap-4">
+              <Link href="https://www.instagram.com/pravixwealth/" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#E1306C]"><FaInstagram className="h-5 w-5" /></Link>
+              <Link href="https://www.linkedin.com/company/pravix-wealth-management/" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#0A66C2]"><FaLinkedin className="h-5 w-5" /></Link>
+              <Link href="https://www.youtube.com/@PRAVIXwealth" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#FF0000]"><FaYoutube className="h-5 w-5" /></Link>
+              <Link href="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#1877F2]"><FaFacebook className="h-5 w-5" /></Link>
+            </div>
+          </div>
+        </motion.div>
+
         {/* Calendly Booking Section */}
         <CalendlyBookingSection />
 
@@ -2007,8 +2149,25 @@ export default function Home() {
               Pravix provides educational guidance and planning support. It does not promise guaranteed returns and does not replace personalized licensed investment advice.
             </div>
 
+            {/* Pre-CTA Trust Boost */}
+            <motion.div
+              className="mt-14 flex flex-col items-center justify-center gap-3 text-center"
+              variants={featureCardReveal}
+              custom={3}
+            >
+              <div className="flex -space-x-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#152d65] bg-gradient-to-br from-[#E1306C] to-[#C13584] text-white shadow-sm"><FaInstagram className="h-4 w-4" /></div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#152d65] bg-gradient-to-br from-[#0A66C2] to-[#004182] text-white shadow-sm"><FaLinkedin className="h-4 w-4" /></div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#152d65] bg-gradient-to-br from-[#FF0000] to-[#CC0000] text-white shadow-sm"><FaYoutube className="h-4 w-4" /></div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#152d65] bg-gradient-to-br from-[#1877F2] to-[#0D5BBE] text-white shadow-sm"><FaFacebook className="h-4 w-4" /></div>
+              </div>
+              <p className="text-[13px] font-semibold tracking-wide text-blue-100/90">
+                Trusted by a growing community across platforms
+              </p>
+            </motion.div>
+
             {/* Hero CTA Card */}
-            <div className="mt-16 overflow-hidden rounded-[2rem] border border-white/15 p-1 shadow-[0_32px_80px_rgba(0,0,0,0.3)]" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))" }}>
+            <div className="mt-10 overflow-hidden rounded-[2rem] border border-white/15 p-1 shadow-[0_32px_80px_rgba(0,0,0,0.3)]" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))" }}>
               <div className="relative rounded-[1.6rem] p-8 sm:p-10 md:p-14" style={{ background: "linear-gradient(140deg, #1e4494 0%, #2650a6 50%, #1d3d82 100%)" }}>
                 <div className="pointer-events-none absolute -right-16 -top-16 h-[200px] w-[200px] rounded-full bg-[#00d8ff]/12 blur-[60px]" />
                 <div className="pointer-events-none absolute -bottom-12 -left-12 h-[180px] w-[180px] rounded-full bg-[#2b5cff]/15 blur-[60px]" />

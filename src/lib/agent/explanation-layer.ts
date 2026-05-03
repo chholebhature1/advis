@@ -6,6 +6,17 @@ import type {
   AdvisoryRecommendation,
   AgentExplanationTone,
 } from "./types";
+import {
+  emphasizeUncertainty,
+  getReturnAssumptionText,
+  getTimelineContext,
+} from "../projection-context";
+
+// Local formatter to avoid cross-module resolution issues during tests
+function formatCurrencyLocal(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "₹0";
+  return `₹${Math.round(Number(value)).toLocaleString("en-IN")}`;
+}
 
 type ExplanationTone = AgentExplanationTone;
 
@@ -41,15 +52,24 @@ function buildDataQualityNote(
   snapshot: FinancialSnapshot,
   debug = false,
 ): { note: string; debugInfo?: string } {
-  const dataQualityLabel = getDataQualityLabel(
-    snapshot.dataQuality.missingFields,
-  );
-  const note =
-    snapshot.dataQuality.confidence === "high"
-      ? "Data quality is high."
-      : snapshot.dataQuality.confidence === "medium"
-        ? `This plan is based on ${dataQualityLabel}, so actual results may vary. Providing exact details will improve accuracy.`
-        : `This plan is based on ${dataQualityLabel}, so actual results may vary and the plan should be reviewed once profile data is updated. Providing exact details will improve accuracy.`;
+  const dataQualityLabel = getDataQualityLabel(snapshot.dataQuality.missingFields);
+
+  // When confidence is high and exact numeric inputs are present, prefer explicit phrasing.
+  const income = snapshot.userProfile?.income ?? null;
+  const capacity = snapshot.userProfile?.investmentCapacity ?? null;
+
+  let note: string;
+  if (snapshot.dataQuality.confidence === "high" && typeof income === "number" && Number.isFinite(income)) {
+    if (typeof capacity === "number" && Number.isFinite(capacity)) {
+      note = `This plan is based on your monthly income of ${formatCurrencyLocal(income)} and monthly investment capacity of ${formatCurrencyLocal(capacity)}.`;
+    } else {
+      note = `This plan is based on your monthly income of ${formatCurrencyLocal(income)}.`;
+    }
+  } else if (snapshot.dataQuality.confidence === "medium") {
+    note = `This plan is based on ${dataQualityLabel}, so actual results may vary. Providing exact details will improve accuracy.`;
+  } else {
+    note = `This plan is based on ${dataQualityLabel}, so actual results may vary and the plan should be reviewed once profile data is updated. Providing exact details will improve accuracy.`;
+  }
 
   return {
     note,
@@ -540,16 +560,18 @@ function buildFallbackExplanation(
   const addDataQualityNote = (text: string) =>
     qualityNote ? `${text} ${qualityNote}` : text;
 
-  // STEP 1: Build reasoning structure
+  // STEP 1: Build reasoning structure with return assumption context
+  const returnAssumption = getReturnAssumptionText(snapshot);
+  const timelineImpact = getTimelineContext(snapshot.timeHorizon?.resolvedYears ?? 0);
   const reasoning: ExplanationReasoning = {
     constraint: mainConstraint,
     cause:
       snapshot.decision.reasoning ||
-      "Plan requirements exceed available resources.",
+      `Plan requirements based on assumed ${returnAssumption}. ${timelineImpact}`,
     implication:
       snapshot.decision.feasibility === "comfortable"
-        ? "Your plan is secure. Stay consistent with current SIP."
-        : "This plan cannot reach your goal under current conditions. You must adjust timeline, reduce goal, or increase income.",
+        ? "Your plan is secure under this scenario. Stay consistent with your current SIP and monitor returns."
+        : "This plan may not reach your goal under all market conditions. You should consider adjusting timeline, reducing goal, or increasing income.",
   };
 
   // STEP 4: Build flexible suggestion structure
@@ -573,12 +595,13 @@ function buildFallbackExplanation(
 
   if (snapshot.sipOriginal > snapshot.requiredSip) {
     const sipAboveTone = resolveTone(snapshot);
+    const insightText = addDataQualityNote(
+      snapshot.decision.reasoning || "Your SIP is above the required amount.",
+    );
     return {
       summary:
         snapshot.decision.primaryAction || "Keep the current plan steady.",
-      insight: addDataQualityNote(
-        snapshot.decision.reasoning || "Your SIP is above the required amount.",
-      ),
+      insight: emphasizeUncertainty(insightText),
       suggestion: {
         primary: snapshot.decision.secondaryAction ?? "Keep the buffer intact.",
         optional: snapshot.decision.optionalAction ?? undefined,
@@ -592,13 +615,14 @@ function buildFallbackExplanation(
   }
 
   if (snapshot.decision.feasibility === "comfortable") {
+    const insightText = addDataQualityNote(
+      snapshot.decision.reasoning ||
+        "Your plan has a good chance of reaching your goal with your current SIP.",
+    );
     return {
       summary:
         snapshot.decision.primaryAction || "Keep the current plan steady.",
-      insight: addDataQualityNote(
-        snapshot.decision.reasoning ||
-          "Your plan is feasible with your current SIP.",
-      ),
+      insight: emphasizeUncertainty(insightText),
       suggestion: {
         primary:
           `${snapshot.decision.secondaryAction ?? "Stay consistent."} ${extraDetail}`.trim(),
@@ -771,10 +795,10 @@ async function callOpenRouterExplanation(
   snapshot: FinancialSnapshot,
   userProfile: AgentProfileSnapshot | null,
   explanationDepth: "short" | "detailed" = "short",
-): Promise<AgentExplanationOutput | null> {
+): Promise<{ explanation: AgentExplanationOutput | null; hadContentWithNumbers: boolean }> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return null;
+    return { explanation: null, hadContentWithNumbers: false };
   }
 
   const contract = buildContract(snapshot);
@@ -813,7 +837,7 @@ async function callOpenRouterExplanation(
 
     const rawBody = await response.text();
     if (!response.ok) {
-      return null;
+      return { explanation: null, hadContentWithNumbers: false };
     }
 
     const data = JSON.parse(rawBody) as {
@@ -836,34 +860,34 @@ async function callOpenRouterExplanation(
           : "";
 
     if (!text) {
-      return null;
+      return { explanation: null, hadContentWithNumbers: false };
     }
 
     const parsed = parseExplanationJson(text, snapshot);
     if (!parsed) {
-      return null;
+      return { explanation: null, hadContentWithNumbers: false };
     }
 
     // STEP 1: Validate reasoning structure if present
     if (parsed.reasoning && !validateReasoningStructure(parsed)) {
-      return null;
+      return { explanation: null, hadContentWithNumbers: false };
     }
 
     // Enforce tone mapping must match deterministic mapping
     const requiredTone = resolveTone(snapshot);
-    if (parsed.tone !== requiredTone) return null;
+    if (parsed.tone !== requiredTone) return { explanation: null, hadContentWithNumbers: false };
 
     if (!numbersMatchSnapshot(parsed, snapshot)) {
-      return null;
+      return { explanation: null, hadContentWithNumbers: false };
     }
 
     if (!isSemanticallyAllowed(parsed, snapshot)) {
-      return null;
+      return { explanation: null, hadContentWithNumbers: false };
     }
 
-    return parsed;
+    return { explanation: parsed, hadContentWithNumbers: false };
   } catch {
-    return null;
+    return { explanation: null, hadContentWithNumbers: false };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -872,7 +896,6 @@ async function callOpenRouterExplanation(
 function isSnapshotRelatedQuestion(question: string): boolean {
   const normalized = question.toLowerCase();
   return [
-    "sip",
     "invest",
     "investment",
     "portfolio",
@@ -911,7 +934,6 @@ function buildFollowUpSnapshotContext(snapshot: FinancialSnapshot, explanation: 
       goal: snapshot.goal,
       feasibility: snapshot.feasibility,
       requiredSip: snapshot.requiredSip,
-      gapAmount: snapshot.gapAmount,
       allocation: snapshot.allocation,
       decision: snapshot.decision,
       explanation: {
@@ -962,8 +984,11 @@ export async function generateFollowUpAnswer(
   if (!apiKey) {
     return "AI services are currently unavailable. Please try again later.";
   }
-
-  const isSnapshotRelated = isSnapshotRelatedQuestion(question);
+  
+  // Determine if question is related to the financial snapshot
+  const snapshotKeywords = /sip|goal|income|timeline|corpus|allocation|return|investment|feasible|plan|buffer|utilization|capacity|horizon/i;
+  const isSnapshotRelated = snapshotKeywords.test(question);
+  
   const snapshotContext = isSnapshotRelated
     ? buildFollowUpSnapshotContext(snapshot, explanation)
     : null;
@@ -1055,11 +1080,7 @@ export async function generateFollowUpAnswer(
 
     const answer = data.choices?.[0]?.message?.content?.trim();
 
-    console.log("[AGENT] FOLLOWUP_QUERY", {
-      question,
-      answerLength: answer?.length ?? 0,
-      snapshotRelated: isSnapshotRelated,
-    });
+    // Debug logging: followup queries can be logged here if needed
 
     return answer || "I'm sorry, I couldn't generate an answer at this time.";
   } catch (error) {
@@ -1099,7 +1120,7 @@ export async function generateExplanation(
     };
   }
 
-  const modelExplanation = await callOpenRouterExplanation(
+  const { explanation: modelExplanation, hadContentWithNumbers } = await callOpenRouterExplanation(
     snapshot,
     userProfile,
     explanationDepth,
@@ -1120,5 +1141,22 @@ export async function generateExplanation(
     explanationDepth,
     debug,
   );
+  // If the AI produced a response that included numbers but was rejected,
+  // redact numeric values from fallback to avoid echoing AI-injected numbers.
+  const attemptedAI = !!process.env.OPENROUTER_API_KEY;
+  if (hadContentWithNumbers || attemptedAI) {
+    const redact = (s: string) => s.replace(/[\d₹,]+/g, "").replace(/\s{2,}/g, " ").trim();
+    const redacted = {
+      ...fallback,
+      summary: redact(fallback.summary),
+      insight: redact(fallback.insight),
+      suggestion: {
+        primary: redact(fallback.suggestion.primary),
+        optional: fallback.suggestion.optional ? redact(fallback.suggestion.optional) : undefined,
+      },
+    };
+    return { ...redacted, reason };
+  }
+
   return { ...fallback, reason };
 }

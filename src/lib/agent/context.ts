@@ -126,25 +126,15 @@ export async function loadAgentContext(supabase: SupabaseClient, userId: string,
     }
 
     const rawProfile = (profileResult.data ?? null) as AgentProfileSnapshot | null;
-    if (debug) {
-      console.log("RAW PROFILE", rawProfile, {
-        sip: rawProfile?.monthly_investable_surplus_inr ?? resolveMonthlyCapacityBand(rawProfile?.monthly_investment_capacity_band),
-        income: rawProfile?.monthly_income_inr ?? resolveIncomeBand(rawProfile?.monthly_income_band),
-        horizon: rawProfile?.target_horizon_years ?? resolveHorizonBand(rawProfile?.target_goal_horizon_band),
-        target: rawProfile ? resolveTargetAmount(rawProfile) : null,
-      });
-    }
+    // Debug logging available for profile verification if needed
+    // if (debug) { console.log("RAW PROFILE", rawProfile, {...}); }
 
     // SCHEMA VALIDATION: Check for missing fields before processing
     const schemaValidation = validateProfileSchema(rawProfile);
-    if (debug || schemaValidation.warnings.length > 0) {
-      console.log("SCHEMA VALIDATION", {
-        isValid: schemaValidation.isValid,
-        missingFields: schemaValidation.missingFields,
-        appliedDefaults: schemaValidation.appliedDefaults,
-        warnings: schemaValidation.warnings,
-      });
-    }
+    // Schema validation logging available for debugging if needed
+    // if (debug || schemaValidation.warnings.length > 0) {
+    //   console.log("SCHEMA VALIDATION", {...});
+    // }
 
     const dataQuality = {
       hasFallbacks: !schemaValidation.isValid,

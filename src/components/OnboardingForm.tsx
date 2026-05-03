@@ -24,7 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ONBOARDING_QUESTIONNAIRE_FLOW, type OnboardingField, type OnboardingScreen } from "@/lib/onboarding/questionnaire-flow";
 
-type FieldValue = string | boolean | string[];
+type FieldValue = string | number | boolean | string[] | null;
 type Answers = Record<string, FieldValue>;
 
 type ExistingSessionRow = {
@@ -115,11 +115,56 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isPersistedFieldValue(value: unknown): value is FieldValue {
-  if (typeof value === "string" || typeof value === "boolean") {
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return true;
   }
 
   return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function legacyNumericValue(value: unknown, mappings: Record<string, number | null>): number | null | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  return mappings[normalized];
+}
+
+function getLegacyFieldAlias(key: string, rawValue: unknown): { key: string; value: number | null } | null {
+  if (key === "monthly_income_band") {
+    const value = legacyNumericValue(rawValue, {
+      below_25000: 20000,
+      "25000_50000": 37500,
+      "50000_100000": 75000,
+      "100000_300000": 200000,
+      "300000_plus": 350000,
+    });
+
+    return value === undefined ? null : { key: "monthly_income_inr", value };
+  }
+
+  if (key === "monthly_investment_capacity_band") {
+    const value = legacyNumericValue(rawValue, {
+      "5000_10000": 7500,
+      "10000_25000": 17500,
+      "25000_50000": 37500,
+      "50000_plus": 75000,
+      "not_sure": 0,
+    });
+
+    return value === undefined ? null : { key: "sip_capacity_inr", value };
+  }
+
+  return null;
 }
 
 function buildInitialAnswers(): Answers {
@@ -127,7 +172,13 @@ function buildInitialAnswers(): Answers {
 
   for (const screen of FLOW) {
     for (const field of screen.fields) {
-      initial[field.key] = field.type === "multi_choice" ? [] : "";
+      if (field.type === "multi_choice") {
+        initial[field.key] = [];
+      } else if (field.type === "number" || field.type === "currency") {
+        initial[field.key] = null;
+      } else {
+        initial[field.key] = "";
+      }
     }
   }
 
@@ -196,6 +247,23 @@ function coercePersistedFieldValue(field: OnboardingField, rawValue: unknown): F
     return undefined;
   }
 
+  if (field.type === "number" || field.type === "currency") {
+    if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+      return rawValue;
+    }
+
+    if (typeof rawValue === "string") {
+      const parsed = Number(rawValue.trim().replace(/,/g, ""));
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    if (rawValue === null) {
+      return null;
+    }
+
+    return undefined;
+  }
+
   if (typeof rawValue === "string") {
     return rawValue;
   }
@@ -227,6 +295,12 @@ function hydrateAnswersFromResponses(baseAnswers: Answers, rows: PersistedRespon
     }
 
     for (const [key, rawValue] of Object.entries(row.response_data)) {
+      const legacyAlias = getLegacyFieldAlias(key, rawValue);
+      if (legacyAlias) {
+        hydrated[legacyAlias.key] = legacyAlias.value;
+        continue;
+      }
+
       const field = fieldByKey.get(key);
       if (!field) {
         continue;
@@ -279,36 +353,12 @@ function validateField(field: OnboardingField, value: FieldValue): string | null
     return null;
   }
 
-  if (typeof value !== "string") {
-    return `Invalid value for ${field.label}.`;
-  }
-
-  const trimmed = value.trim();
-
-  if (field.required && !trimmed) {
-    return `${field.label} is required.`;
-  }
-
-  if (!trimmed) {
-    return null;
-  }
-
-  if (field.type === "email") {
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(trimmed)) {
-      return `Please provide a valid email for ${field.label}.`;
-    }
-  }
-
-  if (field.type === "phone") {
-    const phonePattern = /^[+0-9()\-\s]{8,20}$/;
-    if (!phonePattern.test(trimmed)) {
-      return `Please provide a valid phone number for ${field.label}.`;
-    }
-  }
-
   if (field.type === "number" || field.type === "currency") {
-    const parsed = Number(trimmed.replace(/,/g, ""));
+    if (value === null || value === undefined || value === "") {
+      return field.required ? `${field.label} is required.` : null;
+    }
+
+    const parsed = typeof value === "number" ? value : Number(String(value).trim().replace(/,/g, ""));
     if (!Number.isFinite(parsed)) {
       return `${field.label} must be a valid number.`;
     }
@@ -517,7 +567,19 @@ export default function OnboardingForm() {
   }, [answers]);
 
   function getFieldValue(field: OnboardingField): FieldValue {
-    return answers[field.key] ?? (field.type === "multi_choice" ? [] : "");
+    if (Object.prototype.hasOwnProperty.call(answers, field.key)) {
+      return answers[field.key];
+    }
+
+    if (field.type === "multi_choice") {
+      return [];
+    }
+
+    if (field.type === "number" || field.type === "currency") {
+      return null;
+    }
+
+    return "";
   }
 
   function setFieldValue(field: OnboardingField, value: FieldValue) {
@@ -655,14 +717,60 @@ export default function OnboardingForm() {
 
   function buildAllAnswersPayload() {
     const entries: Array<[string, string | number | boolean | string[] | null]> = [];
+    const payload: Record<string, any> = {};
 
     for (const screen of FLOW) {
       for (const field of screen.fields) {
-        entries.push([field.key, normalizeFieldValue(field, getFieldValue(field))]);
+        const normalizedValue = normalizeFieldValue(field, getFieldValue(field));
+
+        if (field.key === "sip_capacity_inr") {
+          entries.push(["monthly_investable_surplus_inr", normalizedValue]);
+          continue;
+        }
+
+        entries.push([field.key, normalizedValue]);
       }
     }
 
-    return Object.fromEntries(entries);
+    const result = Object.fromEntries(entries) as Record<string, any>;
+
+    // CUSTOM FIELD OVERRIDE LOGIC: numeric > custom > band
+    // If band === "custom", prioritize custom numeric value over band fallback
+    
+    // Income: if monthly_income_band === "custom", use income_custom_amount for monthly_income_inr
+    if (result.monthly_income_band === "custom" && result.income_custom_amount !== null && result.income_custom_amount !== undefined) {
+      result.monthly_income_inr = result.income_custom_amount;
+      console.log("[Onboarding Form] Income custom override: income_custom_amount =", result.income_custom_amount, "→ monthly_income_inr");
+    }
+
+    // SIP: if monthly_investment_capacity_band === "custom", use sip_custom_amount for monthly_investable_surplus_inr
+    if (result.monthly_investment_capacity_band === "custom" && result.sip_custom_amount !== null && result.sip_custom_amount !== undefined) {
+      result.monthly_investable_surplus_inr = result.sip_custom_amount;
+      result.sip_capacity_inr = result.sip_custom_amount;
+      console.log("[Onboarding Form] SIP custom override: sip_custom_amount =", result.sip_custom_amount, "→ monthly_investable_surplus_inr");
+    }
+
+    // Horizon: if time_horizon_band === "custom", use time_horizon_custom_years for target_horizon_years
+    if (result.time_horizon_band === "custom" && result.time_horizon_custom_years !== null && result.time_horizon_custom_years !== undefined) {
+      result.target_horizon_years = result.time_horizon_custom_years;
+      result.time_horizon_years = result.time_horizon_custom_years;
+      console.log("[Onboarding Form] Horizon custom override: time_horizon_custom_years =", result.time_horizon_custom_years, "→ target_horizon_years");
+    }
+
+    // Log complete payload for debugging
+    console.log("[Onboarding Form] Final payload:", {
+      income: result.monthly_income_inr,
+      sip: result.monthly_investable_surplus_inr,
+      years: result.target_horizon_years,
+      income_band: result.monthly_income_band,
+      sip_band: result.monthly_investment_capacity_band,
+      horizon_band: result.time_horizon_band,
+      income_custom: result.income_custom_amount,
+      sip_custom: result.sip_custom_amount,
+      years_custom: result.time_horizon_custom_years,
+    });
+
+    return result;
   }
 
   async function createOnboardingSession() {
@@ -738,6 +846,8 @@ export default function OnboardingForm() {
       throw new Error("Authentication session expired. Please sign in again.");
     }
 
+    const finalPayload = buildAllAnswersPayload();
+
     const response = await fetch("/api/onboarding/submit", {
       method: "POST",
       headers: {
@@ -746,7 +856,7 @@ export default function OnboardingForm() {
       },
       body: JSON.stringify({
         sessionId: activeSessionId,
-        answers: buildAllAnswersPayload(),
+        answers: finalPayload,
       }),
     });
 
@@ -760,6 +870,43 @@ export default function OnboardingForm() {
     }
 
     setSubmitResult(responseBody.result ?? null);
+
+    // Fire-and-forget Formspree submission (non-blocking)
+    const formspreePayload = {
+      full_name: finalPayload.full_name ?? "",
+      email: finalPayload.email ?? "",
+      phone: finalPayload.phone_e164 ?? "",
+      primary_financial_goal: finalPayload.primary_financial_goal ?? "",
+      target_goal_amount_choice: finalPayload.target_goal_amount_choice ?? "",
+      target_goal_custom_amount_inr: finalPayload.target_goal_custom_amount_inr ?? null,
+      time_horizon_band: finalPayload.time_horizon_band ?? "",
+      time_horizon_custom_years: finalPayload.time_horizon_custom_years ?? null,
+      monthly_investment_capacity_band: finalPayload.monthly_investment_capacity_band ?? "",
+      sip_custom_amount: finalPayload.sip_custom_amount ?? null,
+      monthly_income_band: finalPayload.monthly_income_band ?? "",
+      income_custom_amount: finalPayload.income_custom_amount ?? null,
+      risk_preference: finalPayload.risk_preference ?? "",
+      has_existing_investments: finalPayload.has_existing_investments ?? "",
+      existing_investment_types: Array.isArray(finalPayload.existing_investment_types)
+        ? finalPayload.existing_investment_types.join(", ")
+        : "",
+      // Resolved numeric values (if custom override applied)
+      monthly_income_inr: finalPayload.monthly_income_inr ?? null,
+      monthly_investable_surplus_inr: finalPayload.monthly_investable_surplus_inr ?? null,
+      target_horizon_years: finalPayload.target_horizon_years ?? null,
+      source: "pravix_onboarding",
+      form_type: "onboarding_lead",
+    };
+
+    console.log("[FORMSPREE PAYLOAD]", formspreePayload);
+
+    fetch("https://formspree.io/f/mrejzwja", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formspreePayload),
+    }).catch((error) => {
+      console.warn("[FORMSPREE] Submission failed (non-blocking):", error);
+    });
   }
 
   async function finalizeAuthenticatedSubmission() {
@@ -990,13 +1137,22 @@ export default function OnboardingForm() {
         </span>
         <input
           type={inputType}
-          value={typeof value === "string" ? value : ""}
-          onChange={(event) => setFieldValue(field, event.target.value)}
+          value={typeof value === "number" ? String(value) : typeof value === "string" ? value : ""}
+          onChange={(event) => {
+            if (field.type === "number" || field.type === "currency") {
+              const nextValue = event.target.value.trim();
+              setFieldValue(field, nextValue.length > 0 ? Number(nextValue) : null);
+              return;
+            }
+
+            setFieldValue(field, event.target.value);
+          }}
           placeholder={field.placeholder}
           min={field.min}
           max={field.max}
-          step={field.step ?? (field.type === "currency" ? 0.01 : undefined)}
-          maxLength={field.type === "phone" ? 10 : undefined}
+          step={field.step ?? (field.type === "number" ? 1 : field.type === "currency" ? 0.01 : undefined)}
+          inputMode={field.type === "phone" ? "tel" : undefined}
+          maxLength={field.type === "phone" ? 15 : undefined}
           className={`h-12 ${sharedInputClass}`}
         />
         {field.helpText ? <span className="text-xs text-finance-muted">{field.helpText}</span> : null}

@@ -22,6 +22,7 @@ import type {
   UserFinancialProfile,
 } from "./types";
 import { resolveTargetAmount } from "./band-resolver";
+import { sanitizeProfileInput, validateNoLeak } from "./input-sanitizer";
 
 // ============================================================
 // CONSTANTS
@@ -108,6 +109,101 @@ function estimateRequiredSip(
 // ============================================================
 // GOAL INTENT INFERENCE
 // ============================================================
+
+/**
+ * Build goal intent from sanitized goal kind string.
+ * Used when input is already sanitized (no full context available).
+ */
+function buildGoalIntentFromSanitized(
+  rawGoalKind: string | null | undefined,
+  rawTargetAmount: number | null,
+  age: number | null,
+  horizonYears: number,
+  income: number,
+): GoalIntent {
+  const kind = normalizeGoalKind(rawGoalKind);
+
+  const intent: GoalIntent = {
+    kind,
+    rawTargetAmount,
+    derivedCorpus: rawTargetAmount,
+    annualIncomeTarget: null,
+    taxSavingTarget: null,
+    termCoverTarget: null,
+    healthCoverTarget: null,
+    isCorpusGoal: true,
+    note: null,
+    warnings: [],
+  };
+
+  if (rawTargetAmount === null && kind !== "insurance_planning" && kind !== "tax_saving") {
+    intent.note = "We need a target amount to plan accurately.";
+    return intent;
+  }
+
+  // Apply same goal-type logic as full buildGoalIntent
+  switch (kind) {
+    case "passive_income": {
+      if (rawTargetAmount && rawTargetAmount > 0) {
+        // In the numeric-first pipeline, target_amount_inr is already a future-value corpus.
+        // For passive income, we derive the implied annual income only for explanatory metadata
+        // instead of inflating the corpus itself.
+        intent.derivedCorpus = rawTargetAmount;
+        const impliedAnnualIncome = rawTargetAmount / PASSIVE_INCOME_CORPUS_MULTIPLIER;
+        intent.annualIncomeTarget = impliedAnnualIncome;
+        intent.note = `Interpreted ${formatInr(rawTargetAmount)} as your passive income corpus — this could reasonably support ~${formatInr(impliedAnnualIncome)} per year at a 4% withdrawal rate.`;
+      }
+      break;
+    }
+
+    case "retirement_planning": {
+      if (age !== null && age + horizonYears < RETIREMENT_TARGET_AGE - 5) {
+        intent.warnings.push(
+          `At age ${age} with a ${horizonYears}-year horizon, you'd be ${age + horizonYears} when this completes — earlier than typical retirement (~${RETIREMENT_TARGET_AGE}).`,
+        );
+      }
+      if (age !== null && age + horizonYears > RETIREMENT_TARGET_AGE + 10) {
+        intent.warnings.push(
+          `Your retirement horizon may be longer than needed — consider whether you want to retire before ${age + horizonYears}.`,
+        );
+      }
+      break;
+    }
+
+    case "child_education": {
+      if (age !== null && age < 25 && horizonYears > 20) {
+        intent.warnings.push(
+          `You're young and setting a long education horizon — make sure you're planning for a specific milestone.`,
+        );
+      }
+      break;
+    }
+
+    case "tax_saving": {
+      if (!rawTargetAmount) {
+        const estAnnualTaxTarget = income * 0.15;
+        intent.taxSavingTarget = estAnnualTaxTarget;
+        intent.derivedCorpus = null;
+        intent.isCorpusGoal = false;
+        intent.note = `Tax-saving goal detected — estimated target ~${formatInr(estAnnualTaxTarget)}/year.`;
+      }
+      break;
+    }
+
+    case "insurance_planning": {
+      intent.isCorpusGoal = false;
+      if (!rawTargetAmount) {
+        intent.note = `Insurance planning goal — we'll estimate coverage based on your income and dependents.`;
+      }
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  return intent;
+}
 
 function buildGoalIntent(
   context: AgentContext,
@@ -205,22 +301,57 @@ function buildGoalIntent(
 // CORE NORMALIZER
 // ============================================================
 
-export function normalizePlanInput(context: AgentContext): NormalizedPlanInput {
-  const profile = context.profile;
+export function normalizePlanInput(context: AgentContext, debug = false): NormalizedPlanInput {
+  const rawProfile = context.profile;
 
-  // Resolve numerical inputs (band-resolver has already filled these in normalizeBands).
-  const income = profile?.monthly_income_inr ?? 0;
-  const declaredCapacity = profile?.monthly_investable_surplus_inr ?? 0;
-  const declaredExpenses = profile?.monthly_expenses_inr ?? 0;
-  const declaredEmi = profile?.monthly_emi_inr ?? 0;
-  const currentSavings = profile?.current_savings_inr ?? 0;
-  const horizonYears = profile?.target_horizon_years ?? 5;
+  // ============================================================
+  // SANITIZATION: Extract ONLY required numeric fields
+  // ============================================================
+  const sanitized = sanitizeProfileInput(rawProfile, debug);
+
+  // Defensive check: verify NO band values leaked
+  if (sanitized && !validateNoLeak(sanitized)) {
+    console.error("[NORMALIZER] ⚠️ Band leakage detected after sanitization!");
+  }
+
+  if (debug && sanitized) {
+    console.log("[NORMALIZER] Sanitized profile received:", {
+      income: sanitized.monthlyIncomeInr,
+      surplus: sanitized.monthlyInvestableSurplusInr,
+      horizon: sanitized.targetHorizonYears,
+      goal: sanitized.primaryFinancialGoal,
+    });
+  }
+
+  // Resolve numerical inputs from sanitized values
+  const income = sanitized?.monthlyIncomeInr ?? 0;
+  const declaredCapacity = sanitized?.monthlyInvestableSurplusInr ?? 0;
+  const declaredExpenses = sanitized?.monthlyExpensesInr ?? 0;
+  const declaredEmi = sanitized?.monthlyEmiInr ?? 0;
+  const currentSavings = sanitized?.currentSavingsInr ?? 0;
+  const horizonYears = sanitized?.targetHorizonYears ?? 5;
   const horizonMonths = Math.max(1, Math.round(horizonYears * 12));
-  const age = calculateAge(profile?.date_of_birth ?? null);
-  const rawTarget = profile ? resolveTargetAmount(profile) : null;
+  const age = sanitized?.dateOfBirth
+    ? calculateAge(sanitized.dateOfBirth)
+    : null;
+
+  // Resolve target amount from sanitized profile
+  const rawTarget = sanitized
+    ? resolveTargetAmount({
+        target_amount_inr: sanitized.targetAmountInr,
+      } as any)
+    : null;
 
   // Goal intent first (drives "isCorpusGoal" path for insurance/tax).
-  const goalIntent = buildGoalIntent(context, rawTarget, age, horizonYears, income);
+  // Use sanitized profile goal type
+  const primaryGoal = sanitized?.primaryFinancialGoal ?? null;
+  const goalIntent = buildGoalIntentFromSanitized(
+    primaryGoal,
+    rawTarget,
+    age,
+    horizonYears,
+    income
+  );
 
   // ---------- Expense inference ----------
   let expenses = declaredExpenses;
@@ -232,7 +363,7 @@ export function normalizePlanInput(context: AgentContext): NormalizedPlanInput {
 
   // ---------- Capacity limit metadata ----------
   const reasons: string[] = [];
-  let investmentCapacity = declaredCapacity;
+  const investmentCapacity = declaredCapacity;
   const maxAllowedSip = income > 0 ? Math.round(income * SIP_INCOME_CAP_AGGRESSIVE) : null;
   const isOverLimit = maxAllowedSip !== null ? declaredCapacity > maxAllowedSip : false;
   const overLimitAmount = isOverLimit && maxAllowedSip !== null ? declaredCapacity - maxAllowedSip : null;
@@ -249,15 +380,15 @@ export function normalizePlanInput(context: AgentContext): NormalizedPlanInput {
     emi: declaredEmi,
     investmentCapacity,
     currentSavings,
-    emergencyFundMonths: profile?.emergency_fund_months ?? 6,
-    riskProfile: (profile?.risk_appetite === "high" || profile?.risk_appetite === "aggressive") ? "aggressive"
-               : (profile?.risk_appetite === "low" || profile?.risk_appetite === "conservative") ? "conservative"
+    emergencyFundMonths: sanitized?.emergencyFundMonths ?? 6,
+    riskProfile: (sanitized?.riskAppetite === "high" || sanitized?.riskAppetite === "aggressive") ? "aggressive"
+               : (sanitized?.riskAppetite === "low" || sanitized?.riskAppetite === "conservative") ? "conservative"
                : "moderate",
-    employmentType: profile?.employment_type ?? null,
-    hasExistingInvestments: profile?.has_existing_investments ?? false,
-    existingInvestmentTypes: profile?.existing_investment_types ?? [],
+    employmentType: sanitized?.employmentType ?? null,
+    hasExistingInvestments: sanitized?.hasExistingInvestments ?? false,
+    existingInvestmentTypes: sanitized?.existingInvestmentTypes ?? [],
     age,
-    taxRegime: profile?.tax_regime ?? null,
+    taxRegime: sanitized?.taxRegime ?? null,
   };
 
   // ---------- Hard constraints (only meaningful for corpus goals) ----------

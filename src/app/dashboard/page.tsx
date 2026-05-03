@@ -57,6 +57,7 @@ import {
 import SiteHeader from "@/components/SiteHeader";
 import AuthPanel from "@/components/AuthPanel";
 import RequireAuth from "@/components/RequireAuth";
+import DebugPanel from "@/components/DebugPanel";
 import { FollowUpPanel } from "@/components/FollowUpPanel";
 import ExecutiveIntelligencePanel from "@/components/ExecutiveIntelligencePanel";
 import HoldingsAnalyzerPanel from "@/components/HoldingsAnalyzerPanel";
@@ -2451,7 +2452,7 @@ export default function DashboardPage() {
                         </p>
                       </div>
                       <h2 className="mt-3 text-xl font-bold tracking-tight text-[#0a1930] sm:text-2xl">
-                        A simple plan for your money
+                        Pravix creating a simple plan for your money
                       </h2>
                       {financialSummary?.dataQuality &&
                         (financialSummary.dataQuality.confidence !== "high" ||
@@ -2881,6 +2882,31 @@ export default function DashboardPage() {
                             financialSummary.projectedCorpus ?? 0,
                           )}
                         </p>
+                        {/* Projection Disclaimer & Return Assumption */}
+                        <div className="mt-3 border-t border-amber-200 pt-3 space-y-2">
+                          <p className="text-[10px] text-[#5f7396] leading-snug">
+                            <span className="font-semibold">Assumed return:</span> {Math.round((financialSummary.expectedReturn ?? 0.12) * 100)}% annually (based on your risk profile)
+                          </p>
+                          <p className="text-[10px] text-[#5f7396] leading-snug italic">
+                            Projected returns are based on assumed market performance and are not guaranteed. Actual results may vary.
+                          </p>
+                          {financialSummary.scenarioOutcomes ? (
+                            <div className="mt-2 grid grid-cols-3 gap-1 text-[9px] text-center">
+                              <div className="px-2 py-1 rounded bg-red-50 text-red-700">
+                                <p className="font-semibold">Conservative</p>
+                                <p className="font-bold">{formatCompactCurrency(financialSummary.scenarioOutcomes.conservative ?? 0)}</p>
+                              </div>
+                              <div className="px-2 py-1 rounded bg-blue-50 text-blue-700">
+                                <p className="font-semibold">Expected</p>
+                                <p className="font-bold">{formatCompactCurrency(financialSummary.scenarioOutcomes.moderate ?? 0)}</p>
+                              </div>
+                              <div className="px-2 py-1 rounded bg-green-50 text-green-700">
+                                <p className="font-semibold">Optimistic</p>
+                                <p className="font-bold">{formatCompactCurrency(financialSummary.scenarioOutcomes.optimistic ?? 0)}</p>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -4803,6 +4829,13 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        <DebugPanel
+          rawAnswers={profile}
+          apiPayload={null}
+          snapshot={financialSummary}
+          explanation={explanation}
+        />
 
         {selectedKpi ? (
           <div className="fixed inset-0 z-40">

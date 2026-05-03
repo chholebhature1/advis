@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { normalizeBands } from "./band-resolver";
 import { normalizePlanInput } from "./reality-normalizer";
 import type { AgentContext } from "./types";
 
@@ -49,7 +50,7 @@ describe("RealityNormalizer", () => {
         primary_financial_goal: "wealth_creation",
         target_amount_inr: 50000000,
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       expect(result.goalIntent.kind).toBe("wealth_creation");
       expect(result.goalIntent.isCorpusGoal).toBe(true);
     });
@@ -59,7 +60,7 @@ describe("RealityNormalizer", () => {
         primary_financial_goal: "passive_income",
         target_amount_inr: 2000000,
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       expect(result.goalIntent.kind).toBe("passive_income");
       expect(result.goalIntent.isCorpusGoal).toBe(true);
       expect(result.goalIntent.annualIncomeTarget).toBeGreaterThanOrEqual(2000000);
@@ -72,7 +73,7 @@ describe("RealityNormalizer", () => {
         primary_financial_goal: "tax_saving",
         monthly_income_inr: 100000,
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       expect(result.goalIntent.kind).toBe("tax_saving");
       expect(result.goalIntent.isCorpusGoal).toBe(false);
       expect(result.goalIntent.taxSavingTarget).toBe(12000); // 12% of income
@@ -84,7 +85,7 @@ describe("RealityNormalizer", () => {
         primary_financial_goal: "insurance_planning",
         monthly_income_inr: 100000,
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       expect(result.goalIntent.kind).toBe("insurance_planning");
       expect(result.goalIntent.isCorpusGoal).toBe(false);
       expect(result.goalIntent.termCoverTarget).toBe(18000000); // 15x annual income
@@ -100,7 +101,7 @@ describe("RealityNormalizer", () => {
         monthly_income_inr: 100000,
         monthly_investable_surplus_inr: 25000,
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       // Expenses = income - capacity = 100000 - 25000 = 75000
       expect(result.profile.expenses).toBe(75000);
       expect(result.constraints.flags.expensesInferred).toBe(true);
@@ -112,7 +113,7 @@ describe("RealityNormalizer", () => {
         monthly_income_inr: 100000,
         monthly_investable_surplus_inr: 25000,
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       expect(result.profile.expenses).toBe(60000);
       expect(result.constraints.flags.expensesInferred).toBe(false);
     });
@@ -124,7 +125,7 @@ describe("RealityNormalizer", () => {
         monthly_income_inr: 100000,
         monthly_investable_surplus_inr: 70000, // 70% of income
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       expect(result.profile.investmentCapacity).toBe(70000);
       expect(result.constraints.flags.maxAllowedSip).toBe(60000);
       expect(result.constraints.flags.isOverLimit).toBe(true);
@@ -138,7 +139,7 @@ describe("RealityNormalizer", () => {
         monthly_income_inr: 100000,
         monthly_investable_surplus_inr: 30000, // 30% of income
       });
-      const result = normalizePlanInput(context);
+      const result = normalizePlanInput(normalizeBands(context));
       expect(result.profile.investmentCapacity).toBe(30000);
       expect(result.constraints.flags.maxAllowedSip).toBe(60000);
       expect(result.constraints.flags.isOverLimit).toBe(false);
@@ -295,6 +296,48 @@ describe("RealityNormalizer", () => {
       const result = normalizePlanInput(context);
       expect(result.constraints.feasibilityVerdict).toBe(null);
       expect(result.goalIntent.isCorpusGoal).toBe(false);
+    });
+  });
+
+  describe("numeric alias compatibility", () => {
+    it("prefers numeric aliases when both numeric and band values exist", () => {
+      const context = createMockContext({
+        monthlyIncomeInr: 125000,
+        sipCapacityInr: 42000,
+        timeHorizonYears: 11,
+        monthly_income_inr: null,
+        monthly_investable_surplus_inr: null,
+        target_horizon_years: null,
+        monthly_income_band: "50000_100000",
+        monthly_investment_capacity_band: "25000_50000",
+        target_goal_horizon_band: "5_10_years",
+      });
+
+      const result = normalizePlanInput(normalizeBands(context));
+
+      expect(result.profile.income).toBe(125000);
+      expect(result.profile.investmentCapacity).toBe(42000);
+      expect(result.timeHorizonMonths).toBe(132);
+    });
+
+    it("falls back to band values when numeric aliases are missing", () => {
+      const context = createMockContext({
+        monthlyIncomeInr: null,
+        sipCapacityInr: null,
+        timeHorizonYears: null,
+        monthly_income_inr: null,
+        monthly_investable_surplus_inr: null,
+        target_horizon_years: null,
+        monthly_income_band: "50000_100000",
+        monthly_investment_capacity_band: "25000_50000",
+        target_goal_horizon_band: "5_10_years",
+      });
+
+      const result = normalizePlanInput(normalizeBands(context));
+
+      expect(result.profile.income).toBe(75000);
+      expect(result.profile.investmentCapacity).toBe(37500);
+      expect(result.timeHorizonMonths).toBe(96);
     });
   });
 });

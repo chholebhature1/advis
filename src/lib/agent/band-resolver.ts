@@ -16,7 +16,7 @@ const MONTHLY_CAPACITY_BAND_MAP: Record<string, number> = {
   "5000_10000": 7500,
   "10000_25000": 17500,
   "25000_50000": 37500,
-  "50000_plus": 65000, // 50k-100k midpoint, conservative
+  "50000_plus": 75000,
   // Legacy aliases
   "under_5000": 2500,
   "5000_to_10000": 7500,
@@ -31,7 +31,7 @@ const INCOME_BAND_MAP: Record<string, number> = {
   "25000_50000": 37500,
   "50000_100000": 75000,
   "100000_300000": 200000,
-  "300000_plus": 400000,
+  "300000_plus": 350000,
   // Legacy aliases
   "under_30000": 15000,
   "30000_to_50000": 40000,
@@ -46,8 +46,8 @@ const HORIZON_BAND_MAP: Record<string, number> = {
   // Current onboarding emissions (years)
   "1_3_years": 2,
   "3_5_years": 4,
-  "5_10_years": 7.5,
-  "10_plus_years": 15,
+  "5_10_years": 8,
+  "10_plus_years": 12,
   // Legacy aliases
   "short_term": 2,
   "medium_term": 5,
@@ -83,6 +83,28 @@ export function resolveIncomeBand(band: string | null | undefined): number | nul
 export function resolveHorizonBand(band: string | null | undefined): number {
   if (!band) return 5; // default medium term
   return HORIZON_BAND_MAP[band] || 5;
+}
+
+function coerceFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value.trim().replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function resolveNonNegativeNumber(value: unknown): number | null {
+  const numeric = coerceFiniteNumber(value);
+  if (numeric === null) {
+    return null;
+  }
+
+  return numeric < 0 ? 0 : numeric;
 }
 
 /**
@@ -133,21 +155,28 @@ export function resolveTargetAmount(profile: AgentProfileSnapshot): number | nul
  */
 function normalizeProfile(profile: AgentProfileSnapshot): AgentProfileSnapshot {
   // Resolve monthly investable surplus
-  let monthlyInvestableSurplus = profile.monthly_investable_surplus_inr;
+  let monthlyInvestableSurplus = resolveNonNegativeNumber(profile.monthly_investable_surplus_inr)
+    ?? resolveNonNegativeNumber(profile.sipCapacityInr);
   if (monthlyInvestableSurplus === null || monthlyInvestableSurplus === undefined) {
     monthlyInvestableSurplus = resolveMonthlyCapacityBand(profile.monthly_investment_capacity_band);
   }
 
   // Resolve monthly income
-  let monthlyIncome = profile.monthly_income_inr;
+  let monthlyIncome = resolveNonNegativeNumber(profile.monthly_income_inr)
+    ?? resolveNonNegativeNumber(profile.monthlyIncomeInr);
   if (monthlyIncome === null || monthlyIncome === undefined) {
     monthlyIncome = resolveIncomeBand(profile.monthly_income_band);
   }
 
   // Resolve target horizon
-  let targetHorizon = profile.target_horizon_years;
+  let targetHorizon = coerceFiniteNumber(profile.target_horizon_years)
+    ?? coerceFiniteNumber(profile.timeHorizonYears);
   if (targetHorizon === null || targetHorizon === undefined) {
     targetHorizon = resolveHorizonBand(profile.target_goal_horizon_band);
+  }
+
+  if (targetHorizon !== null && targetHorizon < 0) {
+    targetHorizon = 0;
   }
 
   // Resolve target amount (handle choice tokens stored in numeric column)
@@ -183,19 +212,8 @@ export function normalizeBands(context: AgentContext, debug = false): AgentConte
     profile: context.profile ? normalizeProfile(context.profile) : null,
   };
 
-  if (debug) {
-    console.log("NORMALIZED INPUT", normalized, {
-      sip: normalized.profile?.monthly_investable_surplus_inr ?? null,
-      income: normalized.profile?.monthly_income_inr ?? null,
-      horizon: normalized.profile?.target_horizon_years ?? null,
-      target: normalized.profile ? resolveTargetAmount(normalized.profile) : null,
-      incomeInputType: normalized.profile?.income_input_type ?? "N/A",
-      incomeRange: {
-        min: normalized.profile?.income_range_min_inr ?? null,
-        max: normalized.profile?.income_range_max_inr ?? null,
-      },
-    });
-  }
+  // Debug logging available for normalization verification if needed
+  // if (debug) { console.log("NORMALIZED INPUT", normalized, {...}); }
 
   return normalized;
 }

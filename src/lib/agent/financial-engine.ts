@@ -875,17 +875,8 @@ const SNAPSHOT_VERSION = "1.0.0";
 export function generateFinancialSnapshot(context: AgentContext, debug = false): FinancialSnapshot {
   // SINGLE entry point for normalization. Engine no longer reads bands directly.
   const normalized = normalizePlanInput(context);
-  if (debug) {
-    console.log("ENGINE INPUT", normalized, {
-      sipOriginal: normalized.profile.investmentCapacity,
-      income: normalized.profile.income,
-      horizon: normalized.timeHorizonMonths / 12,
-      target: normalized.goalIntent.derivedCorpus ?? normalized.goalIntent.rawTargetAmount ?? null,
-      maxAllowedSip: normalized.constraints.flags.maxAllowedSip,
-      isOverLimit: normalized.constraints.flags.isOverLimit,
-      utilizationPercent: normalized.constraints.flags.utilizationPercent,
-    });
-  }
+  // Debug logging available for migration verification if needed
+  // if (debug) { console.log("ENGINE INPUT", normalized, {...}); }
   const profile = buildUserFinancialProfile(normalized);
   const goal = buildGoalSpec(context, normalized);
   const goalIntent = normalized.goalIntent;
@@ -905,6 +896,7 @@ export function generateFinancialSnapshot(context: AgentContext, debug = false):
     (returns.equity * 0.6 + returns.debt * 0.25 + returns.gold * 0.1 + returns.liquid * 0.05),
     1
   );
+  const monthlyRate = (blendedReturn / 100) / 12;
 
   // Core calculations
   const feasibility = calculateFeasibility(goal, profile, blendedReturn);
@@ -931,12 +923,9 @@ export function generateFinancialSnapshot(context: AgentContext, debug = false):
   const warnings = generateWarnings(profile, feasibility, emergencyFund, incomeBounds);
   const recommendations = generateRecommendations(profile, feasibility, emergencyFund, strategies);
 
-  // Inflation adjusted goal — child education uses higher CPI proxy (8%).
-  const inflationRate = goalIntent.kind === "child_education" ? 8 : INFLATION_RATE_PCT;
-  const inflationAdjustedGoal = round(
-    goal.targetAmount * Math.pow(1 + inflationRate / 100, goal.timeHorizonMonths / 12),
-    0
-  );
+  // Treat target_amount_inr as a future-value corpus; expose it directly without
+  // applying additional inflation in the snapshot.
+  const inflationAdjustedGoal = goal.targetAmount;
 
   // Holdings analysis
   const holdingsAnalysis = computeHoldingsAnalysis(context);
@@ -974,6 +963,17 @@ export function generateFinancialSnapshot(context: AgentContext, debug = false):
     percentageOfGoal: goal.targetAmount > 0 ? Math.round((scenarioOutcomes.moderate / goal.targetAmount) * 100) : 100
   };
 
+  if (debug) {
+    console.log("[ENGINE DEBUG] SIP_FEASIBILITY", {
+      target: goal.targetAmount,
+      sipOriginal,
+      projectedCorpus: actualOutcome.withCurrentSip,
+      requiredSip: feasibility.requiredSip,
+      monthlyRate,
+      months: goal.timeHorizonMonths,
+    });
+  }
+
   // Generate goal-aware gap strategies
   const gapStrategies = generateGapStrategies(goal, profile, feasibility, scenarioOutcomes.moderate, blendedReturn);
 
@@ -982,7 +982,6 @@ export function generateFinancialSnapshot(context: AgentContext, debug = false):
   let stepUpSuggestion: StepUpSuggestion | undefined;
   if (profile.income > 200000 && goalIntent.isCorpusGoal) {
     const stepUpRate = 0.10; // 10% yearly increase
-    const monthlyRate = (blendedReturn / 100) / 12;
     const incomeCap = profile.income * STEP_UP_INCOME_CAP_RATIO;
     const totalYears = goal.timeHorizonMonths / 12;
     // Find the first year the projected SIP exceeds the cap; truncate there.
@@ -1031,7 +1030,8 @@ export function generateFinancialSnapshot(context: AgentContext, debug = false):
 
   const snapshot = {
     sipOriginal,
-    sipUsed: feasibility.currentSip,
+    // Keep computed usage equal to explicit user-entered SIP.
+    sipUsed: sipOriginal,
     maxAllowedSip: constraints.flags.maxAllowedSip,
     isOverLimit: constraints.flags.isOverLimit,
     utilizationPercent: constraints.flags.utilizationPercent,
