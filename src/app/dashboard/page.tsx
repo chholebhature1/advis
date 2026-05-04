@@ -77,294 +77,46 @@ import type {
   DashboardAISummary,
   DashboardIntelligenceSnapshot,
   DashboardModuleKey,
-  FinancialSnapshot,
 } from "@/lib/agent/types";
+import type {
+  ProfileRow,
+  RiskAppetite,
+  MarketIndicator,
+  MarketIndicatorsResponse,
+  HoldingsAnalyticsSnapshot,
+  HoldingsApiPayload,
+  IntelligenceApiPayload,
+  AgentDashboardPayload,
+  DashboardHorizon,
+  DashboardLens,
+  KpiDeltaTone,
+  DashboardKpiItem,
+  TrendPoint,
+  InsightTone,
+  ScenarioCard,
+  MarketPulseItem,
+  MarketTrendPoint,
+  MarketTrendResponse,
+  DashboardFinancialSummary,
+} from "@/lib/dashboard-types";
+import {
+  formatCurrency,
+  formatCompactCurrency,
+  formatRisk,
+  formatDateTime,
+  formatSignedNumber,
+  formatSignedPercent,
+  formatIndexNumber,
+  parseNumberInput,
+  clamp,
+  toHorizonMonths,
+  toHorizonLabel,
+  toneToClassName,
+  insightToneToBadgeTone,
+} from "@/lib/dashboard-format";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type RiskAppetite = "conservative" | "moderate" | "aggressive";
-
-type ProfileRow = {
-  id: string;
-  user_id: string | null;
-  full_name: string;
-  email: string;
-  phone_e164: string | null;
-  city: string | null;
-  state: string | null;
-  occupation_title: string | null;
-  employment_type: string | null;
-  monthly_income_inr: number;
-  monthly_expenses_inr: number;
-  monthly_emi_inr: number;
-  monthly_investable_surplus_inr: number;
-  current_savings_inr: number;
-  emergency_fund_months: number;
-  loss_tolerance_pct: number | null;
-  risk_appetite: RiskAppetite;
-  tax_regime: "old" | "new" | null;
-  kyc_status: "not_started" | "pending" | "verified" | "rejected" | string;
-  target_amount_inr: number;
-  target_horizon_years: number;
-  notes: string;
-  consent_to_contact: boolean;
-  source: string;
-  onboarding_completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type MarketIndicator = {
-  id: "NIFTY50" | "BANKNIFTY" | "SENSEX";
-  displayName: string;
-  value: number;
-  changeAbs: number;
-  changePct: number;
-  trend: "up" | "down" | "flat";
-};
-
-type MarketIndicatorsResponse = {
-  ok: true;
-  generatedAt: string;
-  source: "live" | "fallback";
-  indices: MarketIndicator[];
-};
-
-type HoldingsExposure = {
-  name: string;
-  value: number;
-  marketValueInr: number;
-};
-
-type HoldingsAnalyticsSnapshot = {
-  totalMarketValueInr: number;
-  totalCostValueInr: number;
-  totalUnrealizedPnlInr: number;
-  totalUnrealizedPnlPct: number | null;
-  allocationByAssetClass: HoldingsExposure[];
-  sectorExposure: HoldingsExposure[];
-  concentrationWarnings: Array<{
-    id: string;
-    severity: "low" | "medium" | "high";
-    title: string;
-    message: string;
-    metricPct: number | null;
-  }>;
-};
-
-type HoldingsApiPayload = {
-  ok?: boolean;
-  holdings?: Array<{ id: string }>;
-  analytics?: HoldingsAnalyticsSnapshot;
-  error?: string;
-};
-
-type IntelligenceApiPayload = {
-  ok?: boolean;
-  snapshot?: DashboardIntelligenceSnapshot;
-  error?: string;
-};
-
-type AgentDashboardPayload = {
-  ok?: boolean;
-  aiSummary?: DashboardAISummary;
-  explanation?: AgentExplanationOutput;
-  error?: string;
-  snapshot?: FinancialSnapshot;
-};
-
-type AgentChatReplyPayload = {
-  ok?: boolean;
-  reply?: string;
-  raw?: string;
-  error?: string;
-};
-
-type DashboardHorizon = "1y" | "2y" | "3y" | "custom";
-type DashboardLens = "goal" | "cashflow" | "risk";
-type KpiDeltaTone = "positive" | "negative" | "neutral";
-type DashboardKpiItem = {
-  id: string;
-  label: string;
-  value: string;
-  hint: string;
-  deltaLabel: string;
-  deltaTone: KpiDeltaTone;
-  detail: string;
-  source: string;
-};
-type TrendPoint = { label: string; value: number };
-type InsightTone = "neutral" | "positive" | "warning" | "critical";
-type ScenarioCard = {
-  label: string;
-  annualReturnPct: number;
-  projectedValue: number;
-  gainInr: number;
-  gainPct: number;
-  tone: InsightTone;
-};
-
-type MarketPulseItem = {
-  label: string;
-  value: string;
-  detail: string;
-  tone: InsightTone;
-};
-
 const motionEase = [0.22, 1, 0.36, 1] as const;
-
-// SCENARIO_RETURN_PCT removed — now using engine values:
-// - financialSummary.expectedReturn (blended return for user's risk profile)
-// - financialSummary.scenarioSpread (± spread for conservative/optimistic scenarios)
-type MarketTrendPoint = { label: string; close: number };
-type MarketTrendResponse = {
-  ok: true;
-  generatedAt: string;
-  source: "live" | "fallback";
-  symbol: "NIFTY50";
-  horizon: DashboardHorizon;
-  points: MarketTrendPoint[];
-};
-
-const inrFormatter = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
-});
-
-const compactInrFormatter = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-function formatCurrency(value: number): string {
-  return inrFormatter.format(value);
-}
-
-function formatCompactCurrency(value: number): string {
-  return compactInrFormatter.format(value);
-}
-
-function formatRisk(value: RiskAppetite): string {
-  if (value === "conservative") {
-    return "Conservative";
-  }
-
-  if (value === "aggressive") {
-    return "Aggressive";
-  }
-
-  return "Moderate";
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "Not available";
-  }
-
-  return new Date(value).toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-function formatSignedNumber(value: number, digits = 2): string {
-  const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
-  return `${prefix}${Math.abs(value).toFixed(digits)}`;
-}
-
-function formatSignedPercent(value: number): string {
-  return `${formatSignedNumber(value, 2)}%`;
-}
-
-function formatIndexNumber(value: number): string {
-  return value.toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  });
-}
-
-function parseNumberInput(value: string, fallback = 0): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function toHorizonMonths(
-  horizon: DashboardHorizon,
-  customYears: number,
-): number {
-  if (horizon === "1y") {
-    return 12;
-  }
-
-  if (horizon === "2y") {
-    return 24;
-  }
-
-  if (horizon === "3y") {
-    return 36;
-  }
-
-  return Math.max(1, Math.round(customYears)) * 12;
-}
-
-function toHorizonLabel(
-  horizon: DashboardHorizon,
-  customYears: number,
-): string {
-  if (horizon === "1y") {
-    return "1 year";
-  }
-
-  if (horizon === "2y") {
-    return "2 years";
-  }
-
-  if (horizon === "3y") {
-    return "3 years";
-  }
-
-  const normalizedYears = Math.max(1, Math.round(customYears));
-  return `${normalizedYears} year${normalizedYears === 1 ? "" : "s"} (custom)`;
-}
-
-function toneToClassName(tone: KpiDeltaTone): string {
-  if (tone === "positive") {
-    return "text-finance-green";
-  }
-
-  if (tone === "negative") {
-    return "text-finance-red";
-  }
-
-  return "text-finance-muted";
-}
-
-function insightToneToBadgeTone(
-  tone: InsightTone,
-): "neutral" | "success" | "warning" | "critical" | "info" {
-  if (tone === "positive") {
-    return "success";
-  }
-
-  if (tone === "warning") {
-    return "warning";
-  }
-
-  if (tone === "critical") {
-    return "critical";
-  }
-
-  return "neutral";
-}
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -403,176 +155,7 @@ export default function DashboardPage() {
   const [explanation, setExplanation] = useState<AgentExplanationOutput | null>(
     null,
   );
-  const [financialSummary, setFinancialSummary] = useState<{
-    sipOriginal: number;
-    sipUsed: number;
-    maxAllowedSip: number | null;
-    isOverLimit: boolean;
-    utilizationPercent: number;
-    utilization: {
-      type: "range" | "exact";
-      minPercent?: number;
-      maxPercent?: number;
-      exactPercent?: number;
-    };
-    requiredSip: number;
-    projectedCorpus: number;
-    gapAmount: number;
-    goalDeltaPercent: number;
-    userCapacity: number;
-    isFeasible: boolean;
-    goalAmount: number;
-    goalYears: number;
-    // Advisor-quality fields
-    timeHorizon: {
-      band: string;
-      resolvedYears: number;
-      label: string;
-    };
-    expectedReturn: number;
-    assetReturns: {
-      equity: number;
-      debt: number;
-      gold: number;
-      liquid: number;
-    };
-    scenarioSpread: number;
-    scenarioOutcomes: {
-      conservative: number;
-      moderate: number;
-      optimistic: number;
-    };
-    actualOutcome: {
-      withCurrentSip: number;
-      shortfall: number;
-      percentageOfGoal: number;
-    };
-    gapStrategies: Array<{
-      id: string;
-      title: string;
-      description: string;
-      outcome: string;
-      feasibility: "achievable" | "partial" | "stretch";
-      tradeoffs: string[];
-      monthlySip: number;
-      years?: number;
-      projectedCorpus: number;
-    }>;
-    stepUpSuggestion?: {
-      yearlyIncrease: number;
-      finalMonthlySip: number;
-      projectedCorpus: number;
-      vsFixedSip: number;
-    };
-    // Phase 1: Income Utilization
-    utilizationInsight: {
-      level: "low" | "healthy" | "aggressive" | "risky" | "unsustainable";
-      ratio: number;
-      message: string;
-      potential: number | null;
-    };
-    // Phase 10: Action Plan
-    actionPlan: Array<{
-      priority: number;
-      action: string;
-      impact: string;
-      timeframe: string;
-    }>;
-    // Phase 5: Milestone Roadmap
-    milestoneRoadmap: Array<{
-      year: number;
-      projectedValue: number;
-      milestone: string;
-      label?: string;
-    }>;
-    // Phase 11: Behavioral Profile
-    behavioralProfile: {
-      archetype: string;
-      summary: string;
-      insight: string;
-      recommendation: string;
-    };
-    // User profile info
-    userProfile: {
-      income: number;
-      currentSavings: number;
-      investmentCapacity?: number;
-      riskProfile?: "conservative" | "moderate" | "aggressive";
-    };
-    // Allocation — single source of truth from backend
-    allocation?: {
-      equity: number;
-      debt: number;
-      gold: number;
-      liquid: number;
-    };
-    // Decision layer - single source of truth
-    decision: {
-      feasibility: "comfortable" | "tight" | "stretched" | "not_viable";
-      sustainability: "safe" | "aggressive" | "risky" | "unsustainable";
-      incomeUtilization: number;
-      gapAmount: number;
-      likelyCorpus: number;
-      goalAmount: number;
-      timeYears: number;
-      percentageOfGoal: number;
-      gapPercentage?: number;
-      primaryAction?: string;
-      secondaryAction?: string;
-      optionalAction?: string;
-      reasoning?: string;
-      primaryActionType?:
-      | "increase_sip"
-      | "extend_timeline"
-      | "reduce_goal"
-      | "optimize"
-      | "noop";
-      sipBufferPercent?: number;
-      sipBufferLabel?: string;
-      stepUpMode?: "optional" | "recommended";
-      safetyMargin?: number;
-      safetyTier?: "safe" | "tight" | "risky";
-      headerTone?:
-      | "strongly_on_track"
-      | "slightly_short"
-      | "needs_improvement"
-      | "far_off";
-      riskNote?: string;
-    };
-    // Root snapshot fields required by follow-up API
-    goal: any;
-    feasibility: any;
-    // Reality Normalizer outputs
-    goalIntent?: {
-      kind: string;
-      isCorpusGoal: boolean;
-      rawTargetAmount: number;
-      derivedCorpus: number;
-      annualIncomeTarget?: number;
-      taxSavingTarget?: number;
-      termCoverTarget?: number;
-      healthCoverTarget?: number;
-      note?: string;
-      warnings?: string[];
-    };
-    constraints?: {
-      feasibilityVerdict:
-      | "feasible"
-      | "high_risk"
-      | "not_viable"
-      | "extreme_mismatch";
-      tone: string;
-      confidenceTag: string;
-      reasons: string[];
-    };
-    dataQuality: {
-      hasFallbacks: boolean;
-      missingFields: string[];
-      confidence: "high" | "medium" | "low";
-      fallbackCount: number;
-      defaultedFields: string[];
-    };
-  } | null>(null);
+  const [financialSummary, setFinancialSummary] = useState<DashboardFinancialSummary | null>(null);
   const [selectedHorizon, setSelectedHorizon] =
     useState<DashboardHorizon>("1y");
   const [customHorizonYears, setCustomHorizonYears] = useState(5);

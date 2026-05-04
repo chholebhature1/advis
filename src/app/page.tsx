@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { FaInstagram, FaLinkedin, FaYoutube, FaFacebook } from "react-icons/fa";
 import { SocialCard } from "@/components/SocialCard";
+import { socialProfiles } from "@/lib/seo";
 const MiniSparkline = dynamic(() => import("@/components/charts/HomepageCharts").then((mod) => mod.MiniSparkline), {
   ssr: false,
   loading: () => <div className="h-full w-full bg-white/5 animate-pulse rounded-lg" />,
@@ -802,16 +803,16 @@ export default function Home() {
 
                 <div className="mt-8 flex flex-col items-center justify-center gap-3 group/social">
                   <div className="flex items-center gap-4">
-                    <Link href="https://www.instagram.com/pravixwealth/" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                    <Link href={socialProfiles.instagram} target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
                       <FaInstagram className="h-5 w-5" />
                     </Link>
-                    <Link href="https://www.linkedin.com/company/pravix-wealth-management/" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                    <Link href={socialProfiles.linkedin} target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
                       <FaLinkedin className="h-5 w-5" />
                     </Link>
-                    <Link href="https://www.youtube.com/@PRAVIXwealth" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                    <Link href={socialProfiles.youtube} target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
                       <FaYoutube className="h-5 w-5" />
                     </Link>
-                    <Link href="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/" target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
+                    <Link href={socialProfiles.facebook} target="_blank" className="text-white/70 transition-all duration-300 hover:text-white hover:scale-110 hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">
                       <FaFacebook className="h-5 w-5" />
                     </Link>
                   </div>
@@ -1626,7 +1627,7 @@ export default function Home() {
             >
               <SocialCard
                 platform="Instagram"
-                url="https://www.instagram.com/pravixwealth/"
+                url={socialProfiles.instagram}
                 icon={FaInstagram}
                 bio="Daily money insights, reels, and quick financial breakdowns you can actually understand."
                 ctaText="Follow"
@@ -1634,7 +1635,7 @@ export default function Home() {
               />
               <SocialCard
                 platform="LinkedIn"
-                url="https://www.linkedin.com/company/pravix-wealth-management/"
+                url={socialProfiles.linkedin}
                 icon={FaLinkedin}
                 bio="Deep financial strategies, industry insights, and professional wealth-building frameworks."
                 ctaText="Connect"
@@ -1642,7 +1643,7 @@ export default function Home() {
               />
               <SocialCard
                 platform="YouTube"
-                url="https://www.youtube.com/@PRAVIXwealth"
+                url={socialProfiles.youtube}
                 icon={FaYoutube}
                 bio="Step-by-step financial education, portfolio breakdowns, and real investing strategies."
                 ctaText="Subscribe"
@@ -1650,7 +1651,7 @@ export default function Home() {
               />
               <SocialCard
                 platform="Facebook"
-                url="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/"
+                url={socialProfiles.facebook}
                 icon={FaFacebook}
                 bio="Community discussions, updates, and simplified financial learning for everyone."
                 ctaText="Follow"
@@ -1925,16 +1926,16 @@ export default function Home() {
                       <p className="mt-0.5 text-[11px] font-medium text-[#5f7396]">10,000+ investors learning daily</p>
                     </div>
                     <div className="flex items-center gap-2.5">
-                      <Link href="https://www.instagram.com/pravixwealth/" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#E1306C] hover:bg-[#E1306C] hover:shadow-[0_4px_12px_rgba(225,48,108,0.3)]">
+                      <Link href={socialProfiles.instagram} target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#E1306C] hover:bg-[#E1306C] hover:shadow-[0_4px_12px_rgba(225,48,108,0.3)]">
                         <FaInstagram className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
                       </Link>
-                      <Link href="https://www.linkedin.com/company/pravix-wealth-management/" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#0A66C2] hover:bg-[#0A66C2] hover:shadow-[0_4px_12px_rgba(10,102,194,0.3)]">
+                      <Link href={socialProfiles.linkedin} target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#0A66C2] hover:bg-[#0A66C2] hover:shadow-[0_4px_12px_rgba(10,102,194,0.3)]">
                         <FaLinkedin className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
                       </Link>
-                      <Link href="https://www.youtube.com/@PRAVIXwealth" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#FF0000] hover:bg-[#FF0000] hover:shadow-[0_4px_12px_rgba(255,0,0,0.3)]">
+                      <Link href={socialProfiles.youtube} target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#FF0000] hover:bg-[#FF0000] hover:shadow-[0_4px_12px_rgba(255,0,0,0.3)]">
                         <FaYoutube className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
                       </Link>
-                      <Link href="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/" target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#1877F2] hover:bg-[#1877F2] hover:shadow-[0_4px_12px_rgba(24,119,242,0.3)]">
+                      <Link href={socialProfiles.facebook} target="_blank" className="group flex h-8 w-8 items-center justify-center rounded-full border border-[#e2ebff] bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-[#1877F2] hover:bg-[#1877F2] hover:shadow-[0_4px_12px_rgba(24,119,242,0.3)]">
                         <FaFacebook className="h-3.5 w-3.5 text-[#5f7396] transition-colors group-hover:text-white" />
                       </Link>
                     </div>
@@ -2083,10 +2084,10 @@ export default function Home() {
           <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-[#d8e7ff] bg-white px-6 py-5 shadow-[0_8px_24px_rgba(43,92,255,0.06)] md:flex-row md:px-8">
             <p className="text-[15px] font-semibold text-[#0a1930]">Follow Pravix for real-time financial insights <span className="hidden md:inline">→</span></p>
             <div className="flex items-center gap-4">
-              <Link href="https://www.instagram.com/pravixwealth/" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#E1306C]"><FaInstagram className="h-5 w-5" /></Link>
-              <Link href="https://www.linkedin.com/company/pravix-wealth-management/" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#0A66C2]"><FaLinkedin className="h-5 w-5" /></Link>
-              <Link href="https://www.youtube.com/@PRAVIXwealth" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#FF0000]"><FaYoutube className="h-5 w-5" /></Link>
-              <Link href="https://www.facebook.com/people/Pravix-Wealth-Management/61588755566789/" target="_blank" className="text-[#5f7396] transition-colors hover:text-[#1877F2]"><FaFacebook className="h-5 w-5" /></Link>
+              <Link href={socialProfiles.instagram} target="_blank" className="text-[#5f7396] transition-colors hover:text-[#E1306C]"><FaInstagram className="h-5 w-5" /></Link>
+              <Link href={socialProfiles.linkedin} target="_blank" className="text-[#5f7396] transition-colors hover:text-[#0A66C2]"><FaLinkedin className="h-5 w-5" /></Link>
+              <Link href={socialProfiles.youtube} target="_blank" className="text-[#5f7396] transition-colors hover:text-[#FF0000]"><FaYoutube className="h-5 w-5" /></Link>
+              <Link href={socialProfiles.facebook} target="_blank" className="text-[#5f7396] transition-colors hover:text-[#1877F2]"><FaFacebook className="h-5 w-5" /></Link>
             </div>
           </div>
         </motion.div>

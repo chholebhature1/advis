@@ -2,7 +2,19 @@ import type { Metadata, Viewport } from "next";
 import dynamic from "next/dynamic";
 import { Cormorant_Garamond, Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import Footer from "@/components/Footer";
-import { absoluteUrl, defaultOgImage, defaultSeoKeywords, siteDescription, siteName, siteShortName, siteUrl } from "@/lib/seo";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
+import {
+  absoluteUrl,
+  defaultOgImage,
+  defaultSeoKeywords,
+  organizationJsonLd,
+  productJsonLd,
+  siteDescription,
+  siteName,
+  siteTagline,
+  siteUrl,
+  websiteJsonLd,
+} from "@/lib/seo";
 import "./globals.css";
 
 const GlobalFloatingPravixChat = dynamic(() => import("@/components/GlobalFloatingPravixChat"), {
@@ -29,11 +41,15 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: siteName,
   title: {
-    default: "Pravix Wealth Management | Goal-Based Investing",
-    template: "%s | Pravix Wealth Management",
+    default: `${siteName} | ${siteTagline}`,
+    template: `%s | ${siteName}`,
   },
   description: siteDescription,
   keywords: defaultSeoKeywords,
+  authors: [{ name: "Pravix Wealth Management", url: absoluteUrl("/") }],
+  creator: "Pravix Wealth Management",
+  publisher: "Pravix Wealth Management",
+  category: "Finance",
   alternates: {
     canonical: "/",
   },
@@ -42,26 +58,33 @@ export const metadata: Metadata = {
     locale: "en_IN",
     url: absoluteUrl("/"),
     siteName,
-    title: "Pravix Wealth Management | Goal-Based Investing",
+    title: `${siteName} | ${siteTagline}`,
     description: siteDescription,
     images: [
       {
         url: defaultOgImage,
         width: 1200,
         height: 630,
-        alt: "Pravix Wealth Management",
+        alt: `${siteName} — ${siteTagline}`,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pravix Wealth Management | Goal-Based Investing",
+    title: `${siteName} | ${siteTagline}`,
     description: siteDescription,
     images: [defaultOgImage],
   },
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 
@@ -82,24 +105,21 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${jakartaSans.variable} ${geistMono.variable} ${cormorant.variable} antialiased bg-finance-bg text-finance-text min-h-screen flex flex-col font-sans`}
       >
+        <GoogleAnalytics />
+        {/* Organization schema — Google Knowledge Panel */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "WebSite",
-              name: siteName,
-              alternateName: siteShortName,
-              url: absoluteUrl("/"),
-              description: siteDescription,
-              inLanguage: "en-IN",
-              potentialAction: {
-                "@type": "SearchAction",
-                target: `${absoluteUrl("/")}?q={search_term_string}`,
-                "query-input": "required name=search_term_string",
-              },
-            }),
-          }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd()) }}
+        />
+        {/* WebSite schema — sitelinks search box */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
+        />
+        {/* SoftwareApplication schema — product rich result */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd()) }}
         />
         <main className="flex-grow flex flex-col">{children}</main>
         <GlobalFloatingPravixChat />
