@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, MessageCircle, PhoneCall, Send, Sparkles, X } from "lucide-react";
+import { CalendarDays, Lock, MessageCircle, PhoneCall, Send, Sparkles, X } from "lucide-react";
+import QuickConnectButton from "./QuickConnectButton";
+
+const MAX_FREE_QUESTIONS = 3;
 import LoadingSpinner from "./LoadingSpinner";
 import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -71,6 +74,8 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
+  const userMessageCount = messages.filter((m) => m.role === "user").length;
+  const isChatLocked = userMessageCount >= MAX_FREE_QUESTIONS;
 
   useEffect(() => {
     if (!signedIn) {
@@ -174,7 +179,7 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
 
   async function sendMessage(message: string) {
     const next = message.trim();
-    if (!next || isSending) {
+    if (!next || isSending || isChatLocked) {
       return;
     }
 
@@ -302,45 +307,58 @@ export default function FloatingPravixChat({ signedIn, refreshKey }: FloatingPra
                   )}
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {quickSuggestions.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      disabled={isSending || isBootstrapping}
-                      onClick={() => void sendMessage(prompt)}
-                      className="inline-flex min-h-8 items-center rounded-full border border-finance-border bg-white px-3 text-xs font-semibold text-finance-text transition-colors hover:bg-finance-surface disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
+                {!isChatLocked && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {quickSuggestions.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        disabled={isSending || isBootstrapping}
+                        onClick={() => void sendMessage(prompt)}
+                        className="inline-flex min-h-8 items-center rounded-full border border-finance-border bg-white px-3 text-xs font-semibold text-finance-text transition-colors hover:bg-finance-surface disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {error ? <p className="mt-2 text-xs text-finance-red">{error}</p> : null}
 
-                <form
-                  className="mt-3 flex items-center gap-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void sendMessage(input);
-                  }}
-                >
-                  <input
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    disabled={isSending || isBootstrapping}
-                    placeholder="Ask Pravix AI..."
-                    className="h-10 flex-1 rounded-xl border border-finance-border bg-white px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30 disabled:cursor-not-allowed disabled:opacity-70"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSending || isBootstrapping || input.trim().length === 0}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-finance-accent text-white transition-all duration-150 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-                    aria-label="Send message to Pravix AI"
+                {isChatLocked ? (
+                  <div className="mt-3 rounded-xl border border-finance-accent/20 bg-finance-accent/5 p-4 text-center">
+                    <Lock className="mx-auto h-5 w-5 text-finance-accent" />
+                    <p className="mt-2 text-xs font-bold text-finance-text">You&apos;ve used your free questions</p>
+                    <p className="mt-1 text-[11px] text-finance-muted">Connect with an expert for more.</p>
+                    <div className="mt-3 flex justify-center">
+                      <QuickConnectButton variant="accent" />
+                    </div>
+                  </div>
+                ) : (
+                  <form
+                    className="mt-3 flex items-center gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void sendMessage(input);
+                    }}
                   >
-                    {isSending ? <LoadingSpinner /> : <Send className="h-4 w-4" />}
-                  </button>
-                </form>
+                    <input
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      disabled={isSending || isBootstrapping}
+                      placeholder="Ask Pravix AI..."
+                      className="h-10 flex-1 rounded-xl border border-finance-border bg-white px-3 text-sm text-finance-text focus:outline-none focus:ring-2 focus:ring-finance-accent/30 disabled:cursor-not-allowed disabled:opacity-70"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSending || isBootstrapping || input.trim().length === 0}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-finance-accent text-white transition-all duration-150 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                      aria-label="Send message to Pravix AI"
+                    >
+                      {isSending ? <LoadingSpinner /> : <Send className="h-4 w-4" />}
+                    </button>
+                  </form>
+                )}
               </>
             )}
           </div>

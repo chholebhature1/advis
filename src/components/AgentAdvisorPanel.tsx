@@ -1,7 +1,10 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState, useRef } from "react";
-import { AlertCircle, Loader2, Send, Sparkles, ShieldCheck, Target, Cpu } from "lucide-react";
+import { AlertCircle, Loader2, Send, Sparkles, ShieldCheck, Target, Cpu, Lock } from "lucide-react";
+import QuickConnectButton from "./QuickConnectButton";
+
+const MAX_FREE_QUESTIONS = 3;
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AIInsightChips,
@@ -82,6 +85,8 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
   const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const userMessageCount = messages.filter((m) => m.role === "user").length;
+  const isChatLocked = userMessageCount >= MAX_FREE_QUESTIONS;
 
   const getAccessToken = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
@@ -163,7 +168,7 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
 
   async function sendMessage(rawMessage: string) {
     const message = rawMessage.trim();
-    if (!message) {
+    if (!message || isChatLocked) {
       return;
     }
 
@@ -375,39 +380,56 @@ export default function AgentAdvisorPanel({ refreshKey }: AgentAdvisorPanelProps
 
           {/* ── Analytical Input ── */}
           <footer className="p-6 border-t border-finance-border bg-finance-surface/10">
-            <form onSubmit={handleSubmit} className="relative flex items-center gap-3">
-              <div className="flex-1 relative group">
-                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                  <Send className="h-4 w-4 text-finance-muted group-focus-within:text-finance-accent transition-colors" />
+            {isChatLocked ? (
+              <div className="rounded-2xl border border-finance-accent/20 bg-finance-accent/5 p-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-finance-accent/10">
+                  <Lock className="h-5 w-5 text-finance-accent" />
                 </div>
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  disabled={isSending}
-                  placeholder="Execute custom strategy inquiry..."
-                  className="w-full h-14 pl-12 pr-6 rounded-2xl border border-finance-border bg-white text-sm font-semibold text-finance-text outline-none focus:border-finance-accent transition-all placeholder:text-finance-muted/60"
-                />
+                <h4 className="mt-3 text-base font-bold text-finance-text">You&apos;ve used your free questions</h4>
+                <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-finance-muted">
+                  Connect with our wealth experts for detailed, personalized guidance.
+                </p>
+                <div className="mt-4 flex justify-center">
+                  <QuickConnectButton variant="accent" />
+                </div>
               </div>
-              <button
-                type="submit"
-                disabled={isSending || input.trim().length === 0}
-                className="h-14 px-8 rounded-2xl bg-finance-accent text-white text-sm font-black uppercase tracking-widest shadow-lg shadow-finance-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30"
-              >
-                Inquire
-              </button>
-            </form>
-            <div className="mt-4 flex items-center justify-between gap-4">
-              <p className="text-[10px] font-bold text-finance-muted uppercase tracking-widest">
-                Verification Required Prior to Execution
-              </p>
-              {error && (
-                <div className="flex items-center gap-2 text-finance-red text-[10px] font-black uppercase tracking-widest">
-                  <AlertCircle className="h-3 w-3" />
-                  <span>{error}</span>
+            ) : (
+              <>
+                <form onSubmit={handleSubmit} className="relative flex items-center gap-3">
+                  <div className="flex-1 relative group">
+                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                      <Send className="h-4 w-4 text-finance-muted group-focus-within:text-finance-accent transition-colors" />
+                    </div>
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      disabled={isSending}
+                      placeholder="Execute custom strategy inquiry..."
+                      className="w-full h-14 pl-12 pr-6 rounded-2xl border border-finance-border bg-white text-sm font-semibold text-finance-text outline-none focus:border-finance-accent transition-all placeholder:text-finance-muted/60"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSending || input.trim().length === 0}
+                    className="h-14 px-8 rounded-2xl bg-finance-accent text-white text-sm font-black uppercase tracking-widest shadow-lg shadow-finance-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30"
+                  >
+                    Inquire
+                  </button>
+                </form>
+                <div className="mt-4 flex items-center justify-between gap-4">
+                  <p className="text-[10px] font-bold text-finance-muted uppercase tracking-widest">
+                    Verification Required Prior to Execution
+                  </p>
+                  {error && (
+                    <div className="flex items-center gap-2 text-finance-red text-[10px] font-black uppercase tracking-widest">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{error}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </footer>
         </div>
       </div>

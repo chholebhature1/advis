@@ -38,7 +38,9 @@ import {
   ChevronDown,
   ChevronUp,
   MoreHorizontal,
+  Lock,
 } from "lucide-react";
+import QuickConnectButton from "@/components/QuickConnectButton";
 import {
   Area,
   AreaChart,
@@ -185,6 +187,8 @@ export default function DashboardPage() {
   const [isChatExpanded, setIsChatExpanded] = useState(false);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const chatUserMessageCount = chatMessages.filter((m) => m.role === "user").length;
+  const isChatLocked = chatUserMessageCount >= 3;
 
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -205,7 +209,7 @@ export default function DashboardPage() {
   // Send chat message
   const handleSendMessage = useCallback(async () => {
     const trimmedMessage = chatInputValue.trim();
-    if (!trimmedMessage || isChatLoading || !financialSummary || !explanation) return;
+    if (!trimmedMessage || isChatLoading || isChatLocked || !financialSummary || !explanation) return;
 
     const userMessageId = `user-${Date.now()}`;
     const assistantMessageId = `assistant-${Date.now()}`;
@@ -2991,38 +2995,55 @@ export default function DashboardPage() {
                       </motion.div>
                     )}
 
-                    <div className="flex items-end gap-2 rounded-2xl border border-[#dce8ff] bg-white p-2 shadow-[0_4px_20px_rgba(43,92,255,0.06)] focus-within:border-[#2b5cff]/40 focus-within:shadow-[0_4px_25px_rgba(43,92,255,0.12)] transition-all">
-                      <textarea
-                        ref={chatInputRef}
-                        value={chatInputValue}
-                        onChange={handleChatInputChange}
-                        onKeyDown={handleChatKeyDown}
-                        placeholder="Ask about your investments, plan adjustments, or market insights..."
-                        rows={1}
-                        className="min-h-[44px] flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-[#0a1930] placeholder:text-[#5f7396]/60 outline-none"
-                        style={{ maxHeight: "120px" }}
-                      />
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleSendMessage}
-                        disabled={!chatInputValue.trim() || isChatLoading}
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${chatInputValue.trim() && !isChatLoading
-                            ? "bg-gradient-to-br from-[#2b5cff] to-[#7c3aed] text-white shadow-lg shadow-[#2b5cff]/25"
-                            : "bg-[#f4f8ff] text-[#5f7396]"
-                          }`}
-                      >
-                        {isChatLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                      </motion.button>
-                    </div>
+                    {isChatLocked ? (
+                      <div className="rounded-2xl border border-[#d8e7ff] bg-gradient-to-br from-[#f8faff] to-[#f0f5ff] p-6 text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#2b5cff]/10">
+                          <Lock className="h-5 w-5 text-[#2b5cff]" />
+                        </div>
+                        <h4 className="mt-3 text-sm font-bold text-[#0a1930]">You&apos;ve used your free questions</h4>
+                        <p className="mx-auto mt-1.5 max-w-xs text-xs leading-relaxed text-[#5f7396]">
+                          Connect with our wealth experts for detailed, personalized guidance.
+                        </p>
+                        <div className="mt-4 flex justify-center">
+                          <QuickConnectButton variant="accent" />
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-end gap-2 rounded-2xl border border-[#dce8ff] bg-white p-2 shadow-[0_4px_20px_rgba(43,92,255,0.06)] focus-within:border-[#2b5cff]/40 focus-within:shadow-[0_4px_25px_rgba(43,92,255,0.12)] transition-all">
+                          <textarea
+                            ref={chatInputRef}
+                            value={chatInputValue}
+                            onChange={handleChatInputChange}
+                            onKeyDown={handleChatKeyDown}
+                            placeholder="Ask about your investments, plan adjustments, or market insights..."
+                            rows={1}
+                            className="min-h-[44px] flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-[#0a1930] placeholder:text-[#5f7396]/60 outline-none"
+                            style={{ maxHeight: "120px" }}
+                          />
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={handleSendMessage}
+                            disabled={!chatInputValue.trim() || isChatLoading}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all ${chatInputValue.trim() && !isChatLoading
+                                ? "bg-gradient-to-br from-[#2b5cff] to-[#7c3aed] text-white shadow-lg shadow-[#2b5cff]/25"
+                                : "bg-[#f4f8ff] text-[#5f7396]"
+                              }`}
+                          >
+                            {isChatLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Send className="h-4 w-4" />
+                            )}
+                          </motion.button>
+                        </div>
 
-                    <p className="mt-2 text-center text-[10px] text-[#5f7396]/70">
-                      Press Enter to send, Shift + Enter for new line
-                    </p>
+                        <p className="mt-2 text-center text-[10px] text-[#5f7396]/70">
+                          Press Enter to send, Shift + Enter for new line
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               </section>

@@ -2,8 +2,11 @@
 
 import React, { useState } from "react";
 import { FinancialSnapshot, AgentExplanationOutput } from "@/lib/agent/types";
+import QuickConnectButton from "./QuickConnectButton";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, MessageSquare, Loader2, Info, Sparkles, PlusCircle } from "lucide-react";
+import { Send, MessageSquare, Loader2, Info, Sparkles, PlusCircle, Lock } from "lucide-react";
+
+const MAX_FREE_QUESTIONS = 3;
 
 interface FollowUpPanelProps {
   snapshot: FinancialSnapshot;
@@ -18,6 +21,9 @@ export const FollowUpPanel: React.FC<FollowUpPanelProps> = ({
   const [answer, setAnswer] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [questionCount, setQuestionCount] = useState(0);
+
+  const isLocked = questionCount >= MAX_FREE_QUESTIONS;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +44,7 @@ export const FollowUpPanel: React.FC<FollowUpPanelProps> = ({
       if (response.ok) {
         setAnswer(data.answer);
         setQuestion("");
+        setQuestionCount((prev) => prev + 1);
       } else {
         setError(data.error || "Failed to get an answer.");
       }
@@ -74,29 +81,44 @@ export const FollowUpPanel: React.FC<FollowUpPanelProps> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="relative mb-8">
-        <div className="relative overflow-hidden rounded-[1.5rem] border-2 border-[#f0f4ff] bg-[#f8faff] transition-all focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/5">
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="What would you like to know about your plan?"
-            className="w-full bg-transparent py-5 pl-7 pr-20 text-base font-bold text-[#0a1930] placeholder-[#94a3b8] outline-none transition-all"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !question.trim()}
-            className="absolute right-3 top-2.5 flex h-11 w-11 items-center justify-center rounded-[1rem] bg-[#2b5cff] text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-[#1e49d3] active:scale-95 disabled:bg-blue-100"
-          >
-            {isLoading ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <Send size={18} strokeWidth={2.5} />
-            )}
-          </button>
+      {isLocked ? (
+        <div className="relative mb-8 rounded-[2rem] border border-[#e1ebff] bg-gradient-to-br from-[#f8faff] to-[#f0f5ff] p-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#2b5cff]/10">
+            <Lock size={24} className="text-[#2b5cff]" />
+          </div>
+          <h4 className="mt-4 text-lg font-bold text-[#0a1930]">You&apos;ve used your free questions</h4>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#5f7396]">
+            Connect with our wealth experts for detailed, personalized guidance on your financial plan.
+          </p>
+          <div className="mt-5 flex justify-center">
+            <QuickConnectButton variant="accent" />
+          </div>
         </div>
-      </form>
+      ) : (
+        <form onSubmit={handleSubmit} className="relative mb-8">
+          <div className="relative overflow-hidden rounded-[1.5rem] border-2 border-[#f0f4ff] bg-[#f8faff] transition-all focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/5">
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="What would you like to know about your plan?"
+              className="w-full bg-transparent py-5 pl-7 pr-20 text-base font-bold text-[#0a1930] placeholder-[#94a3b8] outline-none transition-all"
+              disabled={isLoading}
+            />
+            <button
+              type="submit"
+              disabled={isLoading || !question.trim()}
+              className="absolute right-3 top-2.5 flex h-11 w-11 items-center justify-center rounded-[1rem] bg-[#2b5cff] text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-[#1e49d3] active:scale-95 disabled:bg-blue-100"
+            >
+              {isLoading ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Send size={18} strokeWidth={2.5} />
+              )}
+            </button>
+          </div>
+        </form>
+      )}
 
       <AnimatePresence mode="wait">
         {error && (
@@ -141,7 +163,7 @@ export const FollowUpPanel: React.FC<FollowUpPanelProps> = ({
         )}
       </AnimatePresence>
 
-      {!answer && !isLoading && !error && (
+      {!isLocked && !answer && !isLoading && !error && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[
             "Why is timeline the issue?",
